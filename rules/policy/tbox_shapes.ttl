@@ -1,0 +1,100 @@
+@prefix : <urn:ontology-agent:shapes#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# =============================================================================
+# T-Box SHACL Shapes (domain-agnostic)
+# =============================================================================
+# 정적 SHACL 제약: 모든 T-Box 클래스/프로퍼티의 기본 메타데이터 검증
+#
+# NOTE: 네임스페이스 스코핑 — 이 Shape는 owl:Class/Property 전체에 적용됨.
+# 도메인 네임스페이스 필터링은 validation.py의 validate_tbox_shacl에서
+# 검증 실행 시 결과를 네임스페이스 기준으로 필터링하여 처리한다.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Shape 1: owl:Class 검증
+# -----------------------------------------------------------------------------
+# 모든 owl:Class는 rdfs:label (한국어/영어)과 rdfs:comment (한국어) 필수
+# label 누락은 Violation (기본), comment 누락은 Warning
+
+:ClassShape a sh:NodeShape ;
+    # Exclude owl:Restriction (structural anonymous classes) and IOF external
+    # imports from the label/comment requirement — only project-namespace
+    # named classes must carry documentation.
+    sh:target [
+        a sh:SPARQLTarget ;
+        sh:prefixes [
+            sh:declare [ sh:prefix "owl" ; sh:namespace "http://www.w3.org/2002/07/owl#"^^xsd:anyURI ] ;
+        ] ;
+        sh:select """
+            SELECT ?this WHERE {
+                ?this a owl:Class .
+                FILTER NOT EXISTS { ?this a owl:Restriction }
+                FILTER(isIRI(?this))
+            }
+        """ ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "owl:Class must have at least one rdfs:label"@en ;
+    ] ;
+    sh:property [
+        sh:path rdfs:comment ;
+        sh:minCount 1 ;
+        sh:severity sh:Warning ;
+        sh:message "owl:Class should have at least one rdfs:comment"@en ;
+    ] .
+
+# -----------------------------------------------------------------------------
+# Shape 2: owl:DatatypeProperty 검증
+# -----------------------------------------------------------------------------
+# 모든 owl:DatatypeProperty는 rdfs:domain, rdfs:range, rdfs:label 필수
+
+:DatatypePropertyShape a sh:NodeShape ;
+    sh:targetClass owl:DatatypeProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "owl:DatatypeProperty must have exactly one rdfs:domain"@en ;
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "owl:DatatypeProperty must have exactly one rdfs:range (xsd type)"@en ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "owl:DatatypeProperty must have rdfs:label"@en ;
+    ] .
+
+# -----------------------------------------------------------------------------
+# Shape 3: owl:ObjectProperty 검증
+# -----------------------------------------------------------------------------
+# 모든 owl:ObjectProperty는 rdfs:domain, rdfs:range, rdfs:label 필수
+
+:ObjectPropertyShape a sh:NodeShape ;
+    sh:targetClass owl:ObjectProperty ;
+    sh:property [
+        sh:path rdfs:domain ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "owl:ObjectProperty must have exactly one rdfs:domain"@en ;
+    ] ;
+    sh:property [
+        sh:path rdfs:range ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "owl:ObjectProperty must have exactly one rdfs:range"@en ;
+    ] ;
+    sh:property [
+        sh:path rdfs:label ;
+        sh:minCount 1 ;
+        sh:message "owl:ObjectProperty must have rdfs:label"@en ;
+    ] .

@@ -1,0 +1,53 @@
+{
+  "_comment": "FK 컬럼명(정규화 후) → 타깃 클래스명 매핑. 다른 산업 적용 시 이 파일만 교체.",
+  "patterns": {
+    "equipmentid": "EquipmentMaster",
+    "itemcode": "ItemMaster",
+    "warehousecode": "WarehouseMaster",
+    "destinationwarehouse": "WarehouseMaster",
+    "originwarehouse": "WarehouseMaster",
+    "tagid": "TagMaster",
+    "productid": "ProductMaster",
+    "supplierid": "SupplierMaster",
+    "energysourceid": "EnergySourceMaster",
+    "pointid": "MonitoringPointMaster",
+    "processstepid": "ManufacturingProcessStep",
+    "processid": "ManufacturingProcessStep",
+    "specificationid": "QualitySpecification",
+    "specid": "QualitySpecification",
+    "failurepatternid": "FailurePattern",
+    "maintenanceid": "MaintenanceHistory",
+    "failurecauseid": "FailureCause",
+    "productionplanid": "ProductionPlan",
+    "orderid": "PurchaseOrder"
+  },
+  "suffix_rules": [
+    {
+      "suffix": "id",
+      "template": "{base}Master",
+      "_comment": "예: equipmentid → base='equipment' → EquipmentMaster"
+    },
+    {
+      "suffix": "no",
+      "template": "{base}Master",
+      "_comment": "예: referenceno → base='reference' → ReferenceMaster. Reference_No, Vehicle_No 같은 식별자 컬럼 대응"
+    },
+    {
+      "suffix": "ref",
+      "template": "{base}Master",
+      "_comment": "예: supplierref → base='supplier' → SupplierMaster"
+    }
+  ],
+
+  "_canonical_masters_comment": "P2a (2026-05-11) — canonical master CSV 를 declarative 선언. 선언된 class 는 resolve_entity_references 리포트에서 discovered (master_data.ttl) 와 대조되어 불일치 시 warning. 금융/의료 등 *_Master 관례가 없는 도메인에서 명시화. 섹션 비어 있으면 기존 dynamic discovery 만 사용 (backward compat).",
+  "canonical_masters": {
+    "EquipmentMaster": {"master_csv": "Equipment_Master", "pk_column": "Equipment_ID"},
+    "ProductMaster": {"master_csv": "Product_Master", "pk_column": "Product_ID"},
+    "TagMaster": {"master_csv": "Tag_Master", "pk_column": "Tag_ID"},
+    "SupplierMaster": {"master_csv": "Supplier_Master", "pk_column": "Supplier_ID"},
+    "ItemMaster": {"master_csv": "Item_Master", "pk_column": "Item_Code"},
+    "WarehouseMaster": {"master_csv": "Warehouse_Master", "pk_column": "Warehouse_Code"},
+    "MonitoringPointMaster": {"master_csv": "Monitoring_Point_Master", "pk_column": "Point_ID"},
+    "EnergySourceMaster": {"master_csv": "Energy_Source_Master", "pk_column": "Energy_Source_ID"}
+  }
+}

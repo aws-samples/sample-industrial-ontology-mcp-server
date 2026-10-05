@@ -1,0 +1,69 @@
+{
+  "_comment": "owl:propertyChainAxiom 선언. 각 항목은 target ObjectProperty 와 그것을 함의하는 chain(순서 있는 OP 목록)을 지정. Step 29 (improve_tbox_quality) 에서 chain 의 모든 세그먼트가 ObjectProperty 로 선언되어 있을 때만 주입된다.",
+  "_design_notes": [
+    "철강 제조 도메인의 cross-reference 를 2-hop chain 으로 표현. target OP 가 이미 T-Box 에 있어야 주입됨 (graceful degrade).",
+    "chain 이 길어질수록 reasoner 부하가 커지므로 실제 질의에 의미 있는 2-hop 으로 제한.",
+    "도메인 변경 시 이 파일만 교체. 존재하지 않는 property 는 자동으로 skip.",
+    "⚠️ 세그먼트 이름은 **실제 T-Box OP 이름** 이어야 한다. step_29 는 부재 시 조용히 skip 하므로(설계상 graceful) 낡은 이름이 남아도 에러가 나지 않는다 — 2026-08-25 실측: 7 chain × 2 세그먼트 = 14개 전부 T-Box 에 없어 chains_added 가 영구히 0 이었고, 엔테일먼트 회귀 2건(axiom-propertychain-exists / axiom-process-chain-exists)이 그 침묵의 유일한 신호였다. 세그먼트를 추가/변경하면 `grep -c 'steel:<이름> a owl:ObjectProperty' data/generated/tbox/t_box.ttl` 로 존재를 확인하라.",
+    "실익 판정도 함께 하라: 세그먼트가 T-Box 에 선언돼 있어도 A-Box·tacit 이 그것을 채우지 않으면 chain 주입은 파생 트리플 0 이다 (예: productionResultHasPlan 선언 O / A-Box 0건).",
+    "🚨 **S8 기본 추론기는 이 공리를 실행하지 않는다** (2026-08-25 최소 재현으로 확정). reasonable 은 OWL 2 **RL** 이고 propertyChainAxiom 은 RL 프로파일 밖(prp-spo2 미지원)이다. `a-p->b, b-q->c, r ← p∘q` 를 넣고 reason() 을 돌리면 `a-r->c` 파생이 **0건**. 따라서 chain 을 주입해도 all_inferred.ttl 에는 공리만 실리고 트리플은 늘지 않는다 — hasSupplierMapping 은 손 조인으로는 172 쌍이 나오지만 실제 추론 산출물은 0건이다.",
+    "그래서 chain 은 현재 **선언적 문서화 + DL 추론기용 자산** 이다. 실제 파생이 필요하면 (a) SWRL_ENABLED=true 로 Pellet 경유(S8.5), (b) GraphDB owl2-rl-optimized 대신 DL 프로파일 사용, (c) chain 을 SPARQL CONSTRUCT 로 명시 구체화 중 하나를 택해야 한다. 어느 쪽도 켜지 않은 상태에서 'chain 을 넣었으니 질의가 답한다' 고 가정하지 말 것 — 엔테일먼트 픽스처는 공리 **존재** 만 ASK 하므로 통과해도 파생을 보증하지 않는다."
+  ],
+  "chains": [
+    {
+      "property": "hasSupplierMapping",
+      "chain": ["inventoryStatusHasItem", "isItemOfSupplierMap"],
+      "_note": "InventoryStatus → ItemMaster → ItemSupplierMap. 재고 → 품목 → 공급사 매핑 추적. 2026-08-25 세그먼트 이름 교정 (hasItem/isItemSupplierMapOf 는 T-Box 에 없던 이름). 실측 파생 172 트리플 — 이전엔 hasSupplierMapping 자체가 A-Box 0건 phantom 이었다. 두 번째 홉 isItemOfSupplierMap 은 tbox_manual_additions.ttl 이 선언한다.",
+      "declare_target": {
+        "domain": "InventoryStatus",
+        "range": "ItemSupplierMap",
+        "label_en": "has supplier mapping",
+        "label_ko": "공급사 매핑을 가진다",
+        "comment_ko": "재고 상태에서 품목의 공급사 매핑으로의 2-hop 추론 관계",
+        "inverse": "isSupplierMappingOf"
+      }
+    }
+  ],
+  "_retired_2026_08_25": {
+    "_why": "아래 6건은 두 번째 홉을 잇는 ObjectProperty 가 T-Box 에 **실재하지 않아** chain 이 성립할 수 없다. 이름만 바꿔서 되살릴 수 없고, 그 관계를 잇는 OP 를 먼저 만들어야 한다 (CSV FK 근거가 있으면 step_15 가 자동 생성하고, 도메인 지식이면 tbox_manual_additions.ttl 에 명시). 삭제하지 않고 남기는 이유는 필요한 OP 가 생겼을 때 의도를 복원할 수 있게 하려는 것이다 — chains 배열에서 빼 두면 step_29 가 읽지 않으므로 무의미한 skip 로그도 사라진다.",
+    "_how_to_revive": "필요한 hop2 OP 가 T-Box 에 생기면 해당 항목을 chains 배열로 옮기고 세그먼트를 실제 이름으로 적어라. 옮긴 뒤 improve_tbox_quality 를 돌려 chains_added 가 증가하는지, 그리고 추론 후 target OP 트리플이 실제로 늘어나는지 **산출물로** 확인할 것.",
+    "entries": [
+      {
+        "property": "producedOnEquipment",
+        "chain": ["productionResultHasPlan", "productionPlanHasEquipment"],
+        "_status": "세그먼트는 둘 다 T-Box 에 있으나 첫 홉 productionResultHasPlan 이 A-Box 0건 — 주입해도 파생 0. Production_Result CSV 에 Plan_ID FK 가 확보되면 실익이 생긴다.",
+        "_note": "ProductionResult → ProductionPlan → EquipmentMaster. Result → plan → equipment 추적."
+      },
+      {
+        "property": "scheduledOnEquipment",
+        "chain": ["isPlanForProduct", "?ProductMaster→EquipmentMaster"],
+        "_status": "hop2 부재 — ProductMaster → EquipmentMaster 를 잇는 OP 가 없다 (역방향 equipmentProducesProduct 는 이번 S2 에서 phantom 으로 제거됨).",
+        "_note": "ProductionPlan → ProductMaster → EquipmentMaster. Plan → product → producing equipment."
+      },
+      {
+        "property": "hasItemMaster",
+        "chain": ["?InventoryTransaction→PurchaseOrder", "purchaseOrderHasItem"],
+        "_status": "hop1 부재 — InventoryTransaction → PurchaseOrder 를 잇는 OP 가 없다. Inventory_Transaction.Reference_No 가 발주번호를 담지만 FK 로 선언돼 있지 않다.",
+        "_note": "InventoryTransaction → PurchaseOrder → ItemMaster. Transaction → PO → item 추적."
+      },
+      {
+        "property": "triggersAlarm",
+        "chain": ["tagEquipment", "?EquipmentMaster→AlarmEvents"],
+        "_status": "hop2 부재 — EquipmentMaster → AlarmEvents 를 잇는 OP 가 없다. Alarm_Events 는 Tag_ID 만 갖고 Equipment_ID 가 없어 CSV FK 근거도 없다 (설비는 TagMaster 경유로만 도달).",
+        "_note": "TagMaster → EquipmentMaster → AlarmEvents. 센서 태그 → 설비 → 경보 추적. 참고: TagMaster → AlarmEvents 직접 경로는 isAlarmTagOf 로 이미 존재한다."
+      },
+      {
+        "property": "hasInspectionEquipment",
+        "chain": ["hasWaterMonitoringPoint", "?MonitoringPointMaster→EquipmentMaster"],
+        "_status": "hop2 부재 — MonitoringPointMaster → EquipmentMaster 를 잇는 OP 가 없다 (Monitoring_Point_Master 에 Equipment_ID 컬럼 없음). target 자체는 tacit 이 co-location 으로 5,580 트리플 채우므로 chain 없이도 동작한다.",
+        "_note": "WaterQualityMonitoring → MonitoringPointMaster → EquipmentMaster."
+      },
+      {
+        "property": "soilImpactsEquipment",
+        "chain": ["soilMonitoringHasPoint", "?MonitoringPointMaster→EquipmentMaster"],
+        "_status": "hop2 부재 — 위와 같은 이유. target 은 tacit 이 hasSoilImpact 로 4,128 트리플 채운다.",
+        "_note": "SoilMonitoring → MonitoringPointMaster → EquipmentMaster."
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "max_tokens": 32000,
+  "max_retries": 2,
+  "max_correction_rounds": 2,
+  "per_column_tokens": 140,
+  "per_table_tokens": 800,
+  "token_budget_ratio": 0.35
+}

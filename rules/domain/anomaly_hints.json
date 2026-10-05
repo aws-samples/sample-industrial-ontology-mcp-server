@@ -1,0 +1,13 @@
+{
+  "$schema_note": "Architect/Multi-agent T-Box 생성 시 참조할 과거 이상 이력 힌트. SME 가 사전에 정리해 known_anomalies 배열에 등록. 비어 있어도 파이프라인은 정상 동작.",
+  "known_anomalies": [],
+  "example": {
+    "domain_class": "EquipmentMaster",
+    "pattern": "동일 설비에 대해 5초 이내 알람 100건 초과",
+    "recommended_schema": {
+      "add_class": "AlarmBurstEvent",
+      "add_op": ["generatedBy(AlarmBurstEvent→EquipmentMaster)"],
+      "rationale": "알람 burst를 별도 이벤트 클래스로 격리하여 '설비 X의 24h 내 burst 횟수' 쿼리 가능"
+    }
+  }
+}

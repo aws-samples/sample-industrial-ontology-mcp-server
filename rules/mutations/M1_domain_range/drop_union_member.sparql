@@ -1,0 +1,15 @@
+# Drops the first member of an owl:unionOf domain list on ?TARGET_PROP.
+# Only ?TARGET_PROP is a runner placeholder; the other ?vars are WHERE-bound
+# locally and rdflib traversal order determines which member is dropped.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+DELETE { ?cons rdf:first ?member .
+         ?cons rdf:rest  ?rest .
+         ?prev ?pprev ?cons . }
+INSERT { ?prev ?pprev ?rest . }
+WHERE  { ?TARGET_PROP rdfs:domain ?b . ?b owl:unionOf ?cons .
+         ?cons rdf:first ?member ; rdf:rest ?rest .
+         ?prev ?pprev ?cons .
+         FILTER (?pprev IN (rdf:rest, owl:unionOf)) }

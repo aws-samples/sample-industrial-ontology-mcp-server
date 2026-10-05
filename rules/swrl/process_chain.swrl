@@ -1,0 +1,6 @@
+# I4 SWRL rule — 2-hop process chain derivation
+# 규칙: followedBy 가 2번 이어지면 chainedTo 로 transitive 관계를 명시.
+#       (OWL transitive property 는 모든 길이를 표현하지만 "정확히 2-hop" 은
+#        SWRL 이 필요.)
+
+chain_2hop: steel:followedBy(?p1, ?p2) ^ steel:followedBy(?p2, ?p3) -> steel:chainedTo(?p1, ?p3)

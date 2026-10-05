@@ -1,0 +1,14 @@
+# I4 SWRL rule — quality spec violation
+# 규칙: ChemicalAnalysis 의 대상 제품이 SS400 등급이고 carbonContentPercent > 0.08 →
+#       해당 ChemicalAnalysis 를 steel:QualityViolation 으로 분류.
+#
+# swrlb:greaterThan 빌트인 (W3C SWRL Built-Ins 3.2).
+#
+# 2026-08-28: Path B (class-specific DP) 전환으로 낡은 이름 3개를 교체했다. 이전
+# 버전은 T-Box 에 없는 이름을 참조해 set_as_rule 이 거부했다 (규칙 로드 0건):
+#
+#   carbonContentPercent  → chemicalAnalysisCarbonPercent  (domain=ChemicalAnalysis, range=decimal)
+#   isChemicalAnalysisOf  → hasChemicalAnalysisProduct     (ChemicalAnalysis → ProductMaster)
+#   steelGrade            → productMasterSteelGrade        (domain=ProductMaster)
+
+quality_ss400_carbon_over: steel:ChemicalAnalysis(?c) ^ steel:chemicalAnalysisCarbonPercent(?c, ?v) ^ greaterThan(?v, 0.08) ^ steel:hasChemicalAnalysisProduct(?c, ?p) ^ steel:productMasterSteelGrade(?p, "SS400") -> steel:QualityViolation(?c)

@@ -1,0 +1,31 @@
+@prefix : <http://example.com/steel-ontology#> .
+@prefix steel: <http://example.com/steel-ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<http://example.com/steel-ontology> a owl:Ontology ;
+    rdfs:comment "I4 — SWRL 규칙이 머리에서 만들어내는 파생 클래스/프로퍼티 선언."@ko .
+
+# --- I4 파생 클래스: SWRL rule head 에서 derive 되는 클래스들 ---
+
+steel:PotentialFailure a owl:Class ;
+    rdfs:label "Potential Failure"@en, "잠재 고장"@ko ;
+    rdfs:comment "알람이 반복 발생한 설비에 대해 SWRL 규칙이 부여하는 예측 분류."@ko ;
+    rdfs:subClassOf steel:EquipmentMaster .
+
+steel:QualityViolation a owl:Class ;
+    rdfs:label "Quality Violation"@en, "품질 규격 위반"@ko ;
+    rdfs:comment "스펙 (예: SS400 탄소 상한) 을 넘는 측정값에 부여되는 분류."@ko ;
+    rdfs:subClassOf steel:ChemicalAnalysis .
+
+# --- I4 파생 프로퍼티: SWRL rule head 에서 derive 되는 관계 ---
+
+steel:followedBy a owl:ObjectProperty ;
+    rdfs:label "followed by"@en, "다음 공정"@ko ;
+    rdfs:comment "공정 흐름의 순차 관계. 고로→제강→연주→압연 같은 체인을 표현."@ko .
+
+steel:chainedTo a owl:ObjectProperty ;
+    rdfs:label "chained to"@en, "연쇄됨"@ko ;
+    rdfs:comment "followedBy 의 2-hop 추이 연결 — SWRL 로 명시적 유도."@ko .

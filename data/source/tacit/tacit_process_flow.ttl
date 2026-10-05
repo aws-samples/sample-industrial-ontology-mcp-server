@@ -1,0 +1,44 @@
+@prefix steel: <http://example.com/steel-ontology#> .
+@prefix steel-inst: <http://example.com/steel-ontology/instances#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ============================================================
+# 철강 제조 공정 흐름 체인 — 클래스 수준 선언 (총 7 트리플)
+# steel:followedBy ObjectProperty 로 공정 순서를 표현
+# 추론기가 인스턴스 타입과 결합하여 공정 흐름 질의에 활용 가능
+# ============================================================
+
+# --- ManufacturingProcessStep 서브클래스 타입 선언 (4 트리플) ---
+
+steel:ProcessBlastFurnace
+    rdf:type steel:ManufacturingProcessStep ;
+    rdfs:label "고로 공정"@ko , "Blast Furnace Process"@en ;
+    rdfs:comment "철광석과 코크스를 용융하여 선철을 생산하는 고로 공정 단계"@ko .
+
+steel:ProcessSteelmakingFurnace
+    rdf:type steel:ManufacturingProcessStep ;
+    rdfs:label "제강 공정"@ko , "Steelmaking Furnace Process"@en ;
+    rdfs:comment "고로에서 생산된 선철을 정련하여 강을 생산하는 제강 공정 단계"@ko .
+
+steel:ProcessContinuousCasting
+    rdf:type steel:ManufacturingProcessStep ;
+    rdfs:label "연속 주조 공정"@ko , "Continuous Casting Process"@en ;
+    rdfs:comment "제강에서 생산된 용강을 슬라브·블룸·빌릿 등으로 연속 주조하는 공정 단계"@ko .
+
+steel:ProcessRolling
+    rdf:type steel:ManufacturingProcessStep ;
+    rdfs:label "압연 공정"@ko , "Rolling Process"@en ;
+    rdfs:comment "연속 주조재를 압연하여 최종 판재·형강 등을 생산하는 공정 단계"@ko .
+
+# --- 공정 흐름 체인 선언 (3 트리플) ---
+
+steel:ProcessBlastFurnace
+    steel:followedBy steel:ProcessSteelmakingFurnace .
+
+steel:ProcessSteelmakingFurnace
+    steel:followedBy steel:ProcessContinuousCasting .
+
+steel:ProcessContinuousCasting
+    steel:followedBy steel:ProcessRolling .

@@ -1,0 +1,53 @@
+{
+  "_comment": "도메인-중립 예시 템플릿. 새 프로젝트에서 rules/domain/domain_config.json 으로 복사한 뒤 자기 도메인(제조/금융/의료 등)에 맞게 수정하세요. 또는 DOMAIN_CONFIG_PATH 환경변수로 다른 위치를 지정할 수 있습니다.",
+  "domain": {
+    "name": "Example Enterprise Ontology",
+    "name_ko": "예시 엔터프라이즈 온톨로지",
+    "industry": "general",
+    "industry_ko": "일반",
+    "description_en": "Domain ontology template. Replace classes/properties for your industry (manufacturing, finance, healthcare, etc.).",
+    "description_ko": "도메인 온톨로지 템플릿. 산업(제조/금융/의료 등)에 맞게 클래스와 프로퍼티를 교체하세요."
+  },
+  "namespace": {
+    "ontology_uri": "https://example.org/ontology",
+    "class_ns": "https://example.org/ontology#",
+    "instance_ns": "https://example.org/ontology/instances#",
+    "prefix": "ex",
+    "instance_prefix": "ex-inst"
+  },
+  "metadata": {
+    "version": "0.1.0",
+    "creator": "Your Organization",
+    "license": "https://spdx.org/licenses/MIT-0.html",
+    "_license_note": "MIT-0은 FAIR gate를 유지하기 위한 기본값입니다. 채택자는 자기 온톨로지의 실제 라이선스 URI로 교체하세요."
+  },
+  "upper_ontology": {
+    "framework": "IOF/BFO",
+    "imports": [
+      "https://spec.industrialontologies.org/ontology/core/Core/"
+    ]
+  },
+  "sparql_variable_names": {
+    "entity": "?entity",
+    "count": "?count",
+    "class": "?class",
+    "parent": "?parent"
+  },
+  "validation": {
+    "catalog_classes": [],
+    "_catalog_rationale": "Reference catalog 성격 클래스 (코드 테이블). 전체 엔트리 중 실제 사용 비율이 낮은 게 자연스러움. closed-world master orphan 검증에서 catalog tier (기본 85%) 적용."
+  },
+  "fk_fuzzy_match": {
+    "normalized": true,
+    "levenshtein": false,
+    "prefix": false,
+    "_comment": "A-Box 생성 시 FK value 4단계 fallback 매칭 (exact → normalized → levenshtein → prefix). normalized (기본 ON) 는 하이픈/언더스코어/도트/공백/대소문자 차이를 안전하게 흡수해 ERP/SAP/Excel exports 의 ID 포맷 불일치를 자동 복원. levenshtein (edit distance ≤ 1) 과 prefix (모호하지 않은 prefix 일치) 는 false positive 우려로 opt-in. 매칭률이 낮으면 levenshtein=true 로 시험 후 generate_abox 응답의 fk_match_stats 로 단계별 히트 수 확인."
+  },
+  "lpg": {
+    "_comment": "convert_rdf_to_lpg (RDF → Neo4j LPG) 변환 옵션. canonical_inverses 는 owl:inverseOf 쌍 중 어느 방향을 LPG 관계로 유지할지 SME 가 명시. 미선언 쌍은 알파벳순 min() 으로 fallback. 예: hasOperator/operatedBy 처럼 의미상 active 방향이 명확할 때 사용.",
+    "canonical_inverses": [
+      {"keep": "hasOperator", "drop": "operatedBy"},
+      {"keep": "hasParent", "drop": "isParentOf"}
+    ]
+  }
+}

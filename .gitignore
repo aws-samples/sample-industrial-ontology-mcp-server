@@ -1,0 +1,64 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+data/generated/
+data/external/
+.mcp.json
+.coverage
+rules/**/tacit_rules.suggested.json
+
+# Capstone outputs (per-participant artifacts; TEMPLATE.md remains tracked)
+workshop/capstone-outputs/*
+!workshop/capstone-outputs/TEMPLATE.md
+
+# ── Customer-specific configuration (never commit) ───────────────────────
+# The pipeline is domain-neutral: it reads *what* to process from rules/, and a
+# customer deployment fills these with its own database schema, column codes,
+# master code values and SME business rules. Those are the customer's asset —
+# once pushed they stay in git history even if the file is deleted later.
+#
+# The files below exist only in a customer deployment; the repo ships no
+# neutral counterpart, so they are ignored outright.
+# 패턴은 ``rules/**/`` 로 쓴다. rules/ 는 domain/ policy/ contracts/ 하위 폴더로
+# 나뉘어 있어 평평한 ``rules/<name>.json`` 패턴은 하위 폴더의 파일을 무시하지 못한다.
+# 패턴을 추가하면 ``git check-ignore -v rules/domain/<name>.json`` 으로 적용을 확인한다.
+rules/**/ddl_schema.json
+rules/**/dimension_config.json
+rules/**/column_dictionary.json
+rules/**/code_meanings.json
+rules/**/canonical_hints.json
+rules/**/std_item_metadata.json
+rules/**/sme_business_rules.json
+rules/**/korean_synonyms.json
+rules/**/user_term_dictionary.json
+rules/**/*.bak_*
+rules/**/*.suggested.json
+
+# The remaining rules/*.json ARE tracked, holding domain-neutral defaults
+# (example.com namespace, sample tables) that the server needs to boot at all —
+# domain/namespaces.py raises without rules/domain/domain_config.json. A deployment
+# overwrites them locally; run
+#     git update-index --skip-worktree rules/<category>/<file>
+# so those local edits can never be staged. Ignore rules and skip-worktree cover
+# only the files named here, so review ``git diff --cached`` for customer values
+# before each commit.
+
+# Customer inputs and staged artifacts.
+#
+# Customer-authored domain docs live under docs/examples/ alongside the tracked
+# neutral samples, so they are ignored by a naming convention rather than by
+# customer name: prefix such files ``customer-`` (``docs/examples/customer-erd.md``).
+# Naming the customer here would put its identity in a tracked file — the exact
+# thing this repo's neutrality guarantee rules out.
+data/source/query_tests/golden_sql/
+data/source/master/
+docs/sme/
+docs/examples/customer-*
+
+# Local-only Kiro CLI workspace (개인 컨텍스트, git 추적 제외)
+.kiro/
+
+# Session handoff (민감 정보 포함 — 딜/계정/이메일, git 추적 제외)
+HANDOFF.md

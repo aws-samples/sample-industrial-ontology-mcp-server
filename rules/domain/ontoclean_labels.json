@@ -1,0 +1,72 @@
+{
+  "description": "OntoClean meta-property labels for core classes (Guarino & Welty 2002, 2009).",
+  "reference": "https://doi.org/10.1016/S0169-023X(02)00138-5",
+  "axes": {
+    "rigidity": {
+      "+R": "Essential/rigid — necessarily holds for every instance throughout its life.",
+      "-R": "Anti-rigid — instance can cease to belong without ceasing to exist (e.g. Role, State).",
+      "~R": "Non-rigid/semi-rigid — may or may not hold."
+    },
+    "unity": {
+      "+U": "Has a unity criterion — every instance is an integrated whole.",
+      "-U": "No unity criterion — composed of parts not bound by a single relation."
+    },
+    "identity": {
+      "+I": "Supplies identity criterion for its instances (e.g. primary key).",
+      "-I": "Inherits identity from another class; does not supply its own."
+    },
+    "dependence": {
+      "+D": "Externally dependent — requires another entity to exist.",
+      "-D": "Independent."
+    }
+  },
+  "rules_c1_c3": {
+    "C1": "-R class cannot have +R subclass (anti-rigid cannot subsume rigid).",
+    "C2": "Classes with different unity criteria cannot be in subClassOf relation.",
+    "C3": "Subclass must inherit the identity criterion of its parent."
+  },
+  "class_labels": {
+    "EquipmentMaster":       {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "equipmentId", "dependence": "-D"},
+    "TagMaster":             {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "tagId",       "dependence": "-D"},
+    "EquipmentStatus":       {"rigidity": "-R", "unity": "-U", "identity": "-I", "dependence": "+D"},
+    "AlarmEvents":           {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "alarmId",     "dependence": "+D"},
+    "MaintenanceHistory":    {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "maintenanceId","dependence": "+D"},
+    "FailureCause":          {"rigidity": "+R", "unity": "-U", "identity": "-I", "dependence": "+D"},
+
+    "ProductMaster":         {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "productId",   "dependence": "-D"},
+    "ProductionPlan":        {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "planId",      "dependence": "-D"},
+    "ProductionResult":      {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "resultId",    "dependence": "+D"},
+
+    "ItemMaster":            {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "itemCode",    "dependence": "-D"},
+    "SupplierMaster":        {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "supplierId",  "dependence": "-D"},
+    "WarehouseMaster":       {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "warehouseId", "dependence": "-D"},
+    "PurchaseOrder":         {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "poNumber",    "dependence": "+D"},
+
+    "ChemicalAnalysis":      {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "sampleId",    "dependence": "+D"},
+    "MechanicalProperties":  {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "sampleId",    "dependence": "+D"},
+    "DimensionalData":       {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "measurementId","dependence": "+D"},
+    "NDTResults":            {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "ndtId",       "dependence": "+D"},
+    "SurfaceQuality":        {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "inspectionId","dependence": "+D"},
+
+    "GHGEmission":           {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "emissionId",  "dependence": "+D"},
+    "FuelConsumption":       {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "consumptionId","dependence": "+D"},
+    "ElectricalConsumption": {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "consumptionId","dependence": "+D"},
+
+    "Shift":                 {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "shiftCode",   "dependence": "-D"},
+    "QualitySpecification":  {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "specId",      "dependence": "-D"},
+    "OperationalRule":       {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "ruleId",      "dependence": "-D"},
+
+    "EquipmentAsset":        {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "assetId",       "dependence": "-D", "note": "Continuant parent — provides assetId identity for Master/Tag children"},
+    "EquipmentEvent":        {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "eventId",       "dependence": "+D", "note": "Process-rigid: every event has eventId. -R 은 status (EquipmentStatus) 만 적용"},
+    "MaterialProperty":      {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "sampleId",      "dependence": "+D", "note": "Property measured on sample — sampleId 식별"},
+    "ProductInspection":     {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "inspectionId",  "dependence": "+D", "note": "Inspection event — inspectionId 식별"},
+    "EnergyConsumption":     {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "consumptionId", "dependence": "+D", "note": "Consumption event"},
+    "EnergyInfrastructure":  {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "infraId",       "dependence": "-D", "note": "Continuant: energy source infrastructure"},
+    "SupplyChainMaster":     {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "masterId",      "dependence": "-D", "note": "Master data continuant"},
+    "SupplyChainTransaction":{"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "txnId",         "dependence": "+D", "note": "Business transaction event"},
+    "SupplyChainMapping":    {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "mappingId",     "dependence": "+D", "note": "Relational mapping record"},
+    "AtmosphericMonitoring": {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "monitoringId",  "dependence": "+D"},
+    "LandWaterMonitoring":   {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "monitoringId",  "dependence": "+D"},
+    "WasteNoiseMonitoring":  {"rigidity": "+R", "unity": "+U", "identity": "+I", "identity_by": "monitoringId",  "dependence": "+D"}
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "ontology-agent": {
+      "command": "/ABSOLUTE/PATH/TO/ontology-agent/venv/bin/python",
+      "args": ["/ABSOLUTE/PATH/TO/ontology-agent/server.py"],
+      "env": {
+        "DOTENV_PATH": "/ABSOLUTE/PATH/TO/ontology-agent/.env"
+      }
+    }
+  }
+}

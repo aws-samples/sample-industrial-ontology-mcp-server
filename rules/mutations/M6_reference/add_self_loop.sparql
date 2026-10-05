@@ -1,0 +1,7 @@
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+DELETE { ?TARGET_PROP rdfs:range ?origR ; rdfs:domain ?origD }
+INSERT { ?TARGET_PROP rdfs:range ?origD ; rdfs:domain ?origD }
+WHERE  { ?TARGET_PROP a owl:ObjectProperty ;
+                      rdfs:domain ?origD ; rdfs:range ?origR .
+         FILTER (?origD != ?origR && !isBlank(?origD) && !isBlank(?origR)) }

@@ -1,0 +1,2530 @@
+{
+  "entities": {
+    "Core": [
+      {
+        "name": "ActionSpecification",
+        "label": "action specification",
+        "description_en": "information content entity that prescribes what participants shall do in a process",
+        "description_ko": "작업 명세",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "hasStep",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "Agent",
+        "label": "agent",
+        "description_en": "person, group of persons, or engineered system with an agent role",
+        "description_ko": "행위 주체 (사람/기계)",
+        "parents": [],
+        "properties": [
+          "holds",
+          "hasRole",
+          "recognizesAtSomeTime",
+          "agentIn",
+          "hasCapability",
+          "performsProcess"
+        ]
+      },
+      {
+        "name": "AgentRole",
+        "label": "agent role",
+        "description_en": "role that someone or something has when they act on behalf of a person, engineered system or a group of agents",
+        "description_ko": "에이전트 역할",
+        "parents": [],
+        "properties": [
+          "actsOnBehalfOfAtSomeTime",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Agreement",
+        "label": "agreement",
+        "description_en": "understanding between two or more parties that contains a set of commitments on the part of the parties",
+        "description_ko": "계약/합의",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "hasContinuantPartAtAllTimes",
+          "hasTerms",
+          "hasEffectiveDate",
+          "hasParty"
+        ]
+      },
+      {
+        "name": "Algorithm",
+        "label": "algorithm",
+        "description_en": "information content entity that prescribes procedural or declarative steps which can be translated to computer interpretable instructions",
+        "description_ko": "알고리즘",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "Assembly",
+        "label": "assembly",
+        "description_en": "material artifact that is composed of material components that are physically connected and that is capable of disassembly",
+        "description_ko": "조립품",
+        "parents": [
+          "MaterialArtifact"
+        ],
+        "properties": [
+          "hasComponent",
+          "assembledBy",
+          "isSpecifiedOutputOf",
+          "componentPartOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "AssemblyProcess",
+        "label": "assembly process",
+        "description_en": "manufacturing process in which a number of material components are physically connected to each other to form an assembly",
+        "description_ko": "조립 공정",
+        "parents": [
+          "ManufacturingProcess"
+        ],
+        "properties": [
+          "isInputOf",
+          "hasSpecifiedOutput",
+          "hasInput",
+          "usesComponent",
+          "hasComponentPartAtAllTimes",
+          "assembles"
+        ]
+      },
+      {
+        "name": "BusinessFunction",
+        "label": "business function",
+        "description_en": "function of an organization to partake in for profit activities as prescribed by the objectives specified by that organization",
+        "description_ko": "비즈니스 기능",
+        "parents": [],
+        "properties": [
+          "genericallyDependsOnAtSomeTime",
+          "hasRealization",
+          "functionOf",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "BusinessOrganization",
+        "label": "business organization",
+        "description_en": "organization engaging in or planning to engage in any activity of buying and selling goods or services for a profit",
+        "description_ko": "사업 조직",
+        "parents": [
+          "Organization"
+        ],
+        "properties": [
+          "hasFunction",
+          "hasDepartment",
+          "employs"
+        ]
+      },
+      {
+        "name": "BusinessProcess",
+        "label": "business process",
+        "description_en": "planned process which is prescribed by a plan specification with one or more objectives specified by a business organization",
+        "description_ko": "비즈니스 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "actsOnBehalfOfAtSomeTime",
+          "achievesGoal",
+          "isCarrierOfAtSomeTime",
+          "hasActivity",
+          "prescribedBy",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "Buyer",
+        "label": "buyer",
+        "description_en": "person or organization which has a buyer role",
+        "description_ko": "구매자",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "BuyerRole",
+        "label": "buyer role",
+        "description_en": "agent role held by a person or organization when it buys a product or a service",
+        "description_ko": "구매자 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "BuyingBusinessProcess",
+        "label": "buying business process",
+        "description_en": "business process wherein a financial instrument is used by an agent (buyer) to acquire ownership of a product or commercial service from another agent (seller) for the buyer itself or for another agen",
+        "description_ko": "구매 비즈니스 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "hasParticipantAtSomeTIme"
+        ]
+      },
+      {
+        "name": "Capability",
+        "label": "capability",
+        "description_en": "disposition in whose realization some agent has an interest",
+        "description_ko": "능력/역량",
+        "parents": [],
+        "properties": [
+          "capabilityOf"
+        ]
+      },
+      {
+        "name": "CommercialService",
+        "label": "commercial service",
+        "description_en": "business process that consists of a service provisioning process and a consumption process",
+        "description_ko": "상업 서비스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "hasOccurentPart",
+          "isSubjectOf",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "CommercialServiceAgreement",
+        "label": "commercial service agreement",
+        "description_en": "agreement between a customer and service provider that is about some commercial service to be provided by the service provider in exchange for compensation from the customer",
+        "description_ko": "상업 서비스 계약",
+        "parents": [
+          "Agreement"
+        ],
+        "properties": [
+          "isAbout",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "CommercialServiceSpecification",
+        "label": "commercial service specification",
+        "description_en": "plan specification that prescribes a commercial service",
+        "description_ko": "상업 서비스 명세",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "ComputingProcess",
+        "label": "computing process",
+        "description_en": "planned process in which an algorithm or an encoded algorithm is realized by an agent",
+        "description_ko": "컴퓨팅 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "hasSpecifiedOutput",
+          "hasInput",
+          "achievesAtSomeTIme",
+          "achievesAtSomeTime",
+          "genericallyDependsOnAtSomeTime",
+          "continuantPartOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "Customer",
+        "label": "customer",
+        "description_en": "person or organization which has a customer role",
+        "description_ko": "고객",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "CustomerRole",
+        "label": "customer role",
+        "description_en": "agent role held by a person or organization when it utilizes the product or receives the service or subscribes to the commercial service agreement",
+        "description_ko": "고객 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "roleOf"
+        ]
+      },
+      {
+        "name": "DescriptiveInformationContentEntity",
+        "label": "descriptive information content entity",
+        "description_en": "information content entity that characterizes (gives a description of) an entity",
+        "description_ko": "서술적 정보 콘텐츠",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "describes"
+        ]
+      },
+      {
+        "name": "DesignSpecification",
+        "label": "design specification",
+        "description_en": "information content entity that prescribes something man-made",
+        "description_ko": "설계 명세",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "prescribes",
+          "specifiesRequirement",
+          "hasParameter",
+          "satisfiesRequirement"
+        ]
+      },
+      {
+        "name": "DesignativeInformationContentEntity",
+        "label": "designative information content entity",
+        "description_en": "information content entity that uniquely identifies an entity",
+        "description_ko": "지정적 정보 콘텐츠",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "designates"
+        ]
+      },
+      {
+        "name": "DesignedFunction",
+        "label": "designed function",
+        "description_en": "function that is intentionally designed",
+        "description_ko": "설계된 기능",
+        "parents": [],
+        "properties": [
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "DirectiveInformationContentEntity",
+        "label": "directive information content entity",
+        "description_en": "information content entity that prescribes a set of rules or guidelines for a process or a model of something man-made",
+        "description_ko": "지시적 정보 콘텐츠",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "EncodedAlgorithm",
+        "label": "encoded algorithm",
+        "description_en": "plan specification that is the implementation of an algorithm encoded in a specific programming language or framework and that is readily executable",
+        "description_ko": "인코딩된 알고리즘",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "EngineeredSystem",
+        "label": "engineered system",
+        "description_en": "system that is deliberately created to have a certain function",
+        "description_ko": "엔지니어링 시스템",
+        "parents": [
+          "System"
+        ],
+        "properties": [
+          "hasComponent",
+          "bearerOf",
+          "performsFunction"
+        ]
+      },
+      {
+        "name": "EquipmentRole",
+        "label": "equipment role",
+        "description_en": "role held by a material artifact or an engineered system when it is planned to be involved in or is involved in carrying out some part of a planned process and that is not consumed in that planned pro",
+        "description_ko": "설비 역할",
+        "parents": [],
+        "properties": [
+          "functionOf",
+          "realizes",
+          "hasRealization",
+          "roleOf",
+          "prescribedBy",
+          "continuantPartOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "Event",
+        "label": "event",
+        "description_en": "phenomena (process or process boundary) that is recognized by an agent and typically recorded",
+        "description_ko": "이벤트",
+        "parents": [],
+        "properties": [
+          "initiatesRelationship",
+          "recognizedByAtSomeTime"
+        ]
+      },
+      {
+        "name": "GainOfRole",
+        "label": "gain of role",
+        "description_en": "process in which someone or something (independent continuant that is not a spatial region) becomes the bearer of a role",
+        "description_ko": "역할 획득",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtAllTimes",
+          "meets",
+          "hasRole",
+          "occupiesTemporalRegion",
+          "temporallyOverlaps",
+          "temporallyStarts"
+        ]
+      },
+      {
+        "name": "GroupOfAgents",
+        "label": "group of agents",
+        "description_en": "group (object aggregate) that has one or more agents as members",
+        "description_ko": "에이전트 그룹",
+        "parents": [],
+        "properties": [
+          "hasMember",
+          "actsAs"
+        ]
+      },
+      {
+        "name": "GroupOfPersons",
+        "label": "group of persons",
+        "description_en": "group (object aggregate) that has one or more persons as members",
+        "description_ko": "사람 그룹",
+        "parents": [],
+        "properties": [
+          "hasRole",
+          "hasMember"
+        ]
+      },
+      {
+        "name": "Identifier",
+        "label": "identifier",
+        "description_en": "information content entity that is used to uniquely identify an entity within a particular context",
+        "description_ko": "식별자",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "designates"
+        ]
+      },
+      {
+        "name": "InformationContentEntity",
+        "label": "information content entity",
+        "description_en": "content or a pattern (generically dependent continuant) that is about some entity",
+        "description_ko": "정보/데이터",
+        "parents": [],
+        "properties": [
+          "isAbout",
+          "hasValue",
+          "prescribes",
+          "designates",
+          "hasUnit",
+          "describes"
+        ]
+      },
+      {
+        "name": "LossOfRole",
+        "label": "loss of role",
+        "description_en": "process in which someone or something (independent continuant that is not a spatial region) ceases to be the bearer of a role",
+        "description_ko": "역할 상실",
+        "parents": [],
+        "properties": [
+          "hasInput",
+          "temporallyFinishes",
+          "hasParticipantAtAllTimes",
+          "hasRole",
+          "occupiesTemporalRegion",
+          "isTemporallyOverlappedBy"
+        ]
+      },
+      {
+        "name": "MaintainableMaterialItem",
+        "label": "maintainable material item",
+        "description_en": "material artifact or engineered system which has the maintainable material item role",
+        "description_ko": "유지보수 가능 물품",
+        "parents": [],
+        "properties": [
+          "hasMaintenanceState",
+          "hasRole"
+        ]
+      },
+      {
+        "name": "MaintainableMaterialItemRole",
+        "label": "maintainable material item role",
+        "description_en": "role played by an asset (engineered system or material artifact) when there is a maintenance strategy prescribing its maintenance process",
+        "description_ko": "유지보수 가능 물품 역할",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "Manufacturer",
+        "label": "manufacturer",
+        "description_en": "organization which has a manufacturer role",
+        "description_ko": "제조업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ManufacturerRole",
+        "label": "manufacturer role",
+        "description_en": "agent role held by an organization when it produces material products",
+        "description_ko": "제조업체 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "ManufacturingProcess",
+        "label": "manufacturing process",
+        "description_en": "planned process that consists of a structured set of operations through which input material is transformed or modified",
+        "description_ko": "제조 공정",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "isInputOf",
+          "hasSpecifiedOutput",
+          "hasInput",
+          "usesEquipment",
+          "prescribes",
+          "isCarrierOfAtSomeTime"
+        ]
+      },
+      {
+        "name": "MaterialArtifact",
+        "label": "material artifact",
+        "description_en": "object that is deliberately created to have a certain function",
+        "description_ko": "물질적 산출물",
+        "parents": [],
+        "properties": [
+          "bearerOf",
+          "hasDesign",
+          "hasMaterial",
+          "hasQuality"
+        ]
+      },
+      {
+        "name": "MaterialComponent",
+        "label": "material component",
+        "description_en": "material entity which has the material component role",
+        "description_ko": "물질 구성요소",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "MaterialComponentRole",
+        "label": "material component role",
+        "description_en": "role held by a material entity when it is a proper part of another material entity or is planned to be a proper part of another material entity",
+        "description_ko": "물질 구성요소 역할",
+        "parents": [],
+        "properties": [
+          "roleOf"
+        ]
+      },
+      {
+        "name": "MaterialLocationChangeProcess",
+        "label": "material location change process",
+        "description_en": "planned process that results in a material entity moving from one physical location to another",
+        "description_ko": "물질 위치 변경 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "locatedInAtalltimes",
+          "locationOfAtAlltimes",
+          "existsAt"
+        ]
+      },
+      {
+        "name": "MaterialProduct",
+        "label": "material product",
+        "description_en": "material entity which has the material product role",
+        "description_ko": "물질적 제품",
+        "parents": [],
+        "properties": [
+          "hasSpecification",
+          "hasRole",
+          "hasProductType"
+        ]
+      },
+      {
+        "name": "MaterialProductRole",
+        "label": "material product role",
+        "description_en": "role held by a material entity that is intended to be sold, or has been bought, or has been supplied",
+        "description_ko": "물질 제품 역할",
+        "parents": [],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "MaterialResource",
+        "label": "material resource",
+        "description_en": "material entity which has the material resource role",
+        "description_ko": "물질적 자원",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "MaterialResourceRole",
+        "label": "material resource role",
+        "description_en": "role played by a material entity that consists in it being available to a person or group of agents or engineered system",
+        "description_ko": "물질 자원 역할",
+        "parents": [],
+        "properties": [
+          "isAvailableToAtSomeTime",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "MaterialState",
+        "label": "material state",
+        "description_en": "process in which a material entity that participates in the process has a condition that remains unchanged",
+        "description_ko": "물질 상태",
+        "parents": [],
+        "properties": [
+          "hasDuration",
+          "stateOf",
+          "hasCondition"
+        ]
+      },
+      {
+        "name": "MeasuredValueExpression",
+        "label": "measured value expression",
+        "description_en": "value expression that contains the measured value of an attribute (specifically dependent continuant or process characteristic or temporal region)",
+        "description_ko": "측정값 표현",
+        "parents": [
+          "ValueExpression"
+        ],
+        "properties": [
+          "hasValue",
+          "hasUnit",
+          "isMeasuredValueOfAtSomeTime",
+          "measuresQuality"
+        ]
+      },
+      {
+        "name": "MeasurementCapability",
+        "label": "measurement capability",
+        "description_en": "capability of a material entity to measure the value of some entity",
+        "description_ko": "측정 능력",
+        "parents": [
+          "Capability"
+        ],
+        "properties": [
+          "capabilityOf",
+          "hasRealization"
+        ]
+      },
+      {
+        "name": "MeasurementInformationContentEntity",
+        "label": "measurement information content entity",
+        "description_en": "informational content that is the result of measuring a set of attributes (specifically dependent continuant or process characteristic or temporal region) belonging to the entity (independent continua",
+        "description_ko": "측정 정보 콘텐츠",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "isMeasuredValueOf",
+          "hasContinuantPartAtAllTimes",
+          "isAbout",
+          "isOutputOf",
+          "occupiesTemporalRegion",
+          "describes"
+        ]
+      },
+      {
+        "name": "MeasurementProcess",
+        "label": "measurement process",
+        "description_en": "planned process to determine the value of an attribute (specifically dependent continuant or temporal region or process characteristic) of an entity of interest",
+        "description_ko": "측정 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "hasSpecifiedOutput",
+          "occurrentPartOf",
+          "occupiesTemporalRegion",
+          "hasOccurrentPart",
+          "participatesInAtSomeTime",
+          "hasCapability"
+        ]
+      },
+      {
+        "name": "ObjectiveSpecification",
+        "label": "objective specification",
+        "description_en": "information content entity that prescribes what the outcome of some process should be",
+        "description_ko": "목표 명세",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "isOutputOf",
+          "hasRealization",
+          "prescribes",
+          "isAchievedByAtSomeTime",
+          "processCharacteristicOf"
+        ]
+      },
+      {
+        "name": "Organization",
+        "label": "organization",
+        "description_en": "group of persons that identifies itself by some name and pursues a common set of plans and objectives",
+        "description_ko": "조직",
+        "parents": [
+          "OrganizedGroupOfAgents"
+        ],
+        "properties": [
+          "hasMember",
+          "performsActivity",
+          "designatedBy",
+          "hasMemberPartAtSomeTime",
+          "hasLocation",
+          "hasMemberPartAtAllTimes"
+        ]
+      },
+      {
+        "name": "OrganizationIdentifier",
+        "label": "organization identifier",
+        "description_en": "identifier that identifies an organization",
+        "description_ko": "조직 식별자",
+        "parents": [
+          "Identifier"
+        ],
+        "properties": [
+          "designates"
+        ]
+      },
+      {
+        "name": "OrganizedGroupOfAgents",
+        "label": "organized group of agents",
+        "description_en": "group of agents that is pursuing a common set of plans and objectives",
+        "description_ko": "조직화된 에이전트 그룹",
+        "parents": [
+          "GroupOfAgents"
+        ],
+        "properties": [
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "Person",
+        "label": "person",
+        "description_en": "organism that is the member of the species of homo sapiens",
+        "description_ko": "사람",
+        "parents": [],
+        "properties": [
+          "worksFor",
+          "hasRole",
+          "performsTask"
+        ]
+      },
+      {
+        "name": "PhysicalLocationIdentifier",
+        "label": "physical location identifier",
+        "description_en": "identifier that identifies a physical location (site)",
+        "description_ko": "물리적 위치 식별자",
+        "parents": [
+          "Identifier"
+        ],
+        "properties": [
+          "designates"
+        ]
+      },
+      {
+        "name": "PieceOfEquipment",
+        "label": "piece of equipment",
+        "description_en": "material artifact or engineered system with an equipment role",
+        "description_ko": "설비/장비",
+        "parents": [],
+        "properties": [
+          "hasStatus",
+          "hasRole",
+          "hasCapacity",
+          "performsFunction"
+        ]
+      },
+      {
+        "name": "PlanSpecification",
+        "label": "plan specification",
+        "description_en": "information content entity that has action specifications and objective specifications as parts",
+        "description_ko": "계획 명세",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "continuantPartOfAtAllTimes",
+          "hasObjective",
+          "hasAction",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "PlannedProcess",
+        "label": "planned process",
+        "description_en": "process that is prescribed by a plan specification",
+        "description_ko": "계획된 프로세스",
+        "parents": [],
+        "properties": [
+          "hasPlan",
+          "hasSpecifiedOutput",
+          "prescribes",
+          "prescribedBy",
+          "hasStep",
+          "hasObjective"
+        ]
+      },
+      {
+        "name": "ProcessCharacteristic",
+        "label": "process characteristic",
+        "description_en": "attribute of a process",
+        "description_ko": "프로세스 특성",
+        "parents": [],
+        "properties": [
+          "processCharacteristicOf"
+        ]
+      },
+      {
+        "name": "ProcuringBusinessProcess",
+        "label": "procuring business process",
+        "description_en": "business process that consists of buying and ensuring the supply of products or services",
+        "description_ko": "조달 비즈니스 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "hasOccurrentPart"
+        ]
+      },
+      {
+        "name": "ProductProductionProcess",
+        "label": "product production process",
+        "description_en": "business process that consists of at least one manufacturing process through which raw materials and components are transformed or modified to create a material product",
+        "description_ko": "제품 생산 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "occurentPartOf",
+          "hasSpecifiedOutput",
+          "temporallyOverlaps"
+        ]
+      },
+      {
+        "name": "RawMaterial",
+        "label": "raw material",
+        "description_en": "material entity which has the raw material role",
+        "description_ko": "원자재",
+        "parents": [],
+        "properties": [
+          "hasRole",
+          "hasSource",
+          "hasGrade"
+        ]
+      },
+      {
+        "name": "RawMaterialRole",
+        "label": "raw material role",
+        "description_en": "role held by a material entity when it is acquired by an organizational entity with some plan to transform or modify it into intermediate-level components or substances or into a product",
+        "description_ko": "원자재 역할",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "hasRole",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "RequirementSpecification",
+        "label": "requirement specification",
+        "description_en": "information content entity that prescribes a set of requirements",
+        "description_ko": "요구사항 명세",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "isAbout",
+          "requirementSatisfiedBy",
+          "satisfiesRequirement"
+        ]
+      },
+      {
+        "name": "SellingBusinessProcess",
+        "label": "offering for sale business process",
+        "description_en": "business process wherein a product or commercial service is offered by an agent (seller) for another agent (buyer) to acquire ownership via a financial instrument",
+        "description_ko": "판매 비즈니스 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "hasParticipantAtSomeTIme"
+        ]
+      },
+      {
+        "name": "ServiceProvider",
+        "label": "service provider",
+        "description_en": "person or organization which has a service provider role",
+        "description_ko": "서비스 제공자",
+        "parents": [
+          "Supplier"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ServiceProviderRole",
+        "label": "service provider role",
+        "description_en": "supplier role held by a person or organization when it offers to sell or provide a commercial service",
+        "description_ko": "서비스 제공자 역할",
+        "parents": [
+          "SupplierRole"
+        ],
+        "properties": [
+          "roleOf",
+          "hasParticipantAtSomeTime",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "Supplier",
+        "label": "supplier",
+        "description_en": "person or organization which has a supplier role",
+        "description_ko": "공급업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole",
+          "suppliesToAtSomeTime"
+        ]
+      },
+      {
+        "name": "SupplierRole",
+        "label": "supplier role",
+        "description_en": "agent role held by a person or organization when it offers to sell or provide products or services",
+        "description_ko": "공급업체 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "SupplyingBusinessProcess",
+        "label": "supplying business process",
+        "description_en": "business process wherein a product or service is supplied",
+        "description_ko": "공급 비즈니스 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "occurrentPartOf"
+        ]
+      },
+      {
+        "name": "System",
+        "label": "system",
+        "description_en": "collection of elements (object aggregate) that form a unified whole and interact",
+        "description_ko": "시스템",
+        "parents": [],
+        "properties": [
+          "hasComponent",
+          "hasFunction"
+        ]
+      },
+      {
+        "name": "TemporalDurationValueExpression",
+        "label": "temporal duration value expression",
+        "description_en": "value expression that describes the duration of some temporal interval",
+        "description_ko": "시간 기간 값 표현",
+        "parents": [],
+        "properties": [
+          "isValueExpressionOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "TemporalInstantValueExpression",
+        "label": "temporal instant value expression",
+        "description_en": "value expression that describes the position of a time instant in the time line",
+        "description_ko": "시간 순간 값 표현",
+        "parents": [
+          "ValueExpression"
+        ],
+        "properties": [
+          "isValueExpressionOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "ValueExpression",
+        "label": "value expression",
+        "description_en": "information content entity that contains a value of an entity within a classification scheme or on a quantitative scale",
+        "description_ko": "값 표현",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "isValueExpressionOfAtAllTimes",
+          "isMeasuredValueOfAtSomeTime",
+          "isValueExpressionOfAtSomeTime"
+        ]
+      }
+    ],
+    "Maintenance": [
+      {
+        "name": "DegradedState",
+        "label": "degraded state",
+        "description_en": "state of reduced ability to perform as required but with acceptable reduced performance",
+        "description_ko": "성능저하 상태",
+        "parents": [
+          "MaintenanceState"
+        ],
+        "properties": [
+          "requiresMaintenance",
+          "degradationLevel"
+        ]
+      },
+      {
+        "name": "DispositionToExhibitUndesirableBehavior",
+        "label": "disposition to exhibit undesirable behavior",
+        "description_en": "disposition of an item that would not be expected under normal operating conditions",
+        "description_ko": "비정상 동작 성향",
+        "parents": [
+          "UndesireableDisposition"
+        ],
+        "properties": []
+      },
+      {
+        "name": "DispositionToFail",
+        "label": "disposition to fail",
+        "description_en": "disposition of an item to undergo a failure process",
+        "description_ko": "고장 성향",
+        "parents": [
+          "UndesireableDisposition"
+        ],
+        "properties": [
+          "failureMode",
+          "hasRealization",
+          "probability"
+        ]
+      },
+      {
+        "name": "FailedState",
+        "label": "failed state",
+        "description_en": "state of an item being unable to perform a required function due to a failure event",
+        "description_ko": "고장 상태",
+        "parents": [
+          "MaintenanceState"
+        ],
+        "properties": []
+      },
+      {
+        "name": "FailureEffect",
+        "label": "failure effect",
+        "description_en": "process that is the consequence of failure, within or beyond the boundary of the failed item",
+        "description_ko": "고장 영향",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "FailureEvent",
+        "label": "failure event",
+        "description_en": "event that causes an item to lose its ability to perform a required function",
+        "description_ko": "고장 이벤트",
+        "parents": [
+          "Event"
+        ],
+        "properties": [
+          "affectsEquipment",
+          "hasEffect",
+          "initiates",
+          "hasCause"
+        ]
+      },
+      {
+        "name": "FailureModeCode",
+        "label": "failure mode code",
+        "description_en": "information content entity that describes an undesireable disposition",
+        "description_ko": "고장 모드 코드",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "describes"
+        ]
+      },
+      {
+        "name": "FailureProcess",
+        "label": "failure process",
+        "description_en": "process that changes some quality of an item causing the item to become degraded or failed",
+        "description_ko": "고장 프로세스",
+        "parents": [],
+        "properties": [
+          "realizes"
+        ]
+      },
+      {
+        "name": "FunctioningProcess",
+        "label": "functioning process",
+        "description_en": "process in which an item performs its function",
+        "description_ko": "기능 수행 프로세스",
+        "parents": [],
+        "properties": [
+          "realizes"
+        ]
+      },
+      {
+        "name": "MaintenanceActivity",
+        "label": "maintenance activity",
+        "description_en": "maintenance process that is a single task to retain or restore the function of a maintainable material item",
+        "description_ko": "유지보수 활동",
+        "parents": [
+          "MaintenanceProcess"
+        ],
+        "properties": [
+          "hasWorkOrder",
+          "performedBy",
+          "maintainsEquipment"
+        ]
+      },
+      {
+        "name": "MaintenanceProcess",
+        "label": "maintenance process",
+        "description_en": "process to do with retaining or restoring the function of a maintainable material item under a maintenance strategy",
+        "description_ko": "유지보수 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "hasMaintenanceType",
+          "requiresResource",
+          "prescribedBy",
+          "hasInput"
+        ]
+      },
+      {
+        "name": "MaintenanceState",
+        "label": "maintenance state",
+        "description_en": "stasis that holds during a temporal interval when the realizable functions and capabilities of the participating item, or the grade of realization of those functions and capabilities, remain unchanged",
+        "description_ko": "유지보수 상태",
+        "parents": [
+          "MaterialState"
+        ],
+        "properties": [
+          "maintenanceStateOf"
+        ]
+      },
+      {
+        "name": "MaintenanceStrategy",
+        "label": "maintenance strategy",
+        "description_en": "maintenance (method/ approach/ actions) to enable (the/an) asset to achieve (management&apos;s/ desired) objectives",
+        "description_ko": "유지보수 전략",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": []
+      },
+      {
+        "name": "MaintenanceWorkOrderRecord",
+        "label": "maintenance work order record",
+        "description_en": "information content entity that describes a maintenance process",
+        "description_ko": "유지보수 작업지시 기록",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "isInputOf",
+          "forEquipment",
+          "hasTask",
+          "describes",
+          "assignedTo"
+        ]
+      },
+      {
+        "name": "OperatingState",
+        "label": "operating state",
+        "description_en": "state of an item being able to perform a required function",
+        "description_ko": "운전 상태",
+        "parents": [
+          "MaintenanceState"
+        ],
+        "properties": [
+          "stateOf",
+          "hasCondition"
+        ]
+      },
+      {
+        "name": "QualificationSpecification",
+        "label": "qualification specification",
+        "description_en": "requirement specification that identifies the need for a person to have an assessed skill for a specific task",
+        "description_ko": "자격 명세",
+        "parents": [
+          "RequirementSpecification"
+        ],
+        "properties": []
+      },
+      {
+        "name": "QualifiedMaintenancePerson",
+        "label": "qualified maintenance person",
+        "description_en": "person who is qualified to perform a specified specified maintenance activity",
+        "description_ko": "자격 보유 유지보수 인력",
+        "parents": [
+          "Person"
+        ],
+        "properties": [
+          "partcipatesInAtSomeTime",
+          "prescribes",
+          "satisfiesRequirement"
+        ]
+      },
+      {
+        "name": "RequiredFunction",
+        "label": "required function",
+        "description_en": "function of a maintainable material item which is considered necessary to fulfil a process requirement",
+        "description_ko": "필수 기능",
+        "parents": [],
+        "properties": [
+          "functionOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "SupportingMaintenanceActivity",
+        "label": "supporting maintenance activity",
+        "description_en": "single action in support of the execution of a maintenance process",
+        "description_ko": "지원 유지보수 활동",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "UndesireableDisposition",
+        "label": "undesireable disposition",
+        "description_en": "disposition of an item to undergo a process that leads to undesirable outcomes",
+        "description_ko": "비정상 성향",
+        "parents": [],
+        "properties": []
+      }
+    ],
+    "SupplyChain": [
+      {
+        "name": "Airway",
+        "label": "airway",
+        "description_en": "three-dimensional spatial region that connects one specified location (navigation point) to another at a specified altitude, along which an aircraft may be flown",
+        "description_ko": "항공로",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "AppraisalProcess",
+        "label": "appraisal process",
+        "description_en": "measurement process that involves evaluating, assessing, estimating, or judging the nature, value, importance, condition, or quality of some entity",
+        "description_ko": "평가 프로세스",
+        "parents": [
+          "MeasurementProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "ArrivalProcess",
+        "label": "arrival process",
+        "description_en": "material location change process that consists of the participating entity reaching its destination such that the travel or transport process which it is a part of is completed",
+        "description_ko": "도착 프로세스",
+        "parents": [
+          "MaterialLocationChangeProcess"
+        ],
+        "properties": [
+          "occupiesTemporalRegion",
+          "occurrentPartOf"
+        ]
+      },
+      {
+        "name": "BillOfLading",
+        "label": "bill of lading",
+        "description_en": "agreement between a shipper and a carrier that prescribes some consigning process",
+        "description_ko": "선하증권",
+        "parents": [
+          "CommercialServiceAgreement"
+        ],
+        "properties": [
+          "isAbout",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "Cargo",
+        "label": "cargo",
+        "description_en": "material entity that is transported using a transport equipment by a carrier",
+        "description_ko": "화물",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "CargoRole",
+        "label": "cargo role",
+        "description_en": "role held by a material entity when it is being transported or is planned to be transported by a carrier",
+        "description_ko": "화물 역할",
+        "parents": [],
+        "properties": [
+          "roleOf",
+          "agentIn",
+          "hasAgent",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "Carrier",
+        "label": "carrier",
+        "description_en": "person or business organization who provides transportation services",
+        "description_ko": "운송업체",
+        "parents": [
+          "Supplier"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "Change",
+        "label": "change",
+        "description_en": "process in which some independent continuant endures and 1) one or more of the dependent entities it bears increase or decrease in intensity, 2) the entity begins to bear some dependent entity or 3) t",
+        "description_ko": "변경",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "Consignee",
+        "label": "consignee",
+        "description_en": "person or business organization that receives some shipment",
+        "description_ko": "수하인",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ConsigneeRole",
+        "label": "consignee role",
+        "description_en": "role held by a person or business organization when it receives a shipment from a carrier and owns the shipment after the receipt",
+        "description_ko": "수하인 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "ConsigningProcess",
+        "label": "consigning process",
+        "description_en": "business process that results in placing a material entity in the possession of some agent without changing the ownership until the material entity is sold",
+        "description_ko": "위탁 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "ConsignorRole",
+        "label": "consignor role",
+        "description_en": "role held by a business organization or person when it prepares, initiates, and consigns a shipment it owns",
+        "description_ko": "송하인 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "agentIn",
+          "isSpecifiedOutputOf",
+          "owns",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Container",
+        "label": "container",
+        "description_en": "material artifact designed to hold, protect, and facilitate the transport of goods across one or more modes of transportation",
+        "description_ko": "컨테이너",
+        "parents": [
+          "MaterialArtifact"
+        ],
+        "properties": []
+      },
+      {
+        "name": "DepartureProcess",
+        "label": "departure process",
+        "description_en": "material location change process that consists of the participating entity leaving its starting location such that the travel or transport process it is a part of is initiated",
+        "description_ko": "출발 프로세스",
+        "parents": [
+          "MaterialLocationChangeProcess"
+        ],
+        "properties": [
+          "occupiesTemporalRegion",
+          "occurrentPartOf"
+        ]
+      },
+      {
+        "name": "DistributionCenter",
+        "label": "distribution center",
+        "description_en": "storage facility designed to store manufactured products that are to be distributed to resellers and wholesalers",
+        "description_ko": "물류센터",
+        "parents": [
+          "StorageFacility"
+        ],
+        "properties": [
+          "servesRegion",
+          "hasCapacity"
+        ]
+      },
+      {
+        "name": "Distributor",
+        "label": "distributor",
+        "description_en": "person or business organization when it purchases products from manufacturers and resells them to wholesalers",
+        "description_ko": "유통업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "DistributorRole",
+        "label": "distributor role",
+        "description_en": "role held by a person or business organization when it buys some material products from a manufacturer and resells them to a wholesaler",
+        "description_ko": "유통업체 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "realizes",
+          "agentIn",
+          "hasRole",
+          "hasRealization",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Facility",
+        "label": "facility",
+        "description_en": "engineered system that consists of buildings, structures, roads, machines, and equipment desgined to provide certain capabilities",
+        "description_ko": "시설",
+        "parents": [
+          "EngineeredSystem"
+        ],
+        "properties": [
+          "locatedInAtAllTimes"
+        ]
+      },
+      {
+        "name": "Factory",
+        "label": "factory",
+        "description_en": "facility that is designed for manufacturing products and includes one or more production systems",
+        "description_ko": "공장",
+        "parents": [],
+        "properties": [
+          "hasCapability",
+          "producesProduct",
+          "hasEquipment",
+          "locatedAt"
+        ]
+      },
+      {
+        "name": "FreightContainer",
+        "label": "freight container",
+        "description_en": "A container that is designed to enclose, protect, and enable the transport of one or more material entities across multiple modes of transportation",
+        "description_ko": "화물 컨테이너",
+        "parents": [
+          "Container"
+        ],
+        "properties": []
+      },
+      {
+        "name": "FreightForwarder",
+        "label": "freight forwarder",
+        "description_en": "person or business organization when it arranges the transportation of shipments on behalf of the shipper (consignor) or consignee",
+        "description_ko": "화물 운송 주선업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "FreightForwarderRole",
+        "label": "freight forwarder role",
+        "description_en": "logistics service provider role held by an agent when it arranges the transportation of shipments on behalf of the shipper (consignor) or consignee",
+        "description_ko": "화물 운송 주선업체 역할",
+        "parents": [],
+        "properties": [
+          "agentIn",
+          "actsOnBehalfOfAtSomeTime",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "FreightForwardingBusinessFunction",
+        "label": "freight forwarding business function",
+        "description_en": "business function that is realized in a freight forwarding service",
+        "description_ko": "화물 운송 주선 비즈니스 기능",
+        "parents": [
+          "BusinessFunction"
+        ],
+        "properties": [
+          "hasRealization"
+        ]
+      },
+      {
+        "name": "FreightForwardingProcess",
+        "label": "freight forwarding process",
+        "description_en": "business process of planning and coordinating the transportation of material products on behalf of a shipper",
+        "description_ko": "화물 운송 주선 프로세스",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtSomeTime"
+        ]
+      },
+      {
+        "name": "FreightForwardingService",
+        "label": "freight forwarding service",
+        "description_en": "logistics service that consists of at least one freight forwarding process",
+        "description_ko": "화물 운송 주선 서비스",
+        "parents": [],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "GeospatialLocation",
+        "label": "geospatial location",
+        "description_en": "geospatial site that is the location of some material entity at some time or the site of some process",
+        "description_ko": "지리공간 위치",
+        "parents": [
+          "GeospatialSite"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "GeospatialSite",
+        "label": "geospatial site",
+        "description_en": "site at or near the surface of the earth",
+        "description_ko": "지리공간 사이트",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "GlobalLocationNumber",
+        "label": "global location number",
+        "description_en": "identifer that uniquely identifies a business organization or a geospatial location and complies with GS1 GLN coding scheme",
+        "description_ko": "글로벌 위치 번호",
+        "parents": [],
+        "properties": [
+          "designates",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "GroupOfSuppliers",
+        "label": "group of suppliers",
+        "description_en": "group of agents involved in trading and other business relationships with one another during the operation of specific supply chains",
+        "description_ko": "공급업체 그룹",
+        "parents": [
+          "OrganizedGroupOfAgents"
+        ],
+        "properties": [
+          "specificallyDependedOnBy",
+          "hasRole",
+          "prescribes",
+          "hasMemberPartAtAllTimes",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "IndustrialInventory",
+        "label": "industrial inventory",
+        "description_en": "material product, material component, raw material, or material artifact that is ready to be sold or used and is stored in a storage facility or on factory floor",
+        "description_ko": "산업 재고",
+        "parents": [],
+        "properties": [
+          "hasRole",
+          "hasStockLevel",
+          "hasReorderPoint"
+        ]
+      },
+      {
+        "name": "IndustrialInventoryRole",
+        "label": "industrial inventory role",
+        "description_en": "role held by some material entity when it is stored by a bussiness organization and it is intended to be supplied to a customer or to be used or consumed in some product production process",
+        "description_ko": "산업 재고 역할",
+        "parents": [
+          "MaterialResourceRole"
+        ],
+        "properties": [
+          "roleOf",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "Industry",
+        "label": "industry",
+        "description_en": "group of organizations that are related based on their primary business activities",
+        "description_ko": "산업",
+        "parents": [
+          "GroupOfAgents"
+        ],
+        "properties": [
+          "memberPartOfAtAllTimes"
+        ]
+      },
+      {
+        "name": "IntegratedCarrierBusinessOrganization",
+        "label": "integrated carrier business organization",
+        "description_en": "business organization that is created for the purpose of providing different types of transportation and freight forwarding services",
+        "description_ko": "통합 운송 사업 조직",
+        "parents": [
+          "BusinessOrganization"
+        ],
+        "properties": [
+          "hasFunction"
+        ]
+      },
+      {
+        "name": "InventoryManagementProcess",
+        "label": "inventory management process",
+        "description_en": "business process that consists of the activities required for controlling, tracking, recording, and planning inventories",
+        "description_ko": "재고 관리 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "Load",
+        "label": "load",
+        "description_en": "collection of material entities which share the same transportation and transfer history",
+        "description_ko": "적재물",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "LoadRole",
+        "label": "load role",
+        "description_en": "traceable resource unit role held by a number of material entities that have been transferred or transported together",
+        "description_ko": "적재물 역할",
+        "parents": [
+          "TraceableResourceUnitRole"
+        ],
+        "properties": [
+          "roleOf",
+          "designates",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "LocationIdentificationScheme",
+        "label": "location identification scheme",
+        "description_en": "identification scheme that prescribes how unique identifiers of physical locations are formulated",
+        "description_ko": "위치 식별 체계",
+        "parents": [
+          "InformationContentEntity"
+        ],
+        "properties": [
+          "designates",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "LocationRole",
+        "label": "location role",
+        "description_en": "role held by a geospatial site when it is the location of some material entity at some time or the site of some process",
+        "description_ko": "위치 역할",
+        "parents": [],
+        "properties": [
+          "locationOfAtSometime",
+          "isSiteOf",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "LogisticUnit",
+        "label": "logistic unit",
+        "description_en": "material entities packaged together for transport or storage",
+        "description_ko": "물류 단위",
+        "parents": [],
+        "properties": [
+          "designatedBy",
+          "hasRole"
+        ]
+      },
+      {
+        "name": "LogisticUnitRole",
+        "label": "logistic unit role",
+        "description_en": "traceable resource unit role held by a number of material entities that are packaged together for transport or storage",
+        "description_ko": "물류 단위 역할",
+        "parents": [
+          "TraceableResourceUnitRole"
+        ],
+        "properties": []
+      },
+      {
+        "name": "LogisticsProcess",
+        "label": "logistics process",
+        "description_en": "business process composed of one or more processes such as transport, shipment preparation, storage, or receiving that are coordinated to enable the movement, handling, or distribution of material ent",
+        "description_ko": "물류 프로세스",
+        "parents": [],
+        "properties": [
+          "fromTo",
+          "moves"
+        ]
+      },
+      {
+        "name": "LogisticsService",
+        "label": "logistics service",
+        "description_en": "commercial service that consists of at least one transport process, packaging process, freight forwarding, or storage process",
+        "description_ko": "물류 서비스",
+        "parents": [
+          "CommercialService"
+        ],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "LogisticsServiceProviderRole",
+        "label": "logistics service provider role",
+        "description_en": "service provider role that is held by a business organization or person when it provides a logistics service",
+        "description_ko": "물류 서비스 제공자 역할",
+        "parents": [
+          "ServiceProviderRole"
+        ],
+        "properties": [
+          "agentIn",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Lot",
+        "label": "lot",
+        "description_en": "quantity of material entities produced together and sharing the same production history and specifications",
+        "description_ko": "로트",
+        "parents": [],
+        "properties": [
+          "designatedBy",
+          "hasRole"
+        ]
+      },
+      {
+        "name": "LotIdentifier",
+        "label": "lot identifier",
+        "description_en": "identifier that uniquely denotes a particular quantity of material entities that have shared production or transformation history",
+        "description_ko": "로트 식별자",
+        "parents": [
+          "Identifier"
+        ],
+        "properties": [
+          "designates"
+        ]
+      },
+      {
+        "name": "LotRole",
+        "label": "lot role",
+        "description_en": "traceable resource unit role held by material entities that have a shared production or transformation history",
+        "description_ko": "로트 역할",
+        "parents": [
+          "TraceableResourceUnitRole"
+        ],
+        "properties": [
+          "designatedBy",
+          "roleOf",
+          "designates",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "Make-To-OrderProductionCapability",
+        "label": "make-to-order production capability",
+        "description_en": "production capability to manufacture some material artifact only after a confirmed customer order is received",
+        "description_ko": "주문생산 능력",
+        "parents": [
+          "ProductionCapability"
+        ],
+        "properties": []
+      },
+      {
+        "name": "Make-To-StockProductionCapability",
+        "label": "make-to-stock production capability",
+        "description_en": "production capability to manufacture and store some product to fulfill the expected incoming orders or forcasted demand",
+        "description_ko": "재고생산 능력",
+        "parents": [
+          "ProductionCapability"
+        ],
+        "properties": []
+      },
+      {
+        "name": "ManufacturingService",
+        "label": "manufacturing service",
+        "description_en": "commercial service that consists of at least one manufacturing process",
+        "description_ko": "제조 서비스",
+        "parents": [],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "ManufacturingServiceProviderRole",
+        "label": "manufacturing service provider role",
+        "description_en": "service provider role that is held by a person or business organization when it provides a manufacturing service",
+        "description_ko": "제조 서비스 제공자 역할",
+        "parents": [
+          "ServiceProviderRole"
+        ],
+        "properties": [
+          "agentIn",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "ManufacturingSupplyChain",
+        "label": "manufacturing supply chain system",
+        "description_en": "supply chain system that is formed to manufacture one or more products",
+        "description_ko": "제조 공급망 시스템",
+        "parents": [
+          "SupplyChainSystem"
+        ],
+        "properties": [
+          "hasSpecifiedOutput"
+        ]
+      },
+      {
+        "name": "PackagingPlanSpecification",
+        "label": "packaging plan specification",
+        "description_en": "plan specification that prescribes a packaging process",
+        "description_ko": "포장 계획 명세",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "PackagingProcess",
+        "label": "packaging process",
+        "description_en": "business process of putting some products or some portion of material into a package according to a packaging plan specification",
+        "description_ko": "포장 프로세스",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "PackagingService",
+        "label": "packaging service",
+        "description_en": "logistics service that consists of at lest one packaging process",
+        "description_ko": "포장 서비스",
+        "parents": [],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "PackagingServiceProviderRole",
+        "label": "packaging service provider role",
+        "description_en": "logisitics service provider role held by a business organization or person when it provides a packaging service",
+        "description_ko": "포장 서비스 제공자 역할",
+        "parents": [],
+        "properties": [
+          "agentIn",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "PieceofTransportEquipment",
+        "label": "piece of transport equipment",
+        "description_en": "material artifact which has a ransport equipment role",
+        "description_ko": "운송 장비",
+        "parents": [
+          "PieceOfEquipment"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ProductionCapability",
+        "label": "production capability",
+        "description_en": "capability of an agent or a system that is realized in a product production process",
+        "description_ko": "생산 능력",
+        "parents": [
+          "Capability"
+        ],
+        "properties": [
+          "hasRealization",
+          "capabilityOf",
+          "CapabilityOf"
+        ]
+      },
+      {
+        "name": "PurchaseOrder",
+        "label": "purchase order",
+        "description_en": "agreement between a buyer and a vendor (supplier) that that contains a set of commitments on the buyer and the vendeor",
+        "description_ko": "구매 주문",
+        "parents": [
+          "Agreement"
+        ],
+        "properties": [
+          "hasQuantity",
+          "hasItem",
+          "isAbout",
+          "prescribes",
+          "orderedFrom"
+        ]
+      },
+      {
+        "name": "ReceivingProcess",
+        "label": "receiving process",
+        "description_en": "planned process in which an agent receives some material entity from another agent",
+        "description_ko": "입고 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "Retailer",
+        "label": "retailer",
+        "description_en": "person or business organization who buys products from wholesalers and manufacturers and resells them to end users",
+        "description_ko": "소매업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "RetailerRole",
+        "label": "retailer role",
+        "description_en": "role held by a person or business organization when it buys products (material product) from manufacturers or wholesalers and offers them for sale to customers who are the end users of the product",
+        "description_ko": "소매업체 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "realizes",
+          "agentIn",
+          "hasRole",
+          "hasRealization",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Seaway",
+        "label": "seaway",
+        "description_en": "three-dimensional spatial region that connects one specified location to another on a body of water along which a watercraft may travel",
+        "description_ko": "해로",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "ServiceConsumerRole",
+        "label": "service consumer role",
+        "description_en": "customer role held by a person or business organization when it receives and consumes a service",
+        "description_ko": "서비스 소비자 역할",
+        "parents": [
+          "CustomerRole"
+        ],
+        "properties": []
+      },
+      {
+        "name": "ServiceSupplyChain",
+        "label": "service supply chain system",
+        "description_en": "supply chain system that is formed to deliver some commercial services",
+        "description_ko": "서비스 공급망 시스템",
+        "parents": [
+          "SupplyChainSystem"
+        ],
+        "properties": [
+          "participatesInAtSomeTimes"
+        ]
+      },
+      {
+        "name": "ShipFromLocation",
+        "label": "ship from location",
+        "description_en": "geospatial location at which some dispatch process occurs",
+        "description_ko": "출하 위치",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ShipFromLocationRole",
+        "label": "ship from location role",
+        "description_en": "location role held by a geospatial site when it is the location at which some dispatch process occures",
+        "description_ko": "출하 위치 역할",
+        "parents": [
+          "LocationRole"
+        ],
+        "properties": [
+          "isPrescribedBy",
+          "isSiteOf",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "ShipToLocation",
+        "label": "ship to location",
+        "description_en": "geospatial location in which some receiving process occurs",
+        "description_ko": "배송 위치",
+        "parents": [],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ShipToLocationRole",
+        "label": "ship to location role",
+        "description_en": "location role held by a geospatial site when it is the location at which some receiving process occures",
+        "description_ko": "배송 위치 역할",
+        "parents": [
+          "LocationRole"
+        ],
+        "properties": [
+          "isSiteOf",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "Shipment",
+        "label": "shipment",
+        "description_en": "collection of material entities delivered to a receiver&apos;s location that have undergone the same dispatch and receipt processes",
+        "description_ko": "배송",
+        "parents": [],
+        "properties": [
+          "hasDestination",
+          "hasRole",
+          "containsItem",
+          "hasCarrier"
+        ]
+      },
+      {
+        "name": "ShipmentPlanSpecification",
+        "label": "shipment plan specification",
+        "description_en": "plan specification that prescribes a shipment preparation process and a transportation process",
+        "description_ko": "배송 계획 명세",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "ShipmentPreparationProcess",
+        "label": "shipment preparation process",
+        "description_en": "business process in which some material entities are prepared to be transported together to a receiver’s location.",
+        "description_ko": "배송 준비 프로세스",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "hasSpecifiedOutput"
+        ]
+      },
+      {
+        "name": "ShipmentRole",
+        "label": "shipment role",
+        "description_en": "traceable resource unit role held by material entities when they undergo the same dispatch and receipt processes as prescribed by a bill of lading",
+        "description_ko": "배송 역할",
+        "parents": [
+          "TraceableResourceUnitRole"
+        ],
+        "properties": [
+          "isOutputOf",
+          "outputOf",
+          "hasRealization",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "ShipmentState",
+        "label": "shipment state",
+        "description_en": "material state in which a shipment that participates in the state has a condition that remains unchanged",
+        "description_ko": "배송 상태",
+        "parents": [
+          "MaterialState"
+        ],
+        "properties": []
+      },
+      {
+        "name": "Shipper",
+        "label": "consignor",
+        "description_en": "person or business organization that prepares and sends shipments for transport",
+        "description_ko": "송하인",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "ShippingRoute",
+        "label": "shipping route",
+        "description_en": "way (three-dimensional spatial region) that connects two or more supply chain nodes along which some shipment travels during a transport process",
+        "description_ko": "배송 경로",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "StorageCapability",
+        "label": "storage capability",
+        "description_en": "capability of an agent or a system that is realized in a storage process",
+        "description_ko": "저장 능력",
+        "parents": [
+          "Capability"
+        ],
+        "properties": [
+          "hasRealization",
+          "capabilityOf",
+          "CapabilityOf"
+        ]
+      },
+      {
+        "name": "StorageFacility",
+        "label": "storage facility",
+        "description_en": "facility that is designed to store materials or goods",
+        "description_ko": "저장 시설",
+        "parents": [
+          "Facility"
+        ],
+        "properties": [
+          "hasCapability"
+        ]
+      },
+      {
+        "name": "StorageProcess",
+        "label": "storage process",
+        "description_en": "planned process of putting and keeping material entities in a specified location for future use",
+        "description_ko": "저장 프로세스",
+        "parents": [
+          "PlannedProcess"
+        ],
+        "properties": [
+          "stores",
+          "atLocation"
+        ]
+      },
+      {
+        "name": "StorageService",
+        "label": "storage service",
+        "description_en": "logistics service that consists of at least one storage process",
+        "description_ko": "저장 서비스",
+        "parents": [],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "StorageServiceProviderRole",
+        "label": "storage service provider role",
+        "description_en": "logisitics service provider role that is held by a person or business organization when it provides a storage service",
+        "description_ko": "저장 서비스 제공자 역할",
+        "parents": [],
+        "properties": [
+          "agentIn",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "SupplierEvaluationProcess",
+        "label": "supplier evaluation process",
+        "description_en": "apprasial process that involves evaluating, assessing, estimating, or judging the capabilities of a person or organization that is intended to become a member of a supply chain",
+        "description_ko": "공급업체 평가 프로세스",
+        "parents": [],
+        "properties": [
+          "hasParticipantAtSomeTime"
+        ]
+      },
+      {
+        "name": "SupplyChainAgent",
+        "label": "supply chain agent",
+        "description_en": "person or business organization who supplies material products or commercial services to other agents in a supply chain",
+        "description_ko": "공급망 에이전트",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "participatesIn",
+          "hasRole"
+        ]
+      },
+      {
+        "name": "SupplyChainAgentRole",
+        "label": "supply chain agent role",
+        "description_en": "role held by an agent that is a part of a supply chain system when it supplies material products or commercial services to other agents in the supply chain system",
+        "description_ko": "공급망 에이전트 역할",
+        "parents": [],
+        "properties": [
+          "memberPartAtSomeTime",
+          "hasRelization",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "SupplyChainNode",
+        "label": "supply chain node",
+        "description_en": "geospatial location that is the site of some supply chain process",
+        "description_ko": "공급망 노드",
+        "parents": [],
+        "properties": [
+          "locatedAt",
+          "hasRole",
+          "hasCapacity"
+        ]
+      },
+      {
+        "name": "SupplyChainNodeRole",
+        "label": "supply chain node role",
+        "description_en": "location role held by a geospatial site when it is the site some supply chain process",
+        "description_ko": "공급망 노드 역할",
+        "parents": [],
+        "properties": [
+          "isSiteOf",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "SupplyChainObjectiveSpecification",
+        "label": "supply chain objective specification",
+        "description_en": "objective specification that prescribes what the outcome of a supply chain process should be",
+        "description_ko": "공급망 목표 명세",
+        "parents": [
+          "ObjectiveSpecification"
+        ],
+        "properties": [
+          "isOutputOf",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "SupplyChainPlanSpecification",
+        "label": "supply chain plan specification",
+        "description_en": "plan specification that has one or more supply chain objective specifications as parts and that prescribes a supply chain process",
+        "description_ko": "공급망 계획 명세",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "hasContinuantPartAtAllTimes",
+          "prescribes"
+        ]
+      },
+      {
+        "name": "SupplyChainProcess",
+        "label": "supply chain process",
+        "description_en": "planned process in which a supply chain plan specification is realized by a number of supply chain agents",
+        "description_ko": "공급망 프로세스",
+        "parents": [
+          "BusinessProcess"
+        ],
+        "properties": []
+      },
+      {
+        "name": "SupplyChainSystem",
+        "label": "supply chain system",
+        "description_en": "engineered system composed of agents, facilties, machines, and information systems that is designed to deliver products and services to end customers through an engineered flow of information, materia",
+        "description_ko": "공급망 시스템",
+        "parents": [
+          "EngineeredSystem"
+        ],
+        "properties": [
+          "prescribes",
+          "hasMemberPartAtAllTime",
+          "prescribedBy",
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "SupplyChainTransportProcess",
+        "label": "supply chain transport process",
+        "description_en": "transport process which involves movement of goods between sending trading party’s location and receiving trading party’s locations over the public logistics pathway/infrastructure",
+        "description_ko": "공급망 운송 프로세스",
+        "parents": [],
+        "properties": [
+          "endsAt",
+          "hasOccurrentPart",
+          "startsAt"
+        ]
+      },
+      {
+        "name": "SupplyRelationship",
+        "label": "supply relationship",
+        "description_en": "relationship that exists between two agents when one agent supplies a product or service to another agent and that is prescribed by an agreement",
+        "description_ko": "공급 관계",
+        "parents": [],
+        "properties": [
+          "dependsOnSupplier",
+          "dependsOnBuyer",
+          "dependsOnProduct",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "SystemCapability",
+        "label": "system capability",
+        "description_en": "capability that inheres in a system to the extent of the system&apos;s capacity to realize it in some processes",
+        "description_ko": "시스템 능력",
+        "parents": [
+          "Capability"
+        ],
+        "properties": [
+          "capabilityOf"
+        ]
+      },
+      {
+        "name": "Traceability",
+        "label": "traceability",
+        "description_en": "capability of a system to trace the history, application or location of an object",
+        "description_ko": "추적성",
+        "parents": [
+          "SystemCapability"
+        ],
+        "properties": []
+      },
+      {
+        "name": "TraceableResourceUnit",
+        "label": "traceable resource unit",
+        "description_en": "material entity that is uniquely identified and there may be a need to retrieve information about its history, application, or location as it moves through a supply chain",
+        "description_ko": "추적 가능 자원 단위",
+        "parents": [],
+        "properties": [
+          "hasRole",
+          "trackedIn",
+          "hasIdentifier"
+        ]
+      },
+      {
+        "name": "TraceableResourceUnitRole",
+        "label": "traceable resource unit role",
+        "description_en": "role held by a number of uniquely identified material entities when they participate in some supply chain processes or production processes while some agent observes them and collects information abou",
+        "description_ko": "추적 가능 자원 단위 역할",
+        "parents": [],
+        "properties": [
+          "designatedBy",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "TrackingEvent",
+        "label": "tracking event",
+        "description_en": "event that has at least one traceable resource unit or equipment (with which TRU comes into contact with) or operator (that runs an equipment with which TRU comes into contact with at some time) as pa",
+        "description_ko": "추적 이벤트",
+        "parents": [],
+        "properties": []
+      },
+      {
+        "name": "Trailer",
+        "label": "trailer",
+        "description_en": "container that is unpowered and is pulled by a powered vehicle",
+        "description_ko": "트레일러",
+        "parents": [
+          "Container"
+        ],
+        "properties": []
+      },
+      {
+        "name": "TranspoortEquipmentRole",
+        "label": "transport equipment role",
+        "description_en": "equipment role held by a material artifact when it is planned to be involved in or is involved in carrying out some part of a transport process",
+        "description_ko": "운송 장비 역할",
+        "parents": [
+          "EquipmentRole"
+        ],
+        "properties": [
+          "participatesInAtSomeTime"
+        ]
+      },
+      {
+        "name": "TransportProcess",
+        "label": "transport process",
+        "description_en": "material location change process involving the movement of material entities from one location to another as part of a planned logistics process",
+        "description_ko": "운송 프로세스",
+        "parents": [
+          "MaterialLocationChangeProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "transportsItem",
+          "fromLocation",
+          "toLocation"
+        ]
+      },
+      {
+        "name": "TransportationBusinessFunction",
+        "label": "transportation business function",
+        "description_en": "business function that is realized in a transportation service",
+        "description_ko": "운송 비즈니스 기능",
+        "parents": [],
+        "properties": [
+          "hasRealization"
+        ]
+      },
+      {
+        "name": "TransportationService",
+        "label": "transportation service",
+        "description_en": "logistics service that consists of at least one transport process",
+        "description_ko": "운송 서비스",
+        "parents": [],
+        "properties": [
+          "hasOccurentPart"
+        ]
+      },
+      {
+        "name": "TransportationServiceProviderRole",
+        "label": "transportation service provider role",
+        "description_en": "logisitics service provider role that is held by a business organization or person when it provides a transportation service",
+        "description_ko": "운송 서비스 제공자 역할",
+        "parents": [],
+        "properties": [
+          "agentIn",
+          "roleOf"
+        ]
+      },
+      {
+        "name": "TravelProcess",
+        "label": "travel process",
+        "description_en": "material location change process wherein one or more persons move between geographical locations",
+        "description_ko": "이동 프로세스",
+        "parents": [
+          "MaterialLocationChangeProcess"
+        ],
+        "properties": [
+          "hasParticipantAtSomeTime",
+          "locatedInAtalltimes",
+          "locationOfAtAlltimes",
+          "existsAt"
+        ]
+      },
+      {
+        "name": "Wagon",
+        "label": "wagon",
+        "description_en": "container in a rail transport system used for carrying cargo or passengers",
+        "description_ko": "화차",
+        "parents": [
+          "Container"
+        ],
+        "properties": []
+      },
+      {
+        "name": "WarehousingPlanSpecification",
+        "label": "warehousing plan specification",
+        "description_en": "plan specification that prescribes a warehousing process",
+        "description_ko": "창고 계획 명세",
+        "parents": [
+          "PlanSpecification"
+        ],
+        "properties": [
+          "prescribes"
+        ]
+      },
+      {
+        "name": "WarehousingProcess",
+        "label": "warehousing process",
+        "description_en": "business process of storing products (material products) in a storage facility for future use",
+        "description_ko": "창고 프로세스",
+        "parents": [],
+        "properties": [
+          "hasOccurrentPart",
+          "prescribedBy"
+        ]
+      },
+      {
+        "name": "Wholesaler",
+        "label": "wholesaler",
+        "description_en": "person or business organization that buys products from distributors and resells them to retailers or other business organizations",
+        "description_ko": "도매업체",
+        "parents": [
+          "Agent"
+        ],
+        "properties": [
+          "hasRole"
+        ]
+      },
+      {
+        "name": "WholesalerRole",
+        "label": "wholesaler role",
+        "description_en": "role held by a person or business organization when it buys some product from a distributor and resells them to retailers",
+        "description_ko": "도매업체 역할",
+        "parents": [
+          "AgentRole"
+        ],
+        "properties": [
+          "realizes",
+          "agentIn",
+          "hasRole",
+          "hasRealization",
+          "roleOf"
+        ]
+      }
+    ]
+  },
+  "generated_at": "2026-01-16",
+  "source": "IOF RDF files (Core, Maintenance, SupplyChain)"
+}

@@ -1,0 +1,87 @@
+# Tiny LUBM-style regression fixture.
+# 근거: Guo, Pan, Heflin (2005). "LUBM: A Benchmark for OWL Knowledge Base
+# Systems." J. Web Semantics 3(2-3):158-182. DOI:10.1016/j.websem.2005.06.005
+#
+# 실제 LUBM 데이터 생성기(Java) 대신 **핵심 추론 패턴을 검증하는 축소판**.
+# subClassOf 체인 / inverseOf / TransitiveProperty / domain+range 조합으로
+# OWL 2 RL 추론기의 soundness smoke test.
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ub: <http://example.org/univ-bench#> .
+@prefix ubi: <http://example.org/univ-bench/instances#> .
+
+# ── T-Box ──
+
+ub:Person a owl:Class .
+ub:Professor a owl:Class ; rdfs:subClassOf ub:Faculty .
+ub:Faculty a owl:Class ; rdfs:subClassOf ub:Employee .
+ub:Employee a owl:Class ; rdfs:subClassOf ub:Person .
+ub:Student a owl:Class ; rdfs:subClassOf ub:Person .
+ub:GraduateStudent a owl:Class ; rdfs:subClassOf ub:Student .
+
+ub:Course a owl:Class .
+ub:Department a owl:Class .
+ub:University a owl:Class .
+
+ub:worksFor a owl:ObjectProperty ;
+    rdfs:domain ub:Employee ;
+    rdfs:range ub:Organization .
+
+ub:Organization a owl:Class .
+ub:Department rdfs:subClassOf ub:Organization .
+ub:University rdfs:subClassOf ub:Organization .
+
+ub:subOrganizationOf a owl:ObjectProperty, owl:TransitiveProperty ;
+    rdfs:domain ub:Organization ;
+    rdfs:range ub:Organization .
+
+ub:teacherOf a owl:ObjectProperty ;
+    rdfs:domain ub:Faculty ;
+    rdfs:range ub:Course .
+
+ub:takesCourse a owl:ObjectProperty ;
+    rdfs:domain ub:Student ;
+    rdfs:range ub:Course .
+
+ub:advisor a owl:ObjectProperty ;
+    rdfs:domain ub:Student ;
+    rdfs:range ub:Professor .
+
+ub:hasAlumnus a owl:ObjectProperty ;
+    owl:inverseOf ub:degreeFrom .
+ub:degreeFrom a owl:ObjectProperty ;
+    rdfs:domain ub:Person ;
+    rdfs:range ub:University .
+
+# ── A-Box ──
+
+ubi:University0 a ub:University .
+ubi:CS_Dept a ub:Department ;
+    ub:subOrganizationOf ubi:University0 .
+ubi:AI_Group a ub:Department ;
+    ub:subOrganizationOf ubi:CS_Dept .
+
+ubi:prof1 a ub:Professor ;
+    ub:worksFor ubi:AI_Group ;
+    ub:teacherOf ubi:CS101 .
+
+ubi:prof2 a ub:Professor ;
+    ub:worksFor ubi:CS_Dept .
+
+ubi:CS101 a ub:Course .
+ubi:CS201 a ub:Course .
+
+ubi:grad1 a ub:GraduateStudent ;
+    ub:takesCourse ubi:CS101 ;
+    ub:advisor ubi:prof1 ;
+    ub:degreeFrom ubi:University0 .
+
+ubi:grad2 a ub:GraduateStudent ;
+    ub:takesCourse ubi:CS201 ;
+    ub:advisor ubi:prof2 .
+
+ubi:employee1 a ub:Employee ;
+    ub:worksFor ubi:AI_Group .

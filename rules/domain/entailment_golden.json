@@ -1,0 +1,115 @@
+{
+  "_comment": "Golden entailment set — SME-validated SPARQL ASK queries. positive = must entail; negative = must NOT entail. Edit freely per domain; pipeline gate uses pass_rate to block schema regressions.",
+  "_how_to_use": "run_entailment_regression 도구가 run_owl_rl_inference 결과에 대해 이 파일을 평가한다. 새 axiom 을 추가할 때 positive/negative 짝을 같이 등록해 reasoner behaviour 를 고정하라.",
+  "_axes": [
+    "axiom 자체 존재: hasKey / disjointUnionOf / propertyChainAxiom 선언 확인",
+    "subClassOf 전이 추론: OWL RL scm-sco 규칙 동작",
+    "inverseOf 양방향 추론: OWL RL prp-inv1/2 동작",
+    "AllDisjointClasses 금지: 서로 겹치는 분류가 존재하지 않음",
+    "도메인 제약: 카테고리 간 cross-classification 방지"
+  ],
+  "positive": [
+    {
+      "id": "axiom-process-disjoint-union",
+      "description": "ManufacturingProcessStep 에 disjointUnionOf 공리가 선언되어 있다 (R13 Step 28)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX owl: <http://www.w3.org/2002/07/owl#> ASK { steel:ManufacturingProcessStep owl:disjointUnionOf ?list . }"
+    },
+    {
+      "id": "axiom-equipment-haskey",
+      "description": "EquipmentMaster 는 equipmentId 를 key 로 가진다 (R13 Step 27)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX owl: <http://www.w3.org/2002/07/owl#> ASK { steel:EquipmentMaster owl:hasKey ?list . }"
+    },
+    {
+      "id": "axiom-inventory-haskey-or-skip",
+      "description": "InventoryStatus 는 hasKey 를 가질 수 있다 — 단, composite PK 컴포넌트가 모두 FK 인 케이스는 ObjectProperty 로 변환되어 현재 _inject_owl_haskey (DP-only) 가 처리 못 함. 향후 OP-aware hasKey 주입 구현 시 expected=true 로 강화 가능. 현재는 'InventoryStatus 가 owl:Class 로 정상 선언' 만 검증하는 약한 게이트로 동작.",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX owl: <http://www.w3.org/2002/07/owl#> ASK { steel:InventoryStatus a owl:Class . }"
+    },
+    {
+      "id": "axiom-propertychain-exists",
+      "description": "propertyChainAxiom 공리가 최소 1개 선언되어 있다 (R13 Step 29)",
+      "query": "PREFIX owl: <http://www.w3.org/2002/07/owl#> ASK { ?op owl:propertyChainAxiom ?list . }"
+    },
+    {
+      "id": "subclass-process-step-declaration",
+      "description": "ProcessBlastFurnace 는 ManufacturingProcessStep 의 직접 subClassOf (disjointUnionOf 멤버)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> ASK { steel:ProcessBlastFurnace rdfs:subClassOf steel:ManufacturingProcessStep . }"
+    },
+    {
+      "id": "subclass-process-rolling-declaration",
+      "description": "ProcessRolling 도 ManufacturingProcessStep 의 하위",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> ASK { steel:ProcessRolling rdfs:subClassOf steel:ManufacturingProcessStep . }"
+    },
+    {
+      "id": "subclass-ghg-under-environmental-management",
+      "description": "GHGEmission 은 EnvironmentalMonitoring 의 하위 계층 (대기 배출 = 환경 모니터링 도메인). 2026-08-25 픽스처 교정: 이전 쿼리는 steel:EnvironmentalManagement 를 물었는데 그 이름은 T-Box 에 **선언조차 없다** (실제 중간 추상 클래스는 EnvironmentalMonitoring — design_patterns.json 의 hierarchy 설정이 만든다). 계층 자체는 의도대로 성립했고(GHGEmission ⊑ AtmosphericMonitoring ⊑ EnvironmentalMonitoring) 픽스처 이름만 낡아 영구 FAIL 이었다. 이름을 바꿀 때는 grep 으로 T-Box 선언을 확인하라 — ASK 는 없는 이름에 대해 에러 없이 false 를 준다.",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> ASK { steel:GHGEmission rdfs:subClassOf+ steel:EnvironmentalMonitoring . }"
+    },
+    {
+      "id": "inverse-status-pair-any",
+      "description": "R25: 어떤 이름이든 EquipmentStatus 관련 inverseOf 쌍이 최소 1개 존재 (네이밍 자유)",
+      "query": "PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX steel: <http://example.com/steel-ontology#> ASK { ?op1 owl:inverseOf ?op2 . ?op1 rdfs:range steel:EquipmentStatus . FILTER (?op1 != ?op2) }"
+    },
+    {
+      "id": "inverse-alarm-pair-any",
+      "description": "R25: 어떤 이름이든 AlarmEvents 관련 inverseOf 쌍이 최소 1개 존재 (네이밍 자유)",
+      "query": "PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX steel: <http://example.com/steel-ontology#> ASK { ?op1 owl:inverseOf ?op2 . ?op1 rdfs:range steel:AlarmEvents . FILTER (?op1 != ?op2) }"
+    },
+    {
+      "id": "axiom-process-chain-exists",
+      "description": "R25: T-Box 에 propertyChainAxiom 이 어떤 이름으로든 1개 이상 선언됨 (chain 의 range 는 자유 — 도메인별로 production-to-equipment 가 아닐 수도 있음)",
+      "query": "PREFIX owl: <http://www.w3.org/2002/07/owl#> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> PREFIX steel: <http://example.com/steel-ontology#> ASK { ?op owl:propertyChainAxiom ?list . }"
+    }
+  ],
+  "negative": [
+    {
+      "id": "disjoint-process-vs-emission",
+      "description": "제조 공정 단계는 GHG 배출 클래스가 아니어야 한다 (cross-BFO disjoint)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:ProcessBlastFurnace ; rdf:type steel:GHGEmission . }"
+    },
+    {
+      "id": "disjoint-alarm-vs-maintenance",
+      "description": "경보 이벤트와 정비 이력은 상호 배타 (고장/정비 disjoint 그룹)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:AlarmEvents ; rdf:type steel:MaintenanceHistory . }"
+    },
+    {
+      "id": "disjoint-inventory-vs-product",
+      "description": "재고 상태와 제품 마스터는 상호 배타 (물류 disjoint 그룹)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:InventoryStatus ; rdf:type steel:ProductMaster . }"
+    },
+    {
+      "id": "disjoint-equipment-vs-supplier",
+      "description": "설비 인스턴스가 공급사 인스턴스와 동일할 수 없다 (logistics disjoint)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:EquipmentMaster ; rdf:type steel:SupplierMaster . }"
+    },
+    {
+      "id": "disjoint-process-vs-process",
+      "description": "ProcessBlastFurnace 와 ProcessRolling 동시 분류 금지 (같은 disjointUnion)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:ProcessBlastFurnace ; rdf:type steel:ProcessRolling . }"
+    },
+    {
+      "id": "disjoint-product-vs-production",
+      "description": "제품 마스터는 생산 결과가 아니다 (master-vs-transaction disjoint)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:ProductMaster ; rdf:type steel:ProductionResult . }"
+    },
+    {
+      "id": "disjoint-item-vs-warehouse",
+      "description": "품목 인스턴스는 창고가 아니다 (master disjoint 그룹)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:ItemMaster ; rdf:type steel:WarehouseMaster . }"
+    },
+    {
+      "id": "disjoint-tag-vs-equipment",
+      "description": "태그 마스터와 설비 마스터는 별개 인스턴스 (occurrent-vs-continuant)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:TagMaster ; rdf:type steel:EquipmentMaster . }"
+    },
+    {
+      "id": "disjoint-energy-classes",
+      "description": "연료 소비와 가스 에너지는 상호 배타 (에너지 그룹)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:FuelConsumption ; rdf:type steel:GasEnergy . }"
+    },
+    {
+      "id": "disjoint-quality-checks",
+      "description": "치수 데이터와 표면 품질 검사는 상호 배타 (품질-검사 그룹)",
+      "query": "PREFIX steel: <http://example.com/steel-ontology#> PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> ASK { ?x rdf:type steel:DimensionalData ; rdf:type steel:SurfaceQuality . }"
+    }
+  ]
+}

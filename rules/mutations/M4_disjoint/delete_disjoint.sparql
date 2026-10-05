@@ -1,0 +1,14 @@
+# Deletes a single AllDisjointClasses axiom block.
+# Uses SPARQL 1.1 subquery with LIMIT 1 to select exactly one ?d deterministically
+# (sort by its IRI/bnode string representation). Multiple disjoint blocks remain
+# after the mutation — only one is removed.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+
+DELETE { ?d a owl:AllDisjointClasses ; owl:members ?list .
+         ?list ?p ?o . }
+WHERE  {
+    { SELECT ?d ?list WHERE {
+        ?d a owl:AllDisjointClasses ; owl:members ?list .
+      } ORDER BY STR(?d) LIMIT 1 }
+    ?list ?p ?o .
+}

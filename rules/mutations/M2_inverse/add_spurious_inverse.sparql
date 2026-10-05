@@ -1,0 +1,4 @@
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+INSERT { ?TARGET_PROP owl:inverseOf ?FOREIGN_CLASS . }
+WHERE  { ?TARGET_PROP a owl:ObjectProperty .
+         FILTER NOT EXISTS { ?TARGET_PROP owl:inverseOf ?any } }

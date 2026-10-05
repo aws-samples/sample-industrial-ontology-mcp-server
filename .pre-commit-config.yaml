@@ -1,0 +1,38 @@
+# Pre-commit 훅. 설치: `pre-commit install`, 수동 실행: `python -m pre_commit run --all-files`
+#
+# 정책:
+# - ruff는 pyproject.toml의 설정을 그대로 사용 (E501 무시 등)
+# - 테스트는 hook으로 돌리지 않는다 (너무 느림). 전체 pytest는 별도 명시 실행.
+# - 수정 가능한 lint는 --fix로 자동 수정, 나머지는 경고만.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.13
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(?:app\.py|config\.py|server\.py|domain/.*\.py|tools/.*\.py|tests/.*\.py)$
+      # ruff-format 은 **의도적으로 끈다.** 이 리포는 전체 포매팅을 적용한 적이 없어
+      # 활성화하면 손대지 않은 파일까지 통째로 재정렬되고, 실제 변경과 무관한 reflow 가
+      # 섞여 리뷰와 git blame 이 어려워진다. 전체 포매팅은 전용 커밋 하나로 따로
+      # 진행할 사안이다. 그때까지는 `ruff --fix` 가 실제 lint 문제를 잡는다.
+      # 다시 켜려면: 전체 리포를 먼저 포맷한 뒤 이 줄의 주석을 해제.
+      # - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # data/source/reference/ 는 **우리 소유가 아니다** (IOF Core/Maintenance/
+      # SupplyChain = MIT, bfo.owl = CC BY 4.0, OAGi = MIT). 아래 두 훅은 이 파일들의
+      # 공백과 파일 끝을 재작성하므로 제외한다. 바이트가 바뀌면 upstream 대조로 원문임을
+      # 증명할 수 없고 (iof_reference.json 의 IOF 원문 귀속 근거가 바이트 동일성이다),
+      # CC BY 계열은 변경 시 변경 사실 표시 의무가 생긴다.
+      - id: trailing-whitespace
+        exclude: ^data/source/reference/
+      - id: end-of-file-fixer
+        exclude: ^data/source/reference/
+      - id: check-yaml
+      - id: check-json
+      - id: check-added-large-files
+        args: [--maxkb=5120]
+      - id: check-merge-conflict
+      - id: debug-statements

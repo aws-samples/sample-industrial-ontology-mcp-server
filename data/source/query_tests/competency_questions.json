@@ -1,0 +1,203 @@
+[
+  {
+    "id": "CQ01",
+    "question_ko": "최근 30일 동안 고장 발생 횟수가 가장 많은 설비 상위 5개와 각 설비의 총 다운타임 시간 및 수리 비용은 얼마인가?",
+    "question_en": "What are the top 5 equipment with the highest number of failures in the last 30 days, along with their total downtime hours and repair costs?",
+    "difficulty": "medium",
+    "domains": [
+      "Failure_Cause",
+      "Equipment_Master",
+      "Equipment_Status"
+    ],
+    "expected_answer_type": "list",
+    "business_value": "반복 고장 설비를 조기 식별하여 예방 정비 우선순위를 결정하고 생산 손실을 최소화할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ02",
+    "question_ko": "알람이 발생한 태그(Tag)별로, 해당 태그의 실시간 측정값이 태그 정의 범위(Min_Value~Max_Value)를 벗어난 건수와 품질 코드(Quality_Code) 분포는 어떠하며, 이는 알람 유형(Alarm_Type)·심각도(Severity)와 어떤 관계를 보이는가?",
+    "question_en": "For each tag that raised an alarm, how many real-time measurements fall outside the tag's declared Min_Value~Max_Value range, what is the Quality_Code distribution, and how do these relate to alarm type and severity?",
+    "difficulty": "hard",
+    "domains": [
+      "Tag_Master",
+      "Alarm_Events",
+      "Real_Time_Data"
+    ],
+    "expected_answer_type": "causal",
+    "business_value": "알람이 실제 계측 이탈에 근거한 것인지, 센서 품질 저하에 따른 오알람인지 구분해 알람 신뢰도를 정량화하고 불필요한 현장 출동을 줄인다.",
+    "origin": "curated_20260903",
+    "replaces": "CQ02",
+    "replaced_reason": "구 CQ02 는 Process_Blast_Furnace ↔ Alarm_Events 조인을 요구했으나 두 테이블 사이 FK 가 없고(Alarm_Events 는 Tag_ID 만 보유), 조건이 ±1시간 시간창이라 ObjectProperty 로 표현 불가. 2026-09-03 실측 age_iterations=21 로 20회 이상 미해소.",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ03",
+    "question_ko": "각 제품(Product_ID)별로 화학 성분 분석 결과(C, Mn, Si 함량)와 기계적 특성(인장강도, 항복강도)을 비교했을 때, 목표 인장강도(Target_Tensile_MPa)를 미달한 제품의 평균 탄소 함량은 얼마인가?",
+    "question_en": "For products that failed to meet the target tensile strength, what is the average carbon content compared to compliant products?",
+    "difficulty": "hard",
+    "domains": [
+      "Chemical_Analysis",
+      "Mechanical_Properties",
+      "Product_Master"
+    ],
+    "expected_answer_type": "comparison",
+    "business_value": "화학 성분과 기계적 특성 간의 상관관계를 분석하여 품질 불량의 근본 원인을 규명하고 합금 배합을 최적화할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ04",
+    "question_ko": "연속 주조(Continuous Casting) 공정에서 주조 속도(Casting_Speed_mmin)와 몰드 레벨(Mold_Level_mm) 편차가 큰 시간대에 생산된 제품의 표면 결함 건수와 결함 유형은 무엇인가?",
+    "question_en": "What are the surface defect counts and types for products produced during periods of high casting speed and mold level deviation in the Continuous Casting process?",
+    "difficulty": "hard",
+    "domains": [
+      "Process_Continuous_Casting",
+      "Surface_Quality",
+      "Product_Master"
+    ],
+    "expected_answer_type": "causal",
+    "business_value": "주조 공정 파라미터 이상과 표면 품질 결함의 연관성을 파악하여 실시간 공정 제어 기준을 수립할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ05",
+    "question_ko": "설비 유형별로 월간 전력 소비량(kWh)과 에너지 효율(Efficiency_Percent)의 추이를 비교했을 때, 효율이 지속적으로 하락하는 설비는 어느 것이며 해당 설비의 최근 정비 이력은 무엇인가?",
+    "question_en": "Which equipment shows a continuous decline in energy efficiency compared to monthly electrical consumption trends, and what is their recent maintenance history?",
+    "difficulty": "hard",
+    "domains": [
+      "Electrical_Consumption",
+      "Energy_Efficiency",
+      "Equipment_Master",
+      "Maintenance_History"
+    ],
+    "expected_answer_type": "trend",
+    "business_value": "에너지 효율 저하 설비를 조기 발견하고 정비 이력과 연계하여 에너지 절감 및 설비 수명 연장 전략을 수립할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ06",
+    "question_ko": "설비별로 소비한 연료의 에너지원 종류(Source_Type)와 열량(Calorific_Value)은 무엇이며, 단위 열량당 연료비(Cost_per_Unit ÷ Calorific_Value)가 가장 높은 설비·에너지원 조합 상위 5개는 무엇인가?",
+    "question_en": "For each equipment, which energy source type and calorific value does its fuel consumption draw on, and which five equipment-energy-source combinations show the highest cost per unit of calorific value (Cost_per_Unit / Calorific_Value)?",
+    "difficulty": "hard",
+    "domains": [
+      "Equipment_Master",
+      "Fuel_Consumption",
+      "Energy_Source_Master"
+    ],
+    "expected_answer_type": "comparison",
+    "business_value": "동일 열량을 가장 비싸게 사는 설비·연료 조합을 찾아 연료 전환 및 계약 재협상 우선순위를 정한다.",
+    "origin": "curated_20260903",
+    "replaces": "CQ06",
+    "replaced_reason": "구 CQ06 은 Air_Emission_Monitoring 에 Equipment_ID·Energy_Source_ID 가 없고(Stack_ID 는 마스터 없는 고아 컬럼), GHG_Emission.Source_Type{Combustion,Electricity,Process,Transport} 과 Energy_Source_Master.Source_Type{BFG,COG,LNG,…} 의 값 교집합이 Electricity 1개뿐이라 조인 근거가 없었다.",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ07",
+    "question_ko": "압연(Rolling) 공정에서 목표 두께 대비 실제 출구 두께(Exit_Thickness_mm) 편차가 ±0.1mm를 초과한 코일의 치수 검사 결과(Dimensional_Data)와 비파괴 검사(NDT) 결과는 어떠한가?",
+    "question_en": "What are the dimensional inspection and NDT results for coils where the exit thickness deviation exceeded ±0.1mm from the target in the Rolling process?",
+    "difficulty": "medium",
+    "domains": [
+      "Process_Rolling",
+      "Dimensional_Data",
+      "NDT_Results",
+      "Product_Master"
+    ],
+    "expected_answer_type": "list",
+    "business_value": "압연 공정 두께 편차와 후공정 품질 검사 결과를 연계하여 불량 제품의 출하 전 선별 기준을 강화할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ08",
+    "question_ko": "안전 재고(Safety_Stock) 이하로 떨어진 품목의 현재 발주 현황(Purchase_Order)과 예상 납기일, 그리고 해당 품목을 공급하는 공급업체의 신용 등급과 평균 납기 준수율은 어떠한가?",
+    "question_en": "For items below safety stock levels, what are the current purchase order status and expected delivery dates, and what are the credit ratings and average delivery compliance rates of their suppliers?",
+    "difficulty": "medium",
+    "domains": [
+      "Inventory_Status",
+      "Item_Master",
+      "Purchase_Order",
+      "Supplier_Master",
+      "Item_Supplier_Map"
+    ],
+    "expected_answer_type": "list",
+    "business_value": "재고 부족 품목의 조달 리스크를 공급업체 신뢰도와 함께 평가하여 생산 중단 예방을 위한 긴급 조달 의사결정을 지원한다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ09",
+    "question_ko": "강종(Steel_Grade)별로 항복강도(Yield_Strength_MPa)가 목표치(Target_Yield_MPa)에 미달한 시편은 몇 건이며, 그 제품의 탄소·인·황 함량(C/P/S_Percent) 분포와 동일 제품의 비파괴검사(NDT) 결함 심각도는 어떤 관계를 보이는가?",
+    "question_en": "Per steel grade, how many specimens fall below the target yield strength, and how do the carbon/phosphorus/sulfur contents of those products relate to the NDT defect severity recorded for the same products?",
+    "difficulty": "hard",
+    "domains": [
+      "Product_Master",
+      "Chemical_Analysis",
+      "Mechanical_Properties",
+      "NDT_Results"
+    ],
+    "expected_answer_type": "causal",
+    "business_value": "규격 미달 물성의 근본 원인을 성분 이상과 내부 결함 중 어느 쪽인지 구분해 제강 성분 관리와 주조 조건 중 개선 지점을 특정한다.",
+    "origin": "curated_20260903",
+    "replaces": "CQ09",
+    "replaced_reason": "구 CQ09 는 Real_Time_Data 가 Tag_ID 외 FK 를 갖지 않아 Chemical_Analysis·Product_Master 까지 5홉(RTD→Tag→Equipment→공정→Product→분석)이 필요했고, 'Quality_Code ≠ GOOD' 조건도 실제 값이 0/1/2 (30,615/3,621/1,764건) 라 어휘가 성립하지 않았다.",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ10",
+    "question_ko": "소음·진동 모니터링에서 기준치를 초과한 측정 지점 인근 설비의 가스 에너지 소비량(Gas_Energy), 스팀 에너지 소비량(Steam_Energy), 폐기물 발생량(Waste_Management), 토양 오염 측정값(Soil_Monitoring), 수질 오염 측정값(Water_Quality_Monitoring)을 종합했을 때, 환경 복합 위험 지수가 가장 높은 설비와 위치는 어디인가?",
+    "question_en": "Integrating gas energy, steam energy, waste generation, soil contamination, and water quality data for equipment near noise/vibration monitoring points that exceeded thresholds, which equipment and location has the highest composite environmental risk index?",
+    "difficulty": "hard",
+    "domains": [
+      "Noise_Vibration_Monitoring",
+      "Gas_Energy",
+      "Steam_Energy",
+      "Waste_Management",
+      "Soil_Monitoring",
+      "Water_Quality_Monitoring",
+      "Equipment_Master",
+      "Monitoring_Point_Master"
+    ],
+    "expected_answer_type": "comparison",
+    "business_value": "다중 환경 지표를 설비 단위로 통합 분석하여 환경 규제 위반 고위험 지점을 사전에 식별하고 통합 환경 관리 체계를 구축할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ11",
+    "question_ko": "안전재고(Safety_Stock) 미달 상태인 품목은 어느 창고(Warehouse_Name)에 있으며, 부족량이 큰 순서로 볼 때 해당 품목·창고의 입출고 트랜잭션(Transaction_Type, Quantity) 건수와 예약 재고(Reserved_Stock) 비중은 얼마인가?",
+    "question_en": "Which items are below their safety stock and in which warehouse, and — ordered by shortfall — how many inbound/outbound transactions and what share of reserved stock do those item-warehouse pairs have?",
+    "difficulty": "hard",
+    "domains": [
+      "Item_Master",
+      "Inventory_Status",
+      "Inventory_Transaction",
+      "Warehouse_Master"
+    ],
+    "expected_answer_type": "list",
+    "business_value": "결품 임박 품목을 창고 단위로 확정하고, 예약 재고와 최근 입출고 흐름을 함께 보아 긴급 보충 대상과 재배치 대상을 구분한다.",
+    "origin": "curated_20260903",
+    "replaces": "CQ11",
+    "replaced_reason": "구 CQ11 은 Inventory_Transaction 에 Equipment_ID·Product_ID 가 없고, 유일한 외부 참조 후보 Reference_No(REF00001~, distinct 600) 가 Purchase_Order.PO_ID 와 교집합 0 이라 고장·생산계획과 이어지는 경로가 데이터에 존재하지 않았다.",
+    "source": "user_provided"
+  },
+  {
+    "id": "CQ12",
+    "question_ko": "창고별 현재 가용 재고(Available_Stock)와 예약 재고(Reserved_Stock) 비율을 분석하고, 물류 운송(Transportation) 데이터에서 해당 창고 간 이동 빈도와 평균 운송 수량을 고려했을 때 재고 회전율이 가장 낮은 창고와 품목은 무엇인가?",
+    "question_en": "Analyzing the ratio of available to reserved stock by warehouse and considering inter-warehouse transportation frequency and average quantities, which warehouse and item have the lowest inventory turnover rate?",
+    "difficulty": "medium",
+    "domains": [
+      "Inventory_Status",
+      "Warehouse_Master",
+      "Transportation",
+      "Item_Master",
+      "Inventory_Transaction"
+    ],
+    "expected_answer_type": "comparison",
+    "business_value": "창고별 재고 회전율 분석을 통해 과잉 재고 및 물류 비효율 구간을 식별하고 재고 최적화 및 창고 운영 개선 방안을 도출할 수 있다.",
+    "origin": "auto_generated",
+    "source": "user_provided"
+  }
+]

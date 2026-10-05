@@ -1,0 +1,48 @@
+{
+  "_comment": "CSV 값 전처리 규칙. A-Box 생성 시 Literal 변환 직전 적용. 같은 의미의 값이 표기 차이로 URI/리터럴 충돌하는 것을 방지.",
+
+  "global_preprocess": {
+    "trim": true,
+    "_trim": "앞뒤 공백 제거. 거의 항상 true.",
+    "collapse_internal_whitespace": true,
+    "_collapse": "연속된 공백을 단일 공백으로. 예: 'Good  Quality' → 'Good Quality'",
+    "strip_bom": true,
+    "_bom": "BOM (U+FEFF) 제거 — UTF-8 파일 시작에서 가끔 등장"
+  },
+
+  "enum_synonyms": {
+    "_comment": "특정 컬럼의 값 동의어 통합. (col pattern → {canonical: [aliases]}) pattern 은 소문자 컬럼명 정확 매칭 또는 suffix 매칭.",
+    "status": {
+      "Active": ["active", "ACTIVE", "운영중", "가동중"],
+      "Inactive": ["inactive", "INACTIVE", "정지", "중단"],
+      "Completed": ["completed", "complete", "완료"],
+      "Pending": ["pending", "대기", "대기중"],
+      "Running": ["running", "RUNNING", "가동"],
+      "Maintenance": ["maintenance", "MAINTENANCE", "정비중"],
+      "Standby": ["standby", "STANDBY", "대기중"],
+      "Stopped": ["stopped", "STOPPED", "정지중"],
+      "Resolved": ["resolved", "RESOLVED", "해결됨"],
+      "Recurring": ["recurring", "RECURRING", "재발"],
+      "Delayed": ["delayed", "DELAYED", "지연"],
+      "Planned": ["planned", "PLANNED", "계획됨"],
+      "InProgress": ["in_progress", "In_Progress", "IN_PROGRESS", "진행중"],
+      "Shipped": ["shipped", "SHIPPED", "출하됨"],
+      "Received": ["received", "RECEIVED", "수령됨"],
+      "Ordered": ["ordered", "ORDERED", "발주됨"]
+    },
+    "severity": {
+      "Critical": ["critical", "CRITICAL", "심각", "긴급"],
+      "Major": ["major", "MAJOR", "주요", "중대"],
+      "Minor": ["minor", "MINOR", "경미"],
+      "Warning": ["warning", "WARN", "warn", "경고"],
+      "High": ["high", "HIGH", "높음"],
+      "Medium": ["medium", "MEDIUM", "중간"],
+      "Low": ["low", "LOW", "낮음"]
+    },
+    "result": {
+      "Pass": ["pass", "PASS", "합격", "정상"],
+      "Fail": ["fail", "FAIL", "불합격", "불량"],
+      "Conditional": ["conditional", "조건부", "보류"]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+Warehouse_Code,Warehouse_Name,Location,Capacity,Manager_ID,Zone_List
+WH001,Warehouse_1,BF_Area,5291,MGR001,"Zone_A,Zone_B,Zone_C"
+WH002,Warehouse_2,SM_Area,9274,MGR002,"Zone_A,Zone_B,Zone_C"
+WH003,Warehouse_3,CC_Area,5780,MGR003,"Zone_A,Zone_B,Zone_C"
+WH004,Warehouse_4,Rolling_Area,1512,MGR004,"Zone_A,Zone_B,Zone_C"
+WH005,Warehouse_5,Utility,5570,MGR005,"Zone_A,Zone_B,Zone_C"
+WH006,Warehouse_6,Production_Area,8662,MGR006,"Zone_A,Zone_B,Zone_C"
+WH007,Warehouse_7,Storage_Area,1617,MGR007,"Zone_A,Zone_B,Zone_C"
+WH008,Warehouse_8,BF_Area,1612,MGR008,"Zone_A,Zone_B,Zone_C"
+WH009,Warehouse_9,SM_Area,8756,MGR009,"Zone_A,Zone_B,Zone_C"
+WH010,Warehouse_10,CC_Area,4634,MGR010,"Zone_A,Zone_B,Zone_C"

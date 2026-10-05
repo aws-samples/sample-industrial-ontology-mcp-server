@@ -1,0 +1,14 @@
+ONTOLOGY AGENT SAMPLE DISCLAIMER
+
+This is sample code, for non-production usage. You should work with your
+security and legal teams to meet your organizational security, regulatory,
+and compliance requirements before deployment.
+
+The repository contains synthetic manufacturing data and derived workshop
+artifacts for demonstration. It does not contain production or customer data,
+and the sample is not affiliated with any manufacturer.
+
+Model-assisted ontology content, generated RDF/OWL artifacts, queries, and
+reports are hypotheses until they have been reviewed and validated for the
+intended domain. Third-party ontology assets remain subject to their own
+licenses and attribution requirements.

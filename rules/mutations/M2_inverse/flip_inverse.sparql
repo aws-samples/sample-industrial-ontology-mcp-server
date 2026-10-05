@@ -1,0 +1,4 @@
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+DELETE { ?TARGET_PROP owl:inverseOf ?orig . }
+INSERT { ?TARGET_PROP owl:inverseOf ?TARGET_PROP . }
+WHERE  { ?TARGET_PROP owl:inverseOf ?orig . FILTER (!isBlank(?orig)) }

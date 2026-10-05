@@ -1,0 +1,203 @@
+{
+  "description": "온톨로지 디자인 패턴 (ODP) 라이브러리 — Architect가 참조하여 구조적 품질을 보장",
+  "reference": "Gangemi, A. (2005) Ontology Design Patterns for Semantic Web Content",
+  "domain_hierarchy": {
+    "설비": {
+      "abstract_class": "EquipmentManagement",
+      "iof_parent": "iof-core:DescriptiveInformationContentEntity",
+      "sub_groups": {
+        "EquipmentAsset": [
+          "EquipmentMaster",
+          "TagMaster"
+        ],
+        "EquipmentEvent": [
+          "EquipmentStatus",
+          "AlarmEvents"
+        ]
+      },
+      "cross_domain_ops": [
+        "requiresMaintenance",
+        "hasEnergyProfile",
+        "hasSoilImpact",
+        "hasFailureCauseInventoryTransaction"
+      ]
+    },
+    "공정": {
+      "abstract_class": "ManufacturingProcessStep",
+      "iof_parent": "iof-core:ManufacturingProcess",
+      "sub_groups": {},
+      "cross_domain_ops": [
+        "producesProduct",
+        "producesQualityResult",
+        "usesEquipment",
+        "generatesEmission",
+        "generatesWaste",
+        "processConsumesElectricity",
+        "processConsumesGas",
+        "processConsumesSteam",
+        "consumesFuel"
+      ]
+    },
+    "품질": {
+      "abstract_class": "QualityMeasurement",
+      "iof_parent": "iof-core:MeasurementInformationContentEntity",
+      "sub_groups": {
+        "MaterialProperty": [
+          "ChemicalAnalysis",
+          "MechanicalProperties"
+        ],
+        "ProductInspection": [
+          "DimensionalData",
+          "SurfaceQuality",
+          "NDTResults"
+        ]
+      },
+      "cross_domain_ops": [
+        "meetsQualitySpec"
+      ]
+    },
+    "에너지": {
+      "abstract_class": "EnergyManagement",
+      "iof_parent": "iof-core:MeasurementInformationContentEntity",
+      "sub_groups": {
+        "EnergyConsumption": [
+          "ElectricalConsumption",
+          "FuelConsumption",
+          "GasEnergy",
+          "SteamEnergy"
+        ],
+        "EnergyInfrastructure": [
+          "EnergySourceMaster",
+          "EnergyEfficiency"
+        ]
+      },
+      "cross_domain_ops": [
+        "hasSteamEnergySource",
+        "hasGasEnergySource"
+      ],
+      "_note": "에너지 소비 이벤트는 PlannedProcess에 가깝지만, 센서 측정값 중심이므로 MeasurementICE 유지"
+    },
+    "환경": {
+      "abstract_class": "EnvironmentalMonitoring",
+      "iof_parent": "iof-core:MeasurementInformationContentEntity",
+      "sub_groups": {
+        "AtmosphericMonitoring": [
+          "AirEmissionMonitoring",
+          "GHGEmission"
+        ],
+        "LandWaterMonitoring": [
+          "WaterQualityMonitoring",
+          "SoilMonitoring"
+        ],
+        "WasteNoiseMonitoring": [
+          "WasteManagement",
+          "NoiseVibrationMonitoring"
+        ]
+      },
+      "cross_domain_ops": [
+        "correlatedWithWaste",
+        "hasGHGAirEmissionMonitoring",
+        "hasFuelAirEmissionMonitoring",
+        "hasEnergySourceAirEmissionMonitoring",
+        "hasEnergySourceMonitoringPoint",
+        "hasNoiseVibrationSteamEnergy",
+        "hasNoiseVibrationWasteManagement"
+      ]
+    },
+    "물류": {
+      "abstract_class": "SupplyChainManagement",
+      "iof_parent": "iof-core:DescriptiveInformationContentEntity",
+      "sub_groups": {
+        "SupplyChainMaster": [
+          "ItemMaster",
+          "SupplierMaster",
+          "WarehouseMaster"
+        ],
+        "SupplyChainTransaction": [
+          "InventoryTransaction",
+          "PurchaseOrder",
+          "Transportation"
+        ],
+        "SupplyChainMapping": [
+          "InventoryStatus",
+          "ItemSupplierMap"
+        ]
+      },
+      "cross_domain_ops": [
+        "requiresMaterial",
+        "storedIn",
+        "transportedVia"
+      ]
+    },
+    "생산": {
+      "abstract_class": "ProductionManagement",
+      "iof_parent": "iof-core:DescriptiveInformationContentEntity",
+      "sub_groups": {},
+      "cross_domain_ops": [
+        "producesForInventory",
+        "hasChemicalComposition",
+        "hasDimensionalSpec",
+        "hasNDTResult"
+      ]
+    },
+    "정비": {
+      "abstract_class": "MaintenanceManagement",
+      "iof_parent": "iof-core:DescriptiveInformationContentEntity",
+      "sub_groups": {},
+      "cross_domain_ops": [
+        "triggersMaintenanceAction"
+      ]
+    },
+    "모니터링": {
+      "abstract_class": "MonitoringManagement",
+      "iof_parent": "iof-core:MeasurementInformationContentEntity",
+      "sub_groups": {},
+      "cross_domain_ops": [
+        "monitorsAirQuality",
+        "monitorsWaterQuality",
+        "monitorsNoise"
+      ]
+    },
+    "실시간": {
+      "abstract_class": "RealTimeDataManagement",
+      "iof_parent": "iof-core:MeasurementInformationContentEntity",
+      "sub_groups": {},
+      "cross_domain_ops": [
+        "hasRealTimeData",
+        "hasRealTimeDataChemicalAnalysis",
+        "hasTagMasterChemicalAnalysis",
+        "hasTagMasterProduct"
+      ]
+    }
+  },
+  "axiom_patterns": {
+    "pk_functional": "PK 컬럼(*Id, *Code)은 owl:FunctionalProperty로 선언하여 인스턴스당 정확히 1개 값 보장",
+    "fk_some_values_from": "FK ObjectProperty의 domain 클래스에 owl:someValuesFrom 제약 추가 (단, AllDisjointClasses 충돌 확인 후)",
+    "inverse_of": "모든 ObjectProperty에 owl:inverseOf 역방향 프로퍼티 정의"
+  },
+  "metric_targets": {
+    "dit": {
+      "min": 2,
+      "max": 5,
+      "description": "Depth of Inheritance Tree — 2~3단계 계층 권장"
+    },
+    "rr": {
+      "min": 0.3,
+      "max": 0.6,
+      "description": "Relationship Richness — OP/(OP+DP) ≥ 0.3"
+    },
+    "ar": {
+      "min": 3,
+      "max": 15,
+      "description": "Attribute Richness — 클래스당 평균 DP ≥ 3"
+    },
+    "axiom": {
+      "min": 2,
+      "description": "클래스당 평균 axiom ≥ 2 (subClassOf + restriction)"
+    },
+    "annotation": {
+      "min": 100,
+      "description": "모든 엔티티에 rdfs:label + rdfs:comment"
+    }
+  }
+}

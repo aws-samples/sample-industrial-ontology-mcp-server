@@ -1,0 +1,4 @@
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+DELETE { ?r owl:allValuesFrom ?c }
+INSERT { ?r owl:someValuesFrom ?c }
+WHERE  { ?r a owl:Restriction ; owl:allValuesFrom ?c }

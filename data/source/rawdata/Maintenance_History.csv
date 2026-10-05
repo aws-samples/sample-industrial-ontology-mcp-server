@@ -1,0 +1,103 @@
+Maintenance_ID,Equipment_ID,Maintenance_Date,Type,Description,Cost_USD
+MNT00001,EQ001,2025-09-28,Emergency,Motor Repair,9277.18
+MNT00002,EQ001,2025-09-18,Emergency,Filter Replacement,3847.02
+MNT00003,EQ001,2025-09-01,Predictive,Oil Change,10307.33
+MNT00004,EQ002,2025-09-24,Predictive,Oil Change,2148.31
+MNT00005,EQ002,2025-09-07,Predictive,Cleaning,10577.67
+MNT00006,EQ003,2025-09-16,Preventive,Oil Change,5181.02
+MNT00007,EQ003,2025-09-23,Corrective,Cleaning,10471.64
+MNT00008,EQ004,2025-09-28,Corrective,Cleaning,7942.7
+MNT00009,EQ005,2025-09-07,Corrective,Cleaning,9769.08
+MNT00010,EQ006,2025-09-11,Predictive,Calibration,1104.15
+MNT00011,EQ007,2025-09-02,Corrective,Belt Replacement,14813.0
+MNT00012,EQ007,2025-09-07,Predictive,Calibration,8675.46
+MNT00013,EQ007,2025-09-12,Corrective,Alignment,11239.14
+MNT00014,EQ008,2025-09-20,Corrective,Calibration,5932.08
+MNT00015,EQ008,2025-09-25,Predictive,Cleaning,6482.88
+MNT00016,EQ008,2025-09-15,Predictive,Inspection,11648.16
+MNT00017,EQ009,2025-09-07,Emergency,Cleaning,3697.48
+MNT00018,EQ009,2025-09-01,Emergency,Alignment,2397.06
+MNT00019,EQ010,2025-09-26,Preventive,Cleaning,984.37
+MNT00020,EQ010,2025-09-29,Preventive,Belt Replacement,5824.45
+MNT00021,EQ011,2025-09-01,Preventive,Motor Repair,5409.3
+MNT00022,EQ012,2025-09-24,Corrective,Cleaning,6154.65
+MNT00023,EQ012,2025-09-09,Preventive,Cleaning,14210.63
+MNT00024,EQ013,2025-09-11,Predictive,Motor Repair,13338.17
+MNT00025,EQ013,2025-09-12,Preventive,Oil Change,3896.01
+MNT00026,EQ014,2025-09-09,Preventive,Bearing Replacement,5857.58
+MNT00027,EQ014,2025-09-15,Preventive,Seal Replacement,12144.51
+MNT00028,EQ015,2025-09-10,Predictive,Motor Repair,1162.24
+MNT00029,EQ016,2025-09-12,Preventive,Belt Replacement,2393.2
+MNT00030,EQ016,2025-09-29,Preventive,Calibration,3974.18
+MNT00031,EQ017,2025-09-19,Predictive,Calibration,173.58
+MNT00032,EQ017,2025-09-26,Predictive,Filter Replacement,3103.7
+MNT00033,EQ017,2025-09-14,Emergency,Seal Replacement,353.13
+MNT00034,EQ018,2025-09-27,Preventive,Alignment,13022.22
+MNT00035,EQ019,2025-09-03,Corrective,Filter Replacement,6182.32
+MNT00036,EQ019,2025-09-02,Emergency,Calibration,12167.37
+MNT00037,EQ019,2025-09-09,Preventive,Filter Replacement,7739.15
+MNT00038,EQ020,2025-09-02,Preventive,Motor Repair,10996.7
+MNT00039,EQ020,2025-09-18,Predictive,Cleaning,3427.75
+MNT00040,EQ021,2025-09-25,Emergency,Belt Replacement,3267.61
+MNT00041,EQ021,2025-09-22,Corrective,Inspection,11575.35
+MNT00042,EQ021,2025-09-21,Preventive,Inspection,7186.89
+MNT00043,EQ022,2025-09-28,Predictive,Inspection,13176.83
+MNT00044,EQ022,2025-09-05,Predictive,Motor Repair,14851.49
+MNT00045,EQ023,2025-09-09,Preventive,Motor Repair,5899.68
+MNT00046,EQ023,2025-09-09,Corrective,Calibration,4834.82
+MNT00047,EQ023,2025-09-02,Corrective,Motor Repair,11327.31
+MNT00048,EQ024,2025-09-25,Predictive,Calibration,14819.07
+MNT00049,EQ024,2025-09-01,Corrective,Alignment,9639.28
+MNT00050,EQ025,2025-09-19,Preventive,Bearing Replacement,13335.24
+MNT00051,EQ026,2025-09-27,Predictive,Cleaning,772.85
+MNT00052,EQ026,2025-09-22,Emergency,Bearing Replacement,2611.93
+MNT00053,EQ026,2025-09-20,Preventive,Oil Change,9795.04
+MNT00054,EQ027,2025-09-26,Preventive,Belt Replacement,5371.24
+MNT00055,EQ028,2025-09-20,Emergency,Oil Change,5048.64
+MNT00056,EQ028,2025-09-09,Predictive,Bearing Replacement,7082.79
+MNT00057,EQ028,2025-09-28,Preventive,Bearing Replacement,3487.63
+MNT00058,EQ029,2025-09-24,Corrective,Alignment,7120.36
+MNT00059,EQ029,2025-09-18,Corrective,Motor Repair,9183.97
+MNT00060,EQ029,2025-09-04,Predictive,Belt Replacement,7750.93
+MNT00061,EQ030,2025-09-24,Preventive,Cleaning,10852.35
+MNT00062,EQ030,2025-09-07,Preventive,Cleaning,11343.76
+MNT00063,EQ031,2025-09-27,Predictive,Cleaning,13119.5
+MNT00064,EQ032,2025-09-17,Predictive,Calibration,1679.72
+MNT00065,EQ032,2025-09-14,Preventive,Filter Replacement,2607.9
+MNT00066,EQ032,2025-09-29,Corrective,Motor Repair,10866.32
+MNT00067,EQ033,2025-09-23,Predictive,Calibration,2569.62
+MNT00068,EQ033,2025-09-14,Predictive,Calibration,13928.57
+MNT00069,EQ034,2025-09-04,Predictive,Alignment,2967.8
+MNT00070,EQ035,2025-09-13,Corrective,Inspection,3283.18
+MNT00071,EQ036,2025-09-30,Predictive,Motor Repair,1474.86
+MNT00072,EQ036,2025-09-26,Corrective,Belt Replacement,7084.21
+MNT00073,EQ036,2025-09-17,Preventive,Oil Change,13306.67
+MNT00074,EQ037,2025-09-27,Preventive,Calibration,6273.36
+MNT00075,EQ037,2025-09-18,Corrective,Bearing Replacement,14010.11
+MNT00076,EQ038,2025-09-08,Preventive,Oil Change,3378.95
+MNT00077,EQ039,2025-09-04,Corrective,Cleaning,14193.01
+MNT00078,EQ039,2025-09-01,Emergency,Oil Change,3497.18
+MNT00079,EQ040,2025-09-27,Corrective,Bearing Replacement,10655.6
+MNT00080,EQ040,2025-09-26,Predictive,Seal Replacement,4813.74
+MNT00081,EQ040,2025-09-09,Emergency,Cleaning,9452.54
+MNT00082,EQ041,2025-09-02,Predictive,Cleaning,4280.46
+MNT00083,EQ041,2025-09-15,Emergency,Inspection,4912.12
+MNT00084,EQ042,2025-09-03,Predictive,Alignment,6368.72
+MNT00085,EQ042,2025-09-11,Preventive,Inspection,7919.99
+MNT00086,EQ043,2025-09-18,Predictive,Bearing Replacement,12660.59
+MNT00087,EQ043,2025-09-24,Preventive,Cleaning,1088.0
+MNT00088,EQ043,2025-09-19,Preventive,Alignment,9077.67
+MNT00089,EQ044,2025-09-19,Preventive,Cleaning,14814.74
+MNT00090,EQ044,2025-09-25,Predictive,Seal Replacement,2597.96
+MNT00091,EQ044,2025-09-27,Corrective,Cleaning,4027.26
+MNT00092,EQ045,2025-09-15,Corrective,Cleaning,440.53
+MNT00093,EQ045,2025-09-05,Emergency,Alignment,6039.05
+MNT00094,EQ045,2025-09-05,Preventive,Seal Replacement,10250.76
+MNT00095,EQ046,2025-09-04,Emergency,Inspection,515.07
+MNT00096,EQ047,2025-09-24,Preventive,Cleaning,1586.55
+MNT00097,EQ047,2025-09-30,Corrective,Cleaning,7892.62
+MNT00098,EQ048,2025-09-28,Predictive,Belt Replacement,7710.08
+MNT00099,EQ048,2025-09-05,Predictive,Bearing Replacement,9767.95
+MNT00100,EQ049,2025-09-01,Emergency,Seal Replacement,10757.5
+MNT00101,EQ049,2025-09-28,Emergency,Bearing Replacement,13108.84
+MNT00102,EQ050,2025-09-15,Corrective,Filter Replacement,7267.61

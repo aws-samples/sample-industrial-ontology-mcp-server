@@ -1,0 +1,8 @@
+# Deletes an rdfs:domain triple on a datatype/object property.
+# Runner fills ?TARGET_PROP by sorted URI selection.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+DELETE { ?TARGET_PROP rdfs:domain ?dom . }
+WHERE  { ?TARGET_PROP rdfs:domain ?dom .
+         FILTER (!isBlank(?dom)) }

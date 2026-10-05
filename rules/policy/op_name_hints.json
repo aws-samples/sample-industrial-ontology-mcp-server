@@ -1,0 +1,42 @@
+{
+  "_comment": "P0 — Architect 프롬프트에 주입되는 OP 이름 힌트. IOF Core/Maintenance 에서 자주 쓰는 표준 OP 이름 발췌. 도메인 중립 상위 추상 — 신규 도메인에도 유효. 파일 없거나 비어 있으면 힌트 주입 비활성 (기존 동작 유지).",
+  "_source": "IOF Core 202401 + IOF Maintenance",
+  "prefer_these_names_when_applicable": [
+    {"name": "hasInput", "meaning": "process ← consumes material/artifact"},
+    {"name": "hasOutput", "meaning": "process → produces material/artifact"},
+    {"name": "hasSpecifiedInput", "meaning": "process ← planned input (spec)"},
+    {"name": "hasSpecifiedOutput", "meaning": "process → planned output (spec)"},
+    {"name": "hasParticipant", "meaning": "process ↔ participant entity"},
+    {"name": "hasParticipantAtSomeTime", "meaning": "process ↔ participant (temporal)"},
+    {"name": "hasPart", "meaning": "whole → part (mereology)"},
+    {"name": "isPartOf", "meaning": "part → whole (inverse of hasPart)"},
+    {"name": "hasDesignation", "meaning": "object → identifier/name/code"},
+    {"name": "derivesFrom", "meaning": "artifact ← source artifact/material"},
+    {"name": "performsTask", "meaning": "agent/equipment → task/activity"},
+    {"name": "isLocatedIn", "meaning": "object → spatial location"},
+    {"name": "followedBy", "meaning": "event/process → temporally next event"},
+    {"name": "precededBy", "meaning": "event/process ← temporally prior event"},
+    {"name": "hasQuality", "meaning": "entity → inherent quality (BFO)"},
+    {"name": "hasQualityMeasurement", "meaning": "quality → measurement result"},
+    {"name": "measuredBy", "meaning": "quality ← measurement act"},
+    {"name": "hasUnitOfMeasure", "meaning": "quantity → unit (QUDT-aligned)"},
+    {"name": "hasMaintenanceActivity", "meaning": "equipment → maintenance activity"},
+    {"name": "maintainedBy", "meaning": "equipment ← maintenance agent"},
+    {"name": "usedIn", "meaning": "artifact/equipment → process where used"},
+    {"name": "hasPlan", "meaning": "process ← plan/specification"},
+    {"name": "realizes", "meaning": "process realizes plan/disposition"},
+    {"name": "hasAgent", "meaning": "activity → responsible agent"},
+    {"name": "hasRole", "meaning": "entity → realized role"},
+    {"name": "hasCapability", "meaning": "entity → disposition/capability"},
+    {"name": "producedBy", "meaning": "product ← manufacturing process"},
+    {"name": "consumedBy", "meaning": "material ← process that consumes it"},
+    {"name": "hasStatus", "meaning": "entity → current status/state"},
+    {"name": "hasFailureMode", "meaning": "equipment → failure mode/pattern"}
+  ],
+  "avoid_these_patterns": [
+    "doubleVerb — e.g., hasHasPart / isIsOf / hasIsOfPart (runtime error later)",
+    "noun-only — e.g., Equipment / Status without verb prefix (ambiguous direction)",
+    "self-prefixing — e.g., ProductProductCategory (use Product hasCategory instead)",
+    "mismatched inverse direction — e.g., hasEquipment domain=X range=Y paired with isEquipmentOf domain=X range=Y (should be reversed)"
+  ]
+}

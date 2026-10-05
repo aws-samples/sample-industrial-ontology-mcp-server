@@ -1,0 +1,239 @@
+{
+  "mappings": {
+    "Air_Emission_Monitoring": [
+      "MeasurementProcess",
+      "MeasurementInformationContentEntity",
+      "PieceOfEquipment"
+    ],
+    "Alarm_Events": [
+      "Event",
+      "PieceOfEquipment"
+    ],
+    "Chemical_Analysis": [
+      "MeasurementProcess",
+      "MeasurementInformationContentEntity",
+      "MaterialProduct"
+    ],
+    "Dimensional_Data": [
+      "MeasurementInformationContentEntity",
+      "MaterialProduct",
+      "MeasuredValueExpression"
+    ],
+    "Electrical_Consumption": [
+      "MeasurementInformationContentEntity",
+      "PieceOfEquipment",
+      "MeasuredValueExpression"
+    ],
+    "Energy_Efficiency": [
+      "ProcessCharacteristic",
+      "PieceOfEquipment",
+      "MeasuredValueExpression"
+    ],
+    "Energy_Source_Master": [
+      "MaterialResource",
+      "DescriptiveInformationContentEntity"
+    ],
+    "Equipment_Master": [
+      "PieceOfEquipment",
+      "Identifier",
+      "Manufacturer"
+    ],
+    "Equipment_Status": [
+      "MaterialState",
+      "PieceOfEquipment",
+      "MeasurementInformationContentEntity"
+    ],
+    "Failure_Cause": [
+      "Event",
+      "PieceOfEquipment",
+      "DegradedState"
+    ],
+    "Fuel_Consumption": [
+      "MaterialResource",
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression"
+    ],
+    "GHG_Emission": [
+      "MeasurementInformationContentEntity",
+      "ProcessCharacteristic",
+      "MeasuredValueExpression"
+    ],
+    "Gas_Energy": [
+      "MaterialResource",
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression"
+    ],
+    "Inventory_Status": [
+      "MaterialResource",
+      "MeasuredValueExpression",
+      "PhysicalLocationIdentifier"
+    ],
+    "Inventory_Transaction": [
+      "MaterialLocationChangeProcess",
+      "MaterialResource",
+      "Event"
+    ],
+    "Item_Master": [
+      "MaterialResource",
+      "DesignSpecification",
+      "Identifier"
+    ],
+    "Item_Supplier_Map": [
+      "Supplier",
+      "MaterialResource",
+      "Agreement"
+    ],
+    "Maintenance_History": [
+      "PlannedProcess",
+      "PieceOfEquipment",
+      "MaintainableMaterialItem"
+    ],
+    "Mechanical_Properties": [
+      "MeasurementInformationContentEntity",
+      "MaterialProduct",
+      "MeasuredValueExpression"
+    ],
+    "Monitoring_Point_Master": [
+      "PhysicalLocationIdentifier",
+      "DescriptiveInformationContentEntity"
+    ],
+    "NDT_Results": [
+      "MeasurementProcess",
+      "MeasurementInformationContentEntity",
+      "MaterialProduct"
+    ],
+    "Noise_Vibration_Monitoring": [
+      "MeasurementProcess",
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression"
+    ],
+    "Process_Blast_Furnace": [
+      "ManufacturingProcess",
+      "ProcessCharacteristic",
+      "MaterialProduct"
+    ],
+    "Process_Continuous_Casting": [
+      "ManufacturingProcess",
+      "ProcessCharacteristic",
+      "MaterialProduct"
+    ],
+    "Process_Rolling": [
+      "ManufacturingProcess",
+      "ProcessCharacteristic",
+      "MaterialProduct"
+    ],
+    "Process_Steelmaking_Furnace": [
+      "ManufacturingProcess",
+      "ProcessCharacteristic",
+      "MaterialProduct"
+    ],
+    "Product_Master": [
+      "MaterialProduct",
+      "DesignSpecification",
+      "Identifier"
+    ],
+    "Production_Plan": [
+      "PlanSpecification",
+      "ObjectiveSpecification",
+      "MaterialProduct"
+    ],
+    "Production_Result": [
+      "ProductProductionProcess",
+      "MaterialProduct",
+      "MeasuredValueExpression"
+    ],
+    "Purchase_Order": [
+      "Agreement",
+      "BuyingBusinessProcess",
+      "Supplier"
+    ],
+    "Real_Time_Data": [
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression",
+      "PieceOfEquipment"
+    ],
+    "Steam_Energy": [
+      "MaterialResource",
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression"
+    ],
+    "Supplier_Master": [
+      "Supplier",
+      "Organization",
+      "Identifier"
+    ],
+    "Surface_Quality": [
+      "MeasurementInformationContentEntity",
+      "MaterialProduct",
+      "MeasuredValueExpression"
+    ],
+    "Tag_Master": [
+      "Identifier",
+      "PieceOfEquipment",
+      "DescriptiveInformationContentEntity"
+    ],
+    "Transportation": [
+      "MaterialLocationChangeProcess",
+      "MaterialProduct",
+      "PhysicalLocationIdentifier"
+    ],
+    "Warehouse_Master": [
+      "PhysicalLocationIdentifier",
+      "Organization",
+      "DescriptiveInformationContentEntity"
+    ],
+    "Waste_Management": [
+      "MaterialResource",
+      "PlannedProcess",
+      "ServiceProvider"
+    ],
+    "Water_Quality_Monitoring": [
+      "MeasurementProcess",
+      "MeasurementInformationContentEntity",
+      "MeasuredValueExpression"
+    ]
+  },
+  "reasoning": {
+    "Air_Emission_Monitoring": "대기오염물질 농도 측정 프로세스와 측정 데이터, 측정 장비(Stack)를 나타냄",
+    "Alarm_Events": "설비에서 발생하는 알람 이벤트를 시간순으로 기록",
+    "Chemical_Analysis": "제품의 화학 성분 분석 측정 프로세스와 결과 데이터",
+    "Dimensional_Data": "제품의 치수 측정 정보와 측정값 표현",
+    "Electrical_Consumption": "전력 소비량 측정 데이터와 설비별 측정값",
+    "Energy_Efficiency": "설비의 에너지 효율 특성과 입출력 측정값",
+    "Energy_Source_Master": "에너지원 자원의 마스터 데이터와 속성 정보",
+    "Equipment_Master": "설비 장비의 마스터 데이터, 식별자, 제조사 정보",
+    "Equipment_Status": "설비의 현재 상태와 가동시간 측정 정보",
+    "Failure_Cause": "설비 고장 이벤트와 성능저하 상태, 원인 분석",
+    "Fuel_Consumption": "연료 자원의 소비량 측정 데이터",
+    "GHG_Emission": "온실가스 배출량 측정 정보와 프로세스 특성",
+    "Gas_Energy": "가스 에너지 자원의 유량, 압력 등 측정 데이터",
+    "Inventory_Status": "자재 재고 자원의 현황과 위치 정보",
+    "Inventory_Transaction": "자재의 입출고 위치 변경 프로세스와 이벤트",
+    "Item_Master": "자재 품목의 마스터 데이터와 설계 사양",
+    "Item_Supplier_Map": "공급업체와 자재 간 공급 관계 및 계약 조건",
+    "Maintenance_History": "설비 유지보수 계획 프로세스와 이력",
+    "Mechanical_Properties": "제품의 기계적 특성 측정 정보",
+    "Monitoring_Point_Master": "측정 지점의 물리적 위치 식별자와 설명 정보",
+    "NDT_Results": "비파괴 검사 측정 프로세스와 결과 데이터",
+    "Noise_Vibration_Monitoring": "소음/진동 측정 프로세스와 측정값",
+    "Process_Blast_Furnace": "고로 제조 공정과 공정 특성, 생산 제품",
+    "Process_Continuous_Casting": "연속주조 제조 공정과 공정 파라미터, 제품",
+    "Process_Rolling": "압연 제조 공정과 공정 특성, 생산 제품",
+    "Process_Steelmaking_Furnace": "제강로 제조 공정과 공정 특성, 제품",
+    "Product_Master": "제품의 마스터 데이터와 설계 사양, 식별자",
+    "Production_Plan": "생산 계획 명세와 목표, 대상 제품",
+    "Production_Result": "제품 생산 프로세스 실적과 수율 측정값",
+    "Purchase_Order": "구매 계약과 구매 프로세스, 공급업체 정보",
+    "Real_Time_Data": "설비의 실시간 측정 데이터와 측정값",
+    "Steam_Energy": "스팀 에너지 자원의 유량, 압력 등 측정 데이터",
+    "Supplier_Master": "공급업체 조직의 마스터 데이터와 식별자",
+    "Surface_Quality": "제품 표면 품질 측정 정보와 측정값",
+    "Tag_Master": "설비 측정 태그의 식별자와 설명 정보",
+    "Transportation": "제품의 운송 위치 변경 프로세스와 출발지/목적지",
+    "Warehouse_Master": "창고의 물리적 위치 식별자와 조직 정보",
+    "Waste_Management": "폐기물 자원의 처리 프로세스와 서비스 제공자",
+    "Water_Quality_Monitoring": "수질 측정 프로세스와 측정 데이터"
+  },
+  "generated_at": "2026-03-10T14:35:51.397610",
+  "model": "claude-sonnet-4-5-20250929"
+}

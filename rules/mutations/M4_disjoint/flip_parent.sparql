@@ -1,0 +1,4 @@
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+DELETE { ?TARGET_CLASS rdfs:subClassOf ?parent }
+INSERT { ?parent rdfs:subClassOf ?TARGET_CLASS }
+WHERE  { ?TARGET_CLASS rdfs:subClassOf ?parent . FILTER (!isBlank(?parent)) }

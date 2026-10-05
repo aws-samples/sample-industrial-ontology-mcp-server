@@ -1,0 +1,200 @@
+{
+  "_comment": "Path B (2026-05-11) 이후 역할 재정의 — class-specific DP 정책 통일. 이 파일은 더 이상 A-Box 에 주입되는 DP 이름 (hasTimestamp 등) 을 정의하지 않음. 대신 다음 두 역할만 수행: (1) on-demand 주입되는 class-specific DP 의 range / label / comment 를 추론하는 **템플릿** — CSV 컬럼 'Timestamp' → common_dp.json 의 hasTimestamp entry 에서 xsd:dateTime + '시각' 라벨을 빌려 'equipmentStatusTimestamp' 식 class-specific DP 생성. (2) required_props_by_class 섹션이 audit 대상으로 canonical 이름 (hasTimestamp 등) 을 사용하나, _check_required_props_coverage 의 class-prefix 해상도 덕분에 실제 T-Box 의 'equipmentStatusTimestamp' 도 매칭됨. aliases 필드는 CSV 컬럼 이름 인식용으로 사용 (값 → common_name 매핑에 _resolve_common_dp_name 이 사용). A-Box 에 실제로 주입되는 generic DP 이름은 없다. 과거 Path A 의 alias 폴백 경로는 제거됨.",
+
+  "common_datatype_properties": [
+    {
+      "name": "hasTimestamp",
+      "aliases": ["timestamp", "datetime", "eventTime", "eventDatetime", "recordTimestamp"],
+      "range": "http://www.w3.org/2001/XMLSchema#dateTime",
+      "label_en": "has timestamp",
+      "label_ko": "시각",
+      "comment_en": "Generic timestamp property for measurements, events, and transactions.",
+      "comment_ko": "측정·이벤트·거래의 발생 시각을 나타내는 범용 DP."
+    },
+    {
+      "name": "hasValue",
+      "aliases": ["value", "measurementValue", "readingValue"],
+      "range": "http://www.w3.org/2001/XMLSchema#decimal",
+      "label_en": "has value",
+      "label_ko": "값",
+      "comment_en": "Generic numeric measurement value.",
+      "comment_ko": "측정값을 나타내는 범용 DP."
+    },
+    {
+      "name": "hasUnit",
+      "aliases": ["unit", "uom", "unitOfMeasure"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has unit",
+      "label_ko": "단위",
+      "comment_en": "Generic measurement unit as a code or symbol.",
+      "comment_ko": "측정 단위를 문자열 코드로 나타낸다."
+    },
+    {
+      "name": "hasStatus",
+      "aliases": ["status", "equipmentStatus", "planStatus", "resultStatus", "orderStatus", "poStatus"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has status",
+      "label_ko": "상태",
+      "comment_en": "Current status string.",
+      "comment_ko": "현재 상태 문자열."
+    },
+    {
+      "name": "hasLocation",
+      "aliases": ["location", "place"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has location",
+      "label_ko": "위치",
+      "comment_en": "Location descriptor (string). Prefer geo: for coordinates.",
+      "comment_ko": "위치 설명 문자열. 좌표는 geo: 스킴 권장."
+    },
+    {
+      "name": "hasQuantity",
+      "aliases": ["quantity", "qty", "count"],
+      "range": "http://www.w3.org/2001/XMLSchema#decimal",
+      "label_en": "has quantity",
+      "label_ko": "수량",
+      "comment_en": "Quantity as a decimal number.",
+      "comment_ko": "수량을 10진 숫자로 표현."
+    },
+    {
+      "name": "hasUnitPrice",
+      "aliases": ["unitPrice", "unit_price", "pricePerUnit"],
+      "range": "http://www.w3.org/2001/XMLSchema#decimal",
+      "label_en": "has unit price",
+      "label_ko": "단가",
+      "comment_en": "Unit price as a decimal number.",
+      "comment_ko": "단가를 10진 숫자로 표현."
+    },
+    {
+      "name": "hasProcessType",
+      "aliases": ["processType", "process_type"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has process type",
+      "label_ko": "공정 유형",
+      "comment_en": "Process type/category identifier.",
+      "comment_ko": "공정의 유형/범주 식별자."
+    },
+    {
+      "name": "hasSourceType",
+      "aliases": ["sourceType", "source_type"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has source type",
+      "label_ko": "원천 유형",
+      "comment_en": "Type identifier of the source (emission source, data source, etc).",
+      "comment_ko": "원천의 유형 식별자."
+    },
+    {
+      "name": "hasVehicleNumber",
+      "aliases": ["vehicleNo", "vehicle_no"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has vehicle number",
+      "label_ko": "차량 번호",
+      "comment_en": "Vehicle number/plate string.",
+      "comment_ko": "차량 번호/차량판 문자열."
+    },
+    {
+      "name": "hasOrigin",
+      "aliases": ["origin"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has origin",
+      "label_ko": "출발지",
+      "comment_en": "Origin location or node identifier.",
+      "comment_ko": "출발지 위치 또는 노드 식별자."
+    },
+    {
+      "name": "hasDestination",
+      "aliases": ["destination"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has destination",
+      "label_ko": "도착지",
+      "comment_en": "Destination location or node identifier.",
+      "comment_ko": "도착지 위치 또는 노드 식별자."
+    },
+    {
+      "name": "hasDepartureTime",
+      "aliases": ["departureTime", "departure_time"],
+      "range": "http://www.w3.org/2001/XMLSchema#dateTime",
+      "label_en": "has departure time",
+      "label_ko": "출발 시각",
+      "comment_en": "Departure timestamp.",
+      "comment_ko": "출발 시각."
+    },
+    {
+      "name": "hasResult",
+      "aliases": ["result"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has result",
+      "label_ko": "결과",
+      "comment_en": "Test or inspection result label (e.g. Pass/Fail).",
+      "comment_ko": "시험 또는 검사 결과 라벨."
+    },
+    {
+      "name": "hasSeverity",
+      "aliases": ["severity"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has severity",
+      "label_ko": "심각도",
+      "comment_en": "Severity level string (e.g. Critical/Major/Minor).",
+      "comment_ko": "심각도 레벨 문자열."
+    },
+    {
+      "name": "hasTestDateTime",
+      "aliases": ["testDateTime", "test_datetime"],
+      "range": "http://www.w3.org/2001/XMLSchema#dateTime",
+      "label_en": "has test datetime",
+      "label_ko": "시험 일시",
+      "comment_en": "Test execution timestamp.",
+      "comment_ko": "시험 실행 시각."
+    },
+    {
+      "name": "hasCalorificValue",
+      "aliases": ["calorificValue", "calorific_value"],
+      "range": "http://www.w3.org/2001/XMLSchema#decimal",
+      "label_en": "has calorific value",
+      "label_ko": "발열량",
+      "comment_en": "Calorific value as a decimal number.",
+      "comment_ko": "발열량을 10진 숫자로 표현."
+    },
+    {
+      "name": "hasPriority",
+      "aliases": ["priority"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has priority",
+      "label_ko": "우선순위",
+      "comment_en": "Priority level.",
+      "comment_ko": "우선순위 레벨."
+    },
+    {
+      "name": "hasIdentifier",
+      "aliases": ["id", "identifier", "uuid", "code"],
+      "range": "http://www.w3.org/2001/XMLSchema#string",
+      "label_en": "has identifier",
+      "label_ko": "식별자",
+      "comment_en": "Primary identifier string. Typically the same value used in the instance URI's local name.",
+      "comment_ko": "주 식별자 문자열. 일반적으로 인스턴스 URI local name 과 동일한 값."
+    }
+  ],
+
+  "required_props_by_class": {
+    "_comment": "클래스별 반드시 있어야 하는 DP 후보. Key 는 정확매칭 클래스명 또는 fnmatch 패턴 (\"*Monitoring\", \"Process*\"). 패턴은 concrete 클래스에 대해 resolve 된다. Value 는 DP 이름 list; dict entry 로 conditional 선언 ({\"dp\": \"hasSeverity\", \"if\": {\"dp\": \"hasResult\", \"op\": \"!=\", \"value\": \"Pass\"}}).",
+    "*Monitoring": ["hasTimestamp"],
+    "Process*": ["hasTimestamp"],
+    "RealTimeData": ["hasTimestamp", "hasValue"],
+    "AlarmEvents": ["hasTimestamp"],
+    "EquipmentStatus": ["hasTimestamp", "hasStatus"],
+    "InventoryTransaction": ["hasTimestamp", "hasQuantity"],
+    "Transportation": ["hasOrigin", "hasDestination", "hasDepartureTime"],
+    "PurchaseOrder": ["hasQuantity", "hasStatus"],
+    "NDTResults": [
+      "hasResult",
+      {"dp": "hasSeverity", "if": {"dp": "hasResult", "op": "!=", "value": "Pass"}}
+    ],
+    "GHGEmission": ["hasTimestamp", "hasSourceType"],
+    "AirEmissionMonitoring": ["hasTimestamp", "hasUnit"],
+    "ElectricalConsumption": ["hasTimestamp"],
+    "GasEnergy": ["hasTimestamp", "hasCalorificValue"],
+    "FuelConsumption": ["hasTimestamp", "hasCalorificValue"],
+    "ProductionPlan": ["hasStatus", "hasProcessType"],
+    "ProductionResult": ["hasStatus", "hasProcessType"]
+  }
+}

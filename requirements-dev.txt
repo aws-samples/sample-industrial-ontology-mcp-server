@@ -1,0 +1,12 @@
+-r requirements.txt
+owlrl~=7.1.0  # 직접 import는 tests에서만. pyshacl이 runtime에서 transitive로 설치할 수 있음
+ruff~=0.11.0
+pytest~=9.0.0
+pytest-cov~=7.1.0
+pip-audit~=2.10.0  # 2.9의 cyclonedx-python-lib<10 상한이 lxml<6을 고정하므로 함께 상향
+pre-commit~=4.0.0
+bandit~=1.9.0
+detect-secrets~=1.5.0
+pip-licenses~=5.5.0
+cyclonedx-bom~=7.3.0
+lxml>=6.1.0  # cyclonedx-python-lib validation extra의 PYSEC-2026-87 수정 버전 하한

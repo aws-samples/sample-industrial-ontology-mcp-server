@@ -1,0 +1,55 @@
+{
+  "description": "도메인별 DatatypeProperty 값 범위 규칙",
+  "ranges": {
+    "temperatureC": {
+      "min": -50,
+      "max": 2500,
+      "description": "온도 (섭씨)"
+    },
+    "pressureMpa": {
+      "min": 0,
+      "max": 100,
+      "description": "압력 (MPa)"
+    },
+    "efficiencyValue": {
+      "min": 0,
+      "max": 100,
+      "description": "효율 (%)",
+      "applies_to": [
+        "energyEfficiencyEfficiencyPercent"
+      ]
+    },
+    "concentration": {
+      "min": 0,
+      "max": 10000,
+      "description": "농도 (단위 다양: %, ppm, mg/m3 등 — 상한은 ppm 기준 완화)"
+    },
+    "co2Amount": {
+      "min": 0,
+      "max": 100,
+      "description": "CO2 농도 (%) — 배출 총량이 아니라 가스 조성비",
+      "applies_to": [
+        "blastFurnaceCO2Percent"
+      ]
+    },
+    "carbonContent": {
+      "min": 0,
+      "max": 100,
+      "description": "탄소 함량 (%) — DP 이름이 Percent 이므로 비율(0~1)이 아니다",
+      "applies_to": [
+        "steelmakingCarbonContentPercent",
+        "chemicalAnalysisCarbonPercent"
+      ]
+    },
+    "wasteQuantity": {
+      "min": 0,
+      "max": 1000000,
+      "description": "폐기물량 (ton)",
+      "applies_to": [
+        "wasteManagementQuantity"
+      ]
+    }
+  },
+  "_applies_to_note": "applies_to 는 규칙이 적용될 실제 DP local name 을 명시한다. Path B 정책상 DP 는 class-prefixed 이므로 규칙 키(class prefix 없는 이름)는 접미 매칭으로 해상되지만, 단위가 갈리는 키(percent vs ratio)는 이름으로 판별할 수 없어 명시가 필요하다. 미지정이면 정확 일치 → 접미 매칭 순으로 해상한다.",
+  "_staleness_note": "applies_to 는 대소문자 무시로 맞춘다 (S2 재생성마다 casing 이 갈린다). 그러나 실제 개명은 자동 해상되지 않는다 — 이 파일은 git 추적이고 T-Box 는 gitignore 라 구조적으로 낡는다. 2026-09-05 실측: S2 세대 교체로 efficiencyValue(energyEfficiencyPercent → energyEfficiencyEfficiencyPercent) 와 co2Amount(blastFurnaceCo2Percent → blastFurnaceCO2Percent) 가 0건이 되어 7규칙 중 2개가 공허했다. check_value_ranges 응답의 rules_measured 와 applies_to_stale(근접 후보 포함) 로 확인하고 이 파일을 갱신하라. 접미 폴백은 넣지 않는다 — applies_to 의 존재 이유가 단위 모호성 차단이다."
+}

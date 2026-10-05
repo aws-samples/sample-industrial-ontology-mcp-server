@@ -1,0 +1,40 @@
+{
+  "_comment": "AllDisjointClasses 그룹 정의. union_parent 를 추가하면 해당 그룹은 owl:disjointUnionOf 로도 승격되어 분류 완전성까지 강제한다. 다른 산업 적용 시 이 파일만 교체.",
+  "groups": [
+    {"label": "설비", "classes": ["EquipmentMaster", "EquipmentStatus", "TagMaster"]},
+    {"label": "공정", "classes": ["ProcessBlastFurnace", "ProcessSteelmakingFurnace", "ProcessContinuousCasting", "ProcessRolling"], "union_parent": "ManufacturingProcessStep"},
+    {"label": "품질-소재", "classes": ["ChemicalAnalysis", "MechanicalProperties"]},
+    {"label": "품질-검사", "classes": ["DimensionalData", "SurfaceQuality", "NDTResults"]},
+    {"label": "에너지", "classes": ["ElectricalConsumption", "FuelConsumption", "GasEnergy", "SteamEnergy", "EnergyEfficiency", "EnergySourceMaster"]},
+    {"label": "환경", "classes": ["GHGEmission", "AirEmissionMonitoring", "WaterQualityMonitoring", "NoiseVibrationMonitoring", "WasteManagement"]},
+    {"label": "이벤트", "classes": ["AlarmEvents", "RealTimeData"]},
+    {"label": "물류1", "classes": ["ItemMaster", "SupplierMaster", "WarehouseMaster", "Transportation"]},
+    {"label": "물류2", "classes": ["InventoryStatus", "InventoryTransaction", "PurchaseOrder"]},
+    {"label": "생산", "classes": ["ProductMaster", "ProductionPlan", "ProductionResult"]},
+    {"label": "고장/정비", "classes": ["MaintenanceHistory", "FailureCause"]},
+    {"label": "모니터링", "classes": ["MonitoringPointMaster", "RealTimeData", "AlarmEvents"]},
+    {"label": "배출 스코프", "classes": ["Scope1Emission", "Scope2Emission", "Scope3Emission"], "union_parent": "GHGEmission"},
+    {"label": "bfo-occurrent-vs-continuant-설비",
+     "classes": ["EquipmentAsset", "EquipmentEvent", "EquipmentMaster", "AlarmEvents", "MaintenanceHistory", "TagMaster"],
+     "category": "cross-bfo"},
+    {"label": "bfo-occurrent-vs-continuant-생산",
+     "classes": ["ProductMaster", "ProductionPlan", "ProductionResult", "ProcessRolling", "ProcessSteelmakingFurnace", "ProcessContinuousCasting", "ProcessBlastFurnace"],
+     "category": "cross-bfo"},
+    {"label": "공급망 master-vs-transaction",
+     "classes": ["SupplyChainMaster", "SupplyChainTransaction", "SupplyChainMapping"],
+     "category": "cross-abstract"},
+    {"label": "환경 계층-교차",
+     "classes": ["AtmosphericMonitoring", "LandWaterMonitoring", "WasteNoiseMonitoring"],
+     "category": "cross-abstract"},
+    {"label": "품질 계층-교차",
+     "classes": ["MaterialProperty", "ProductInspection"],
+     "category": "cross-abstract"}
+  ],
+  "process_step_parent": "ManufacturingProcessStep",
+  "process_step_classes": [
+    "ProcessBlastFurnace",
+    "ProcessSteelmakingFurnace",
+    "ProcessContinuousCasting",
+    "ProcessRolling"
+  ]
+}

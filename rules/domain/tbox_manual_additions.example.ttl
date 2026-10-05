@@ -1,0 +1,74 @@
+# =============================================================================
+# T-Box 수동 추가분 패치 — 템플릿 (도메인-중립)
+# =============================================================================
+# 이 파일을 rules/domain/tbox_manual_additions.ttl 로 복사해 자사 도메인 추가분을 넣으면,
+# quality_steps/step_30_tbox_manual_additions 가 improve_tbox(S3) 후처리에서
+# 자동으로 T-Box 그래프에 병합한다. 따라서 generate_tbox(S2) 를 다시 돌려도
+# 아래 수동 추가분이 결정적으로 복원돼 일정한 품질이 유지된다.
+#
+# 동작 (step_30):
+#   - 이 파일이 없으면 no-op (다른 도메인은 영향 없음).
+#   - 주석(#) 줄은 제거되고, 표준 prefix 는 domain.namespaces 에서 자동 주입되므로
+#     본문에 @prefix 선언을 다시 쓸 필요 없다 (쓰면 중복 무시).
+#   - rdflib set-semantics 로 중복 트리플은 자동 dedup → 멱등.
+#   - 파싱 실패는 warn 으로 처리(파이프라인 비차단).
+#
+# 용도 (S2 Multi-Agent 가 자동 생성 못 하지만 도메인상 필요한 것):
+#   1. 고립 클래스 연결 OP — 값 매칭은 되나 T-Box 에 관계가 없어 A-Box 가
+#      링크를 emit 못 하는 경우, 정/역 OP 쌍 + someValuesFrom Restriction 추가.
+#   2. 차원(Dimension) 클래스 — 트랜잭션 코드 컬럼을 승격할 차원 클래스 +
+#      Fact→차원 OP + 라벨 DP. (인스턴스 생성은 rules/domain/dimension_config.json +
+#      abox_generation._process_dimensions 가 담당; 여기는 T-Box 스키마만.)
+#
+# prefix 컨벤션: 자사 도메인 prefix(domain_config.json#namespace.prefix) 를 사용.
+# 아래 예시는 가상 prefix `ex:` (실제로는 steel:/auto:/자사prefix 로 교체).
+# =============================================================================
+
+# ── 예시 1: 고립 클래스 연결 OP (정/역 쌍 + Restriction) ──
+# ex:operationUsesInput a owl:ObjectProperty ;
+#     rdfs:label "operation uses input"@en, "조업이 입력을 사용함"@ko ;
+#     rdfs:comment "공정이 소비하는 입력 엔티티를 연결한다."@ko ;
+#     rdfs:domain ex:SomeOperation ;
+#     rdfs:range ex:SomeInput ;
+#     owl:inverseOf ex:isInputOfOperation .
+#
+# ex:isInputOfOperation a owl:ObjectProperty ;
+#     rdfs:label "is input of operation"@en, "조업의 입력임"@ko ;
+#     rdfs:comment "입력 엔티티가 사용된 공정을 연결한다."@ko ;
+#     rdfs:domain ex:SomeInput ;
+#     rdfs:range ex:SomeOperation ;
+#     owl:inverseOf ex:operationUsesInput .
+#
+# ex:SomeOperation_operationUsesInput_someValuesFrom a owl:Restriction ;
+#     owl:onProperty ex:operationUsesInput ;
+#     owl:someValuesFrom ex:SomeInput .
+# # → ex:SomeOperation 의 rdfs:subClassOf 리스트에 위 Restriction 추가
+# #   (클래스 본문을 통째로 다시 쓰거나, S2 가 만든 클래스에 머지).
+
+# ── 예시 2: 차원(Dimension) 클래스 + Fact→차원 OP + 라벨 DP ──
+# ex:Location a owl:Class ;
+#     rdfs:label "Location"@en, "위치"@ko ;
+#     rdfs:comment "트랜잭션이 발생/위치한 곳(코드 마스터)."@ko ;
+#     rdfs:subClassOf ex:MasterData .
+#
+# ex:occurredAtLocation a owl:ObjectProperty ;
+#     rdfs:label "occurred at location"@en, "위치에서 발생함"@ko ;
+#     rdfs:comment "트랜잭션이 발생한 위치(Location)를 연결한다."@ko ;
+#     rdfs:domain owl:Thing ;
+#     rdfs:range ex:Location ;
+#     owl:inverseOf ex:locationHasEvent .
+#
+# ex:locationHasEvent a owl:ObjectProperty ;
+#     rdfs:label "location has event"@en, "위치가 이벤트를 가짐"@ko ;
+#     rdfs:comment "위치(Location)에서 발생한 트랜잭션을 연결한다."@ko ;
+#     rdfs:domain ex:Location ;
+#     rdfs:range owl:Thing ;
+#     owl:inverseOf ex:occurredAtLocation .
+#
+# ex:locationName a owl:DatatypeProperty ;
+#     rdfs:label "location name"@en, "위치명"@ko ;
+#     rdfs:comment "위치(Location)의 명칭."@ko ;
+#     rdfs:domain ex:Location ;
+#     rdfs:range xsd:string .
+
+# (실제 사용 시 위 주석을 해제하고 자사 도메인 클래스/prefix 로 교체.)

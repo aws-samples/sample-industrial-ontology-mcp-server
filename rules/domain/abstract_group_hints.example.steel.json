@@ -1,0 +1,37 @@
+{
+  "_comment": "선택적 중간 추상 클래스 그룹 힌트. 최상위 클래스 비율(목표 ≤20%) 을 달성하기 위해 Architect 가 유사 관심사 클래스들을 공통 부모 아래로 묶도록 유도한다. 도메인별로 이 파일을 교체하거나 비워서(`{}`) 힌트 없이 원칙만 적용 가능.",
+  "_usage": "rules/domain/abstract_group_hints.json 파일이 존재하면 T-Box 생성 프롬프트에 자동 주입. 없으면 원칙만 적용 (프롬프트 _hierarchy_rule 참조).",
+  "groups": [
+    {
+      "abstract_class": "ManufacturingProcessStep",
+      "rationale": "제조 공정 단계 — 일련의 변환 공정을 공통 개념으로 묶음",
+      "child_name_patterns": ["Process_", "process"],
+      "child_examples": ["ProcessBlastFurnace", "ProcessSteelmakingFurnace", "ProcessContinuousCasting", "ProcessRolling"],
+      "iof_parent": "iof-core:ProcessStep"
+    },
+    {
+      "abstract_class": "EnvironmentalMonitoring",
+      "rationale": "환경 모니터링 — 대기/수질/토양/소음 측정 클래스 공통 부모",
+      "child_name_patterns": ["Monitoring", "_Emission"],
+      "child_examples": ["AirEmissionMonitoring", "WaterQualityMonitoring", "SoilMonitoring", "NoiseVibrationMonitoring"]
+    },
+    {
+      "abstract_class": "EnergyManagement",
+      "rationale": "에너지 소비/효율 관리 — 전력/연료/가스/증기 등 에너지원별 사용 측정",
+      "child_name_patterns": ["Energy", "Consumption", "Fuel", "Gas", "Steam"],
+      "child_examples": ["ElectricalConsumption", "FuelConsumption", "GasEnergy", "SteamEnergy", "EnergyEfficiency"]
+    },
+    {
+      "abstract_class": "QualityManagement",
+      "rationale": "품질 검사 — 성분/기계적 특성/치수/표면/비파괴 검사 공통 부모",
+      "child_name_patterns": ["Quality", "Analysis", "Properties", "NDT", "Dimensional"],
+      "child_examples": ["ChemicalAnalysis", "MechanicalProperties", "DimensionalData", "SurfaceQuality", "NDTResults"]
+    },
+    {
+      "abstract_class": "MasterData",
+      "rationale": "마스터 데이터 — 각종 Reference/Catalog 테이블 (Equipment/Item/Product/Supplier 등)",
+      "child_name_patterns": ["_Master", "Master"],
+      "child_examples": ["EquipmentMaster", "ItemMaster", "ProductMaster", "SupplierMaster", "WarehouseMaster", "TagMaster"]
+    }
+  ]
+}

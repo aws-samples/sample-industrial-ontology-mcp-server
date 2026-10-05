@@ -1,0 +1,77 @@
+{
+  "$schema_note": "품질 임계값 중앙 설정. 변경 시 quality-framework.md 동기화 필요.",
+  "class_tiers": {
+    "master": {
+      "dangling_rate": 0.01,
+      "property_coverage": 80,
+      "no_instance_allowed": false,
+      "concentration_alert": 0.95,
+      "master_orphan_rate": 0.50,
+      "max_instance_count": 500,
+      "_rationale": "마스터 데이터는 변경 빈도 낮고 참조 무결성 엄격. 500 이하를 master tier로 간주. 50% 초과 고립은 결함 신호. reference catalog 성격(EnergySourceMaster 등)은 domain_config.validation.catalog_classes 에 선언해 catalog tier 로 분리."
+    },
+    "catalog": {
+      "dangling_rate": 0.01,
+      "property_coverage": 80,
+      "no_instance_allowed": false,
+      "concentration_alert": 0.95,
+      "master_orphan_rate": 0.85,
+      "_rationale": "카탈로그는 도메인 전체에서 참조될 수 있는 코드 테이블(EnergySourceMaster, MeasurementUnit 등). 전 엔트리 중 실제 사용되는 비율이 낮은 게 자연스러움. 85% 초과 고립은 카탈로그가 거의 미사용이라는 결함."
+    },
+    "transaction": {
+      "dangling_rate": 0.05,
+      "property_coverage": 50,
+      "no_instance_allowed": false,
+      "concentration_alert": 0.85,
+      "master_orphan_rate": 0.60,
+      "min_instance_count": 501,
+      "_rationale": "트랜잭션 데이터는 대용량이고 FK 누락 일부 용인. master_data.ttl 에 섞인 트랜잭션성 레코드(ProductionPlan/MaintenanceHistory 등)는 자연적 시계열 분포상 60%까지 고립 허용."
+    },
+    "inferred": {
+      "dangling_rate": 0.10,
+      "property_coverage": 30,
+      "no_instance_allowed": true,
+      "concentration_alert": 0.90,
+      "master_orphan_rate": 0.70,
+      "_rationale": "인스턴스 0개라도 OWL 추론으로 만 클래스는 통과. 재정의된 추상 개념."
+    }
+  },
+  "report_limits": {
+    "samples_per_check": 20,
+    "violations_per_property": 5,
+    "provenance_traces": 10,
+    "_rationale": "출력 JSON 크기 통제용. 통계는 보존되며 sample만 자른다."
+  },
+  "regression": {
+    "total_score_warning_delta": 5,
+    "total_score_critical_delta": 10,
+    "pass_rate_warning_delta": 10,
+    "pass_rate_critical_delta": 20,
+    "violations_count_warning_increase": 3,
+    "violations_count_critical_increase": 6,
+    "_rationale": "내부 휴리스틱 — quality_history 기반 관찰 후 추후 실증 조정."
+  },
+  "topology": {
+    "coupling_modular_max": 0.3,
+    "coupling_mixed_max": 0.6,
+    "cohesion_modular_min": 1.0,
+    "large_diameter_threshold": 15,
+    "hub_imbalance_multiplier": 50,
+    "_rationale": "Q3 토폴로지 건강성 분류 — 실험치 기반."
+  },
+  "score_formula": {
+    "falloff": 2.0,
+    "dit_weight": 20,
+    "noc_weight": 15,
+    "rr_weight": 15,
+    "ar_weight": 15,
+    "annotation_weight": 20,
+    "axiom_weight": 15,
+    "grade_cutoffs": {
+      "A": 85,
+      "B": 70,
+      "C": 55
+    },
+    "_rationale": "프로젝트 내부 휴리스틱. 학술 근거 없음. OntoQA 메트릭(Tartir 2005)과 OO 메트릭(Chidamber-Kemerer 1994)을 혼합한 가중치 — 변경 시 quality-framework.md 동기화 필요."
+  }
+}

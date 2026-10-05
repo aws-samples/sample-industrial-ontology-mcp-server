@@ -1,0 +1,49 @@
+[project]
+name = "ontology-agent"
+description = "MCP server for a domain-neutral knowledge graph lifecycle, used by the ontology engineering workshop"
+license = "MIT-0"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+    "slow: 장시간 실행",
+    "scalability: 대용량 합성 그래프 성능 검사",
+    "writes_deployed_artifacts: data/generated 쓰기 가드 opt-out (신규 부착 금지)",
+    "requires_bedrock: 명시 설정된 Amazon Bedrock 모델 호출",
+    "requires_java: Java 기반 OWL reasoner 호출",
+]
+addopts = "-m 'not requires_bedrock and not requires_java and not scalability'"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # line too long; the existing codebase contains intentional long lines
+    "B905",   # zip without strict
+    "SIM108", # ternary operator
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "config", "domain", "tools"]
+
+[tool.bandit.assert_used]
+skips = ["./tests/*", "tests/*"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

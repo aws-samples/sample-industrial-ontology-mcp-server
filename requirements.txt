@@ -1,0 +1,14 @@
+mcp~=1.28.1
+rdflib~=7.6.0
+oxrdflib~=0.5.0
+pyshacl~=0.31.0  # default SHACL engine; pyrudof 로 SHACL_ENGINE 시 가속
+pyrudof~=0.2.9   # Rust SHACL validator (pyshacl 대비 대규모 20-30× 가속)
+boto3~=1.42.0
+requests~=2.33.0
+owlready2~=0.50
+reasonable~=0.2.6  # Rust OWL 2 RL reasoner (owlrl 대비 20~100× 가속)
+neo4j~=5.28.0
+networkx~=3.6.0
+python-dotenv~=1.2.0
+orjson~=3.11.9  # Rust JSON encoder/decoder (대형 provenance/manifest 22× 가속)
+# 3.11.6부터 MPL-2.0 AND (Apache-2.0 OR MIT)인 단일 라이선스 구간으로 고정

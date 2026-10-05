@@ -1,0 +1,4 @@
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+DELETE { ?TARGET_PROP rdfs:range ?orig }
+INSERT { ?TARGET_PROP rdfs:range ?FOREIGN_CLASS }
+WHERE  { ?TARGET_PROP rdfs:range ?orig . FILTER (!isBlank(?orig)) }

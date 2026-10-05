@@ -1,0 +1,51 @@
+# tests/fixtures/mutation_minimal_tbox.ttl
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ex: <http://example.org/ontology#> .
+
+ex:Equipment a owl:Class ;
+    rdfs:label "Equipment" ;
+    rdfs:comment "A physical asset." .
+
+ex:Plant a owl:Class ;
+    rdfs:label "Plant" .
+
+ex:Alarm a owl:Class .
+
+[] a owl:AllDisjointClasses ;
+    owl:members ( ex:Equipment ex:Plant ) .
+
+ex:hasPlant a owl:ObjectProperty , owl:FunctionalProperty ;
+    rdfs:domain ex:Equipment ;
+    rdfs:range  ex:Plant ;
+    rdfs:label "hasPlant" ;
+    owl:inverseOf ex:ownedBy .
+
+ex:ownedBy a owl:ObjectProperty ;
+    rdfs:domain ex:Plant ;
+    rdfs:range  ex:Equipment .
+
+ex:unionDomainProp a owl:ObjectProperty ;
+    rdfs:domain [ owl:unionOf ( ex:Equipment ex:Plant ) ] ;
+    rdfs:range  ex:Alarm .
+
+ex:serialNumber a owl:DatatypeProperty ;
+    rdfs:domain ex:Equipment ;
+    rdfs:range  xsd:string ;
+    rdfs:label "serialNumber" .
+
+ex:Equipment rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty ex:hasPlant ;
+    owl:someValuesFrom ex:Plant
+] .
+
+ex:Plant rdfs:subClassOf [
+    a owl:Restriction ;
+    owl:onProperty ex:hasPlant ;
+    owl:minCardinality "0"^^xsd:nonNegativeInteger ;
+    owl:maxCardinality "5"^^xsd:nonNegativeInteger ;
+    owl:onClass ex:Equipment
+] .

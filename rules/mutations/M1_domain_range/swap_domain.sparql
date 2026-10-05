@@ -1,0 +1,13 @@
+# Replaces an rdfs:domain with a different class URI.
+# ?FOREIGN_CLASS is runner-resolved from all classes by sorted URI; runner
+# should avoid picking the original domain (dedup handled by the runner, not
+# this file). If runner-level foreign selection isn't implemented yet, this
+# mutator may produce an occasional no-op mutant — acceptable for sensitivity
+# testing since such mutants are recorded but not counted as catches.
+PREFIX owl: <http://www.w3.org/2002/07/owl#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+DELETE { ?TARGET_PROP rdfs:domain ?orig . }
+INSERT { ?TARGET_PROP rdfs:domain ?FOREIGN_CLASS . }
+WHERE  { ?TARGET_PROP rdfs:domain ?orig .
+         FILTER (!isBlank(?orig)) }

@@ -1,0 +1,51 @@
+Point_ID,Point_Name,Location,Media_Type,Regulation_Standard
+MP001,Point_1,BF_Area,Air,환경부 대기배출 기준
+MP002,Point_2,SM_Area,Water,환경부 수질배출 기준
+MP003,Point_3,CC_Area,Noise,소음진동 규제기준
+MP004,Point_4,Rolling_Area,Soil,토양오염 기준
+MP005,Point_5,Utility,Air,환경부 대기배출 기준
+MP006,Point_6,Production_Area,Water,환경부 수질배출 기준
+MP007,Point_7,Storage_Area,Noise,소음진동 규제기준
+MP008,Point_8,BF_Area,Soil,토양오염 기준
+MP009,Point_9,SM_Area,Air,환경부 대기배출 기준
+MP010,Point_10,CC_Area,Water,환경부 수질배출 기준
+MP011,Point_11,Rolling_Area,Noise,소음진동 규제기준
+MP012,Point_12,Utility,Soil,토양오염 기준
+MP013,Point_13,Production_Area,Air,환경부 대기배출 기준
+MP014,Point_14,Storage_Area,Water,환경부 수질배출 기준
+MP015,Point_15,BF_Area,Noise,소음진동 규제기준
+MP016,Point_16,SM_Area,Soil,토양오염 기준
+MP017,Point_17,CC_Area,Air,환경부 대기배출 기준
+MP018,Point_18,Rolling_Area,Water,환경부 수질배출 기준
+MP019,Point_19,Utility,Noise,소음진동 규제기준
+MP020,Point_20,Production_Area,Soil,토양오염 기준
+MP021,Point_21,Storage_Area,Air,환경부 대기배출 기준
+MP022,Point_22,BF_Area,Water,환경부 수질배출 기준
+MP023,Point_23,SM_Area,Noise,소음진동 규제기준
+MP024,Point_24,CC_Area,Soil,토양오염 기준
+MP025,Point_25,Rolling_Area,Air,환경부 대기배출 기준
+MP026,Point_26,Utility,Water,환경부 수질배출 기준
+MP027,Point_27,Production_Area,Noise,소음진동 규제기준
+MP028,Point_28,Storage_Area,Soil,토양오염 기준
+MP029,Point_29,BF_Area,Air,환경부 대기배출 기준
+MP030,Point_30,SM_Area,Water,환경부 수질배출 기준
+MP031,Point_31,CC_Area,Noise,소음진동 규제기준
+MP032,Point_32,Rolling_Area,Soil,토양오염 기준
+MP033,Point_33,Utility,Air,환경부 대기배출 기준
+MP034,Point_34,Production_Area,Water,환경부 수질배출 기준
+MP035,Point_35,Storage_Area,Noise,소음진동 규제기준
+MP036,Point_36,BF_Area,Soil,토양오염 기준
+MP037,Point_37,SM_Area,Air,환경부 대기배출 기준
+MP038,Point_38,CC_Area,Water,환경부 수질배출 기준
+MP039,Point_39,Rolling_Area,Noise,소음진동 규제기준
+MP040,Point_40,Utility,Soil,토양오염 기준
+MP041,Point_41,Production_Area,Air,환경부 대기배출 기준
+MP042,Point_42,Storage_Area,Water,환경부 수질배출 기준
+MP043,Point_43,BF_Area,Noise,소음진동 규제기준
+MP044,Point_44,SM_Area,Soil,토양오염 기준
+MP045,Point_45,CC_Area,Air,환경부 대기배출 기준
+MP046,Point_46,Rolling_Area,Water,환경부 수질배출 기준
+MP047,Point_47,Utility,Noise,소음진동 규제기준
+MP048,Point_48,Production_Area,Soil,토양오염 기준
+MP049,Point_49,Storage_Area,Air,환경부 대기배출 기준
+MP050,Point_50,BF_Area,Water,환경부 수질배출 기준
