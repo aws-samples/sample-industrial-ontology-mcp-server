@@ -1,6 +1,6 @@
 """Check registry for validate_kg.
 
-validate_kg의 23개 check를 다루기 위한 경량 레지스트리 + 데이터클래스.
+validate_kg의 25개 check를 다루기 위한 경량 레지스트리 + 데이터클래스.
 
 설계 원칙:
 - 기존 check 함수는 dict을 반환한다(후방 호환). 여기서는 Check 메타데이터만 다룬다.
@@ -61,7 +61,7 @@ class CheckSpec:
 class CheckRegistry:
     """검증 check 컬렉션을 보관/순회하는 경량 레지스트리.
 
-    validate_kg 내부에서 인스턴스 1개를 만들고 23개 check를 등록한 뒤 순회한다.
+    validate_kg 내부에서 인스턴스 1개를 만들고 25개 check를 등록한 뒤 순회한다.
     lambda 주입 방식이므로 Check가 필요로 하는 인자(g, tbox, class_tiers, shared 등)는
     클로저로 바인딩된다.
     """

@@ -16,8 +16,8 @@ from collections import Counter, defaultdict
 from rdflib import OWL, RDF, RDFS, XSD, Graph, URIRef
 from rdflib.collection import Collection
 
-from domain.namespaces import DOMAIN_NS
-from domain.sparql_templates import execute_local_sparql
+from domain.namespaces import DOMAIN_NS, sanitize_sparql_value
+from domain.sparql_templates import execute_local_sparql, reject_sparql_egress
 from domain.uri_conventions import local_name as _local_name
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,18 @@ def local(uri: str | None) -> str | None:
 def query(g: Graph, sparql: str) -> list[dict[str, str | None]]:
     """SPARQL 실행 + format_sparql_results dict 리스트로 반환."""
     return execute_local_sparql(g, sparql)
+
+
+def _guarded_query(g: Graph, sparql: str):
+    """최종 질의 문자열에 egress 가드를 적용한 뒤 ``g.query`` 결과를 그대로 돌려준다.
+
+    ``SharedCheckContext`` 의 모든 ``g.query`` 호출은 이 함수를 거친다.
+
+    Raises:
+        ValueError: egress 구문이 있거나 텍스트를 해석할 수 없을 때.
+    """
+    reject_sparql_egress(sparql)
+    return g.query(sparql)
 
 
 # ── 도메인 네임스페이스 감지 ──────────────────────
@@ -321,19 +333,23 @@ class SharedCheckContext:
         Oxigraph SPARQL GROUP_CONCAT 집계로 교체 — steel 네임스페이스 타입은
         엔진이 필터하고 Python 은 결과 행만 파싱한다.
         typed_subjects 는 같은 패스에서 URIRef subject 전체를 별도 쿼리로.
+
+        감지한 네임스페이스는 T-Box IRI 에서 오므로 ``sanitize_sparql_value`` 로
+        문자열 리터럴 안에 가둔 뒤 보간한다.
         """
         if self._instance_types is None:
             cache: dict[str, set[str]] = defaultdict(set)
             ns = self.ns
+            ns_literal = sanitize_sparql_value(ns)
             # 도메인 네임스페이스 타입만 한 줄로 집계
             q = (
                 "SELECT ?s (GROUP_CONCAT(STR(?o); SEPARATOR=\"|\") AS ?types) WHERE { "
                 "?s a ?o . "
                 "FILTER(isIRI(?s)) "
-                f"FILTER(STRSTARTS(STR(?o), \"{ns}\")) "
+                f"FILTER(STRSTARTS(STR(?o), \"{ns_literal}\")) "
                 "} GROUP BY ?s"
             )
-            for row in self.g.query(q):
+            for row in _guarded_query(self.g, q):
                 s_str = str(row[0])
                 types_str = str(row[1]) if row[1] is not None else ""
                 if not types_str:
@@ -345,8 +361,8 @@ class SharedCheckContext:
             # typed_subjects 는 별도 집계: 타입 네임스페이스와 무관하게 모든
             # URIRef subject 를 수집 (dangling_references 에서 O 검사용).
             typed: set[URIRef] = set()
-            for row in self.g.query(
-                "SELECT DISTINCT ?s WHERE { ?s a ?o . FILTER(isIRI(?s)) }"
+            for row in _guarded_query(
+                self.g, "SELECT DISTINCT ?s WHERE { ?s a ?o . FILTER(isIRI(?s)) }",
             ):
                 typed.add(row[0])
             self._typed_subjects = typed
@@ -356,8 +372,8 @@ class SharedCheckContext:
     def typed_subjects(self) -> set[URIRef]:
         if self._typed_subjects is None:
             typed: set[URIRef] = set()
-            for row in self.g.query(
-                "SELECT DISTINCT ?s WHERE { ?s a ?o . FILTER(isIRI(?s)) }"
+            for row in _guarded_query(
+                self.g, "SELECT DISTINCT ?s WHERE { ?s a ?o . FILTER(isIRI(?s)) }",
             ):
                 typed.add(row[0])
             self._typed_subjects = typed

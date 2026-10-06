@@ -26,9 +26,11 @@ from config import (
     TBOX_PATH,
 )
 from domain.namespaces import DOMAIN_CONFIG, prepend_prefixes
+from domain.sparql_templates import reject_sparql_egress
 from domain.tbox_utils import _new_graph
 from tools.bedrock import invoke_bedrock_text
 from tools.common import atomic_write, error_response
+from tools.query_test import _is_local_name
 
 logger = logging.getLogger(__name__)
 
@@ -435,6 +437,27 @@ def _find_connecting_op(a: str, b: str, obj_props: dict) -> str | None:
     return None
 
 
+def _invalid_name_entry(kind: str, names) -> dict:
+    """SPARQL 에 보간하지 않은 이름을 실패 체크로 남기는 항목을 만든다.
+
+    ``sparql`` 이 ``None`` 이므로 호출부는 이 항목을 실행하지 않고 실패로 기록한다.
+    """
+    return {
+        "type": "invalid_name",
+        "sparql": None,
+        "description": f"{kind} 이름 형식 확인",
+        "error": (
+            "SPARQL 로컬 이름 형식이 아니어서 질의에서 제외: "
+            + ", ".join(repr(str(name)[:80]) for name in names)
+        ),
+    }
+
+
+def _iri_local(iri) -> str:
+    """IRI 문자열의 마지막 ``/`` 또는 ``#`` 뒤 부분."""
+    return str(iri).split("/")[-1].split("#")[-1]
+
+
 def _build_connectivity_queries(
     cq: dict, obj_props: dict, sem_dict: dict | None = None, *, tbox=None,
 ) -> list[dict]:
@@ -444,6 +467,10 @@ def _build_connectivity_queries(
     1. 각 도메인 클래스에 인스턴스가 존재하는가 (instance_check)
     2. 클래스 간 연결 경로가 존재하는가 — BFS 우선, prefix match 폴백 (connectivity_check)
     3. 핵심 DatatypeProperty에 값이 채워져 있는가 (value_check)
+
+    ``prefix:local`` 자리에 넣는 이름 (CQ domains, T-Box 경로의 클래스·프로퍼티,
+    딕셔너리의 OP·DP) 은 ``tools.query_test._is_local_name`` 형식일 때만 보간한다.
+    형식이 아닌 이름은 질의를 만들지 않고 ``type="invalid_name"`` 항목으로 남긴다.
 
     Args:
         tbox: Optional rdflib Graph for BFS connectivity (T-Box).
@@ -456,7 +483,16 @@ def _build_connectivity_queries(
     # 이미 PascalCase 인 domains 를 망가뜨리지 않도록 _snake_to_class_name 사용
     # (``capitalize()`` 는 EquipmentMaster → Equipmentmaster 로 바꿔 없는 클래스를
     # 질의하게 만든다).
-    cls_names = [_snake_to_class_name(d) for d in domains]
+    cls_names: list[str] = []
+    invalid_domains: list[object] = []
+    for domain in domains:
+        cls_name = _snake_to_class_name(domain) if isinstance(domain, str) else None
+        if _is_local_name(cls_name):
+            cls_names.append(cls_name)
+        else:
+            invalid_domains.append(domain)
+    if invalid_domains:
+        queries.append(_invalid_name_entry("CQ 도메인", invalid_domains))
 
     # ── 1. 각 도메인 클래스에 인스턴스가 있는지 ──
     for cls_name in cls_names:
@@ -478,7 +514,12 @@ def _build_connectivity_queries(
 
             if bfs_result and bfs_result["hops"] == 1:
                 # BFS 1-hop: 직접 연결
-                edge_local = bfs_result["edges"][0].split("/")[-1].split("#")[-1]
+                edge_local = _iri_local(bfs_result["edges"][0])
+                if not _is_local_name(edge_local):
+                    queries.append(_invalid_name_entry(
+                        f"{a} ↔ {b} 연결 프로퍼티 (BFS)", [edge_local],
+                    ))
+                    continue
                 q = (f"SELECT ?x ?y WHERE {{ "
                      f"?x a {pfx}:{a} . ?y a {pfx}:{b} . "
                      f"{{ ?x {pfx}:{edge_local} ?y }} UNION {{ ?y {pfx}:{edge_local} ?x }} "
@@ -493,12 +534,18 @@ def _build_connectivity_queries(
                 })
             elif bfs_result and bfs_result["hops"] >= 2:
                 # BFS multi-hop: 중간 노드 경유
-                path_locals = [str(p).split("/")[-1].split("#")[-1] for p in bfs_result["path"]]
-                edge_locals = [e.split("/")[-1].split("#")[-1] for e in bfs_result["edges"]]
+                path_locals = [_iri_local(p) for p in bfs_result["path"]]
+                edge_locals = [_iri_local(e) for e in bfs_result["edges"]]
                 mid = path_locals[1]
                 # 2-hop SPARQL 생성 (첫 2 에지만)
                 op1 = edge_locals[0]
                 op2 = edge_locals[1] if len(edge_locals) > 1 else edge_locals[0]
+                invalid = [n for n in (mid, op1, op2) if not _is_local_name(n)]
+                if invalid:
+                    queries.append(_invalid_name_entry(
+                        f"{a} ↔ {b} 경유 경로 (BFS)", invalid,
+                    ))
+                    continue
                 q = (f"SELECT ?x ?z WHERE {{ "
                      f"?x a {pfx}:{a} . ?m a {pfx}:{mid} . ?z a {pfx}:{b} . "
                      f"{{ ?x {pfx}:{op1} ?m }} UNION {{ ?m {pfx}:{op1} ?x }} . "
@@ -517,7 +564,11 @@ def _build_connectivity_queries(
                 # --- Prefix match 폴백 ---
                 connecting_op = _find_connecting_op(a, b, obj_props)
 
-                if connecting_op:
+                if connecting_op and not _is_local_name(connecting_op):
+                    queries.append(_invalid_name_entry(
+                        f"{a} ↔ {b} 연결 프로퍼티", [connecting_op],
+                    ))
+                elif connecting_op:
                     q = (f"SELECT ?x ?y WHERE {{ "
                          f"?x a {pfx}:{a} . ?y a {pfx}:{b} . "
                          f"{{ ?x {pfx}:{connecting_op} ?y }} UNION {{ ?y {pfx}:{connecting_op} ?x }} "
@@ -538,22 +589,31 @@ def _build_connectivity_queries(
                             continue
                         op_a_mid = _find_connecting_op(a, mid, obj_props)
                         op_mid_b = _find_connecting_op(mid, b, obj_props)
-                        if op_a_mid and op_mid_b:
-                            q = (f"SELECT ?x ?z WHERE {{ "
-                                 f"?x a {pfx}:{a} . ?m a {pfx}:{mid} . ?z a {pfx}:{b} . "
-                                 f"{{ ?x {pfx}:{op_a_mid} ?m }} UNION {{ ?m {pfx}:{op_a_mid} ?x }} . "
-                                 f"{{ ?m {pfx}:{op_mid_b} ?z }} UNION {{ ?z {pfx}:{op_mid_b} ?m }} "
-                                 f"}} LIMIT 1")
-                            queries.append({
-                                "type": "multihop_check",
-                                "from": a, "via": mid, "to": b,
-                                "properties": [op_a_mid, op_mid_b],
-                                "method": "prefix_match",
-                                "sparql": q,
-                                "description": f"{a} → {mid} → {b} 멀티홉 연결 확인",
-                            })
-                            multihop_found = True
+                        if not (op_a_mid and op_mid_b):
+                            continue
+                        multihop_found = True
+                        invalid = [
+                            op for op in (op_a_mid, op_mid_b) if not _is_local_name(op)
+                        ]
+                        if invalid:
+                            queries.append(_invalid_name_entry(
+                                f"{a} → {mid} → {b} 경유 프로퍼티", invalid,
+                            ))
                             break
+                        q = (f"SELECT ?x ?z WHERE {{ "
+                             f"?x a {pfx}:{a} . ?m a {pfx}:{mid} . ?z a {pfx}:{b} . "
+                             f"{{ ?x {pfx}:{op_a_mid} ?m }} UNION {{ ?m {pfx}:{op_a_mid} ?x }} . "
+                             f"{{ ?m {pfx}:{op_mid_b} ?z }} UNION {{ ?z {pfx}:{op_mid_b} ?m }} "
+                             f"}} LIMIT 1")
+                        queries.append({
+                            "type": "multihop_check",
+                            "from": a, "via": mid, "to": b,
+                            "properties": [op_a_mid, op_mid_b],
+                            "method": "prefix_match",
+                            "sparql": q,
+                            "description": f"{a} → {mid} → {b} 멀티홉 연결 확인",
+                        })
+                        break
 
                     if not multihop_found:
                         # 공유 FK 간접 연결 폴백.
@@ -595,9 +655,17 @@ def _build_connectivity_queries(
         # 첫 3개 DP만 검증 (전부 하면 느려짐)
         sample_dps = dps[:3] if isinstance(dps, list) else list(dps)[:3]
         dp_names = []
+        invalid_dps = []
         for dp in sample_dps:
             dp_name = dp.get("name", dp) if isinstance(dp, dict) else str(dp)
-            dp_names.append(dp_name)
+            if _is_local_name(dp_name):
+                dp_names.append(dp_name)
+            else:
+                invalid_dps.append(dp_name)
+        if invalid_dps:
+            queries.append(_invalid_name_entry(
+                f"{cls_name} DatatypeProperty", invalid_dps,
+            ))
         if dp_names:
             dp_patterns = " ".join(f"OPTIONAL {{ ?x {pfx}:{dp} ?v{i} }}" for i, dp in enumerate(dp_names))
             filters = " || ".join(f"BOUND(?v{i})" for i in range(len(dp_names)))
@@ -1220,6 +1288,9 @@ def validate_competency_questions(graph_source: str = "merge") -> str:
     3. 핵심 DatatypeProperty에 값이 채워져 있는가? (value_check)
     + CQ 커버리지: 전체 클래스 중 CQ가 테스트하는 비율
 
+    로컬 이름 형식이 아닌 이름은 질의에 넣지 않고 실패 체크로 남긴다. 실행하는
+    질의는 PREFIX 를 붙인 최종 문자열에 egress 가드를 적용한 뒤 실행한다.
+
     예상 소요시간: ~5초 (Bedrock 호출 없음)
 
     Args:
@@ -1278,8 +1349,20 @@ def validate_competency_questions(graph_source: str = "merge") -> str:
             checks = []
             all_passed = True
             for q_info in queries:
+                if q_info.get("sparql") is None:
+                    # 보간하지 않은 이름. 질의 없이 실패 체크로 남긴다.
+                    checks.append({
+                        "check": q_info["description"],
+                        "passed": False,
+                        "error": q_info.get("error", ""),
+                    })
+                    all_passed = False
+                    continue
                 full_sparql = prepend_prefixes(q_info["sparql"])
                 try:
+                    # 실행할 최종 문자열 그대로 가드한다. 거부되면 아래 except 가
+                    # 실패 체크로 기록하고 질의는 실행하지 않는다.
+                    reject_sparql_egress(full_sparql)
                     result = graph.query(full_sparql)
                     rows = list(result)
                     if q_info["type"] == "instance_check" or q_info["type"] == "value_check":

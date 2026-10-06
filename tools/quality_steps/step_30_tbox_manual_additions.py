@@ -32,9 +32,9 @@ def _patch_path() -> str:
 
 
 # 패치 파일이 쓸 수 있는데 SPARQL_PREFIXES 에는 없는 어휘. 특히
-# ``dcterms:source`` 는 04-property-rules.md 원칙 4-1 (DP 출처 컬럼 표기) 이
-# 요구하므로 수동 추가분도 사용한다 — 미선언 시 패치 전체가 파싱 실패하고
-# step_30 이 조용히 skip 되어 수동 추가분이 통째로 유실된다 (2026-07-25 실측).
+# ``dcterms:source`` 는 04-property-rules.md 의 "DatatypeProperty declaration" 절이
+# DP 마다 요구하므로 수동 추가분도 사용한다. 미선언이면 패치 전체가 파싱에 실패하고
+# step_30 이 조용히 skip 되어 수동 추가분이 통째로 유실된다.
 _EXTRA_PREFIXES: dict[str, str] = {
     "dcterms": "http://purl.org/dc/terms/",
     "skos": "http://www.w3.org/2004/02/skos/core#",

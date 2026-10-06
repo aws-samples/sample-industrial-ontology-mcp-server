@@ -33,7 +33,13 @@ from config import (
     MASTER_DATA_PATH,
     TBOX_PATH,
 )
-from domain.namespaces import DOMAIN_INST_NS, DOMAIN_INST_NS_OBJ, DOMAIN_NS, DOMAIN_NS_OBJ
+from domain.namespaces import (
+    DOMAIN_INST_NS,
+    DOMAIN_INST_NS_OBJ,
+    DOMAIN_NS,
+    DOMAIN_NS_OBJ,
+    sparql_iri,
+)
 from domain.tbox_utils import _new_graph
 from domain.uri_conventions import local_name as _local_name
 from tools.common import (
@@ -186,7 +192,7 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
     for cls in tbox.subjects(RDF.type, OWL.Class):
         if not isinstance(cls, URIRef):
             continue
-        cls_n3 = cls.n3()
+        cls_n3 = sparql_iri(cls)
 
         for eq_node in tbox.objects(cls, OWL.equivalentClass):
             if (eq_node, RDF.type, OWL.Restriction) not in tbox:
@@ -194,7 +200,7 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
             on_prop = tbox.value(eq_node, OWL.onProperty)
             if not on_prop:
                 continue
-            prop_n3 = on_prop.n3()
+            prop_n3 = sparql_iri(on_prop)
 
             # hasValue — 엄격 비교 + 문자열 폴백을 하나의 FILTER로 통합
             has_value = tbox.value(eq_node, OWL.hasValue)
@@ -213,7 +219,7 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
             # someValuesFrom
             some_values = tbox.value(eq_node, OWL.someValuesFrom)
             if some_values is not None and isinstance(some_values, URIRef):
-                tgt_n3 = some_values.n3()
+                tgt_n3 = sparql_iri(some_values)
                 added = _insert(
                     f"INSERT {{ ?inst a {cls_n3} }} "
                     f"WHERE {{ ?inst {prop_n3} ?v . ?v a {tgt_n3} }}"
@@ -225,7 +231,7 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
             # allValuesFrom — URIRef 값 전부가 target 타입일 때 (Literal 값은 무시)
             all_values = tbox.value(eq_node, OWL.allValuesFrom)
             if all_values is not None and isinstance(all_values, URIRef):
-                tgt_n3 = all_values.n3()
+                tgt_n3 = sparql_iri(all_values)
                 added = _insert(
                     f"INSERT {{ ?inst a {cls_n3} }} "
                     f"WHERE {{ "
@@ -295,14 +301,14 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
         if not isinstance(cls, URIRef):
             continue
         cls_local = _local_name(str(cls))
-        cls_n3 = cls.n3()
+        cls_n3 = sparql_iri(cls)
 
         for parent in _collect_restrictions(cls):
             on_prop = tbox.value(parent, OWL.onProperty)
             if not on_prop:
                 continue
             prop_local = _local_name(str(on_prop))
-            prop_n3 = on_prop.n3()
+            prop_n3 = sparql_iri(on_prop)
 
             has_value = tbox.value(parent, OWL.hasValue)
             if has_value is not None:
@@ -329,7 +335,7 @@ def _apply_owl_restrictions(g: Graph, tbox: Graph) -> dict:
 
             some_values = tbox.value(parent, OWL.someValuesFrom)
             if some_values is not None and isinstance(some_values, URIRef):
-                tgt_n3 = some_values.n3()
+                tgt_n3 = sparql_iri(some_values)
                 tgt_local = _local_name(str(some_values))
                 q = (
                     f"SELECT ?inst WHERE {{ "

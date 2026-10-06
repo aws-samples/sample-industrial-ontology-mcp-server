@@ -18,8 +18,6 @@
     "version": "2.1.0",
     "creator": "Steel Ontology Sample Team",
     "license": "https://spdx.org/licenses/MIT-0.html",
-    "persistent_iri": "https://w3id.org/steel-ontology-sample",
-    "_persistent_iri_note": "FAIR F1 — w3id.org redirect 실제 등록은 외부 (https://github.com/perma-id/w3id.org). 등록 전에는 alias 만 선언하고 resolve 시 원 도메인으로 이동.",
     "keywords": [
       "steel manufacturing",
       "industrial ontology",

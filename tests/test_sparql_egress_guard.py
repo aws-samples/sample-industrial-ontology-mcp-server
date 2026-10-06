@@ -311,15 +311,18 @@ def test_guard_rejects_parser_divergent_lexemes(query):
 
 @pytest.mark.parametrize("query", _DIVERGENT_PAYLOADS)
 def test_divergent_payloads_reach_service_on_oxigraph(query):
-    """전제 확인: 이 payload 들은 Oxigraph 에서 실제로 SERVICE 평가에 도달한다.
+    """전제 확인: 이 payload 들은 Oxigraph 엔진에서 실제로 SERVICE 평가에 도달한다.
 
     이 전제가 깨지면 (Oxigraph 가 rdflib 과 같게 해석하게 되면) 위 거부 테스트의
-    의미가 바뀌므로 함께 확인한다. 대상이 ``urn:evil`` 이라 네트워크 요청 없이
-    URI scheme 오류로 끝난다.
+    의미가 바뀌므로 함께 확인한다. ``g.query`` 는 store 차단점이 엔진에 넘기기 전에
+    거부하므로, 차단점 아래의 엔진 (``g.store._inner``) 을 직접 부른다. 대상이
+    ``urn:evil`` 이라 네트워크 요청 없이 URI scheme 오류로 끝난다.
     """
     g = _oxigraph_graph()
 
     with pytest.raises(OSError, match="urn:evil"):
+        list(g.store._inner.query(query, use_default_graph_as_union=True))
+    with pytest.raises(ValueError, match="실행 직전 검사에서 SERVICE"):
         list(g.query(query))
 
 

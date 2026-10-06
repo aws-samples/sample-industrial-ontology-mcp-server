@@ -71,10 +71,23 @@ def test_summarize_distribution_rollup(tmp_path):
     assert r["total_classified"] == 3
 
 
-def test_mcp_tool_success(tmp_path):
+@pytest.fixture
+def generated_dir(tmp_path, monkeypatch):
+    """도구의 data/generated 경계를 tmp_path 로 옮긴다.
+
+    ``summarize_origin_sidecar`` 는 GENERATED_DIR 아래 경로만 받으므로 sidecar 를
+    이 디렉터리 안에 둔다.
+    """
+    import tools.cwa_owa_tagging as cwa_owa_tagging
+
+    monkeypatch.setattr(cwa_owa_tagging, "GENERATED_DIR", str(tmp_path))
+    return tmp_path
+
+
+def test_mcp_tool_success(generated_dir):
     src = _triple_graph("Q")
     sc = tag_graph_origin(src, "csv_direct")
-    path = tmp_path / "s.ttl"
+    path = generated_dir / "s.ttl"
     sc.serialize(destination=str(path), format="turtle")
     raw = summarize_origin_sidecar(str(path))
     data = json.loads(raw)
@@ -82,7 +95,9 @@ def test_mcp_tool_success(tmp_path):
     assert data["cwa_count"] == 1
 
 
-def test_mcp_tool_missing():
-    raw = summarize_origin_sidecar("/nonexistent.ttl")
+def test_mcp_tool_missing(generated_dir):
+    # 경계 안의 없는 파일이어야 경계 거부가 아니라 '없음' 분기를 탄다.
+    raw = summarize_origin_sidecar(str(generated_dir / "nonexistent.ttl"))
     data = json.loads(raw)
     assert data["success"] is False
+    assert "not found" in data["error"]

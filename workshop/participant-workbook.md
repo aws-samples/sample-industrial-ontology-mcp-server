@@ -33,15 +33,16 @@
 
 ## 타임테이블
 
-> **온톨로지 무경험자 대상** — Ch1 앞에 **온톨로지 기초 PPTX 강의(30분)** 를 둡니다.
-> 이 강의가 기존 "왜 KG 인가" 개념 설명을 대체하고 환경 점검을 맨 앞 **세션 0** 으로 빼서, 셋업
-> 낙오자는 PPTX 강의 중 강사가 1:1 로 처리합니다.
+> **온톨로지 무경험자 대상**: Ch1 앞에 **온톨로지 기초 강의(30분)** 를 둡니다. 환경 점검은 맨
+> 앞 **세션 0** 이고, 셋업 낙오자는 기초 강의 중 강사가 1:1 로 처리합니다.
+> **강의 슬라이드는 리포에 동봉되지 않습니다.** 이 워크북의 [온톨로지 기초 강의](#온톨로지-기초-강의-30분)
+> 절(5묶음 표 + 복습 카드)이 그 30분의 자료이며, 강사 없이 자습한다면 그 절을 순서대로 읽으면 됩니다.
 
 | 시간 | 세션 | 내용 | 형식 |
 |:---:|------|------|------|
-| 10m | **세션 0** | 환경 점검 (낙오자는 PPTX 중 강사 1:1) | 실습 [본인 PC] |
-| 30m | **PPTX** 🆕 | 온톨로지 기초 강의 — 왜 온톨로지 / Triple·T-Box·A-Box / RDBMS vs KG (CWA·OWA) / OWL 추론 / 오늘의 흐름 | 강의 (강사 PPTX) |
-| 5m | **Ch1** | 첫 SPARQL 핸즈온 (PPTX 개념을 손으로 확인) | 실습 [본인 PC] |
+| 10m | **세션 0** | 환경 점검 (낙오자는 기초 강의 중 강사 1:1) | 실습 [본인 PC] |
+| 30m | **기초 강의** | 온톨로지 기초: 왜 온톨로지 / Triple·T-Box·A-Box / RDBMS vs KG (CWA·OWA) / OWL 추론 / 오늘의 흐름 | 강의 또는 자습 (워크북 복습 카드) |
+| 5m | **Ch1** | 첫 SPARQL 핸즈온 (기초 강의 개념을 손으로 확인) | 실습 [본인 PC] |
 | 18m | **Ch2** | 데이터를 보고 질문을 만든다 (CSV → CQ + 자사 CQ 사전 워밍업) | 실습 |
 | 21m | **Ch3** | 스키마를 만든다 (T-Box + 시각화 + 암묵지) | 분석 + 실습 |
 | 12m | 휴식 | | |
@@ -56,7 +57,7 @@
 
 # 세션 0. 환경 점검 (10분) [본인 PC]
 
-> 이 슬롯은 **PPTX 기초 강의 앞**에 둡니다. 점검이 막혀도 이어지는 30분 PPTX 동안
+> 이 슬롯은 **기초 강의 앞**에 둡니다. 점검이 막혀도 이어지는 30분 기초 강의 동안
 > 강사가 1:1 로 해소하므로 그룹 진행을 막지 않습니다.
 
 > **D-1 까지 fallback 산출물 사전 적재 회신을 강사에게 했어야 합니다** —
@@ -95,13 +96,14 @@ python scripts/verify_workshop_sparql.py --ignore-placeholders
 
 ---
 
-# 온톨로지 기초 강의 (30분) — 강사 PPTX
+# 온톨로지 기초 강의 (30분)
 
-> 📊 **이 30분은 강사 PPTX 강의입니다.** 노트북 없이 들으셔도 됩니다 (세션 0 환경
-> 점검이 안 끝났으면 이 시간에 강사가 1:1 로 마저 도와드립니다). 아래는 PPTX 가
-> 다루는 5가지로, **워크북의 이 단락들이 그 복습 카드**입니다 — 강의 중·후에 참조하세요.
+> 📊 **이 30분은 개념 강의입니다.** 리포에 슬라이드는 없고, 아래 5묶음 표와 복습 카드가
+> 강의 자료입니다. 강사가 진행하는 워크샵이면 노트북 없이 들으셔도 됩니다 (세션 0 환경
+> 점검이 안 끝났으면 이 시간에 강사가 1:1 로 마저 도와드립니다). 혼자 진행한다면 이 절을
+> 순서대로 읽으세요.
 
-| PPTX 묶음 | 핵심 | 워크북 복습 위치 |
+| 강의 묶음 | 핵심 | 워크북 복습 위치 |
 |---|---|---|
 | 1. 왜 온톨로지인가 | 데이터 사일로 → 관계 중심 | 아래 "왜 KG 인가" 박스 |
 | 2. 핵심 개념 | Triple / T-Box / A-Box / KG | [핵심 5단어](#핵심-5단어-이것만-손에-쥐고-시작) + [부록 C](#부록-c-용어-사전) |
@@ -113,7 +115,7 @@ python scripts/verify_workshop_sparql.py --ignore-placeholders
 
 > **왜 데이터 → CQ?** 방법론상 Grüninger & Fox (1995) 는 CQ 먼저지만, 초보 청중에게는 데이터 구조를 본 뒤 "이걸로 뭘 물을까" 가 직관적. 자사 PoC 에서는 SME 가 있으면 CQ 먼저, 없으면 데이터 먼저가 안전 (post-workshop §0-1 Week 1 Day 1~2).
 
-### (복습 카드) 왜 KG 인가 — PPTX 묶음 1·3 정리
+### (복습 카드) 왜 KG 인가: 강의 묶음 1·3 정리
 
 당신의 고객이 묻습니다:
 > "설비 EQ001 에 어떤 센서가 달려있고, 최근 알람이 뭐가 있었고, 정비는 언제 했는지 한번에 보고 싶어요."
@@ -161,7 +163,7 @@ WHERE e.equipment_id = 'EQ001';
 
 # Ch1. 첫 SPARQL 핸즈온 (5분) [본인 PC]
 
-> PPTX 에서 들은 개념을 **손으로 한 번** 확인합니다. Claude Code 에 자연어로 던지고,
+> 기초 강의에서 본 개념을 **손으로 한 번** 확인합니다. Claude Code 에 자연어로 던지고,
 > **Claude 가 만든 SPARQL 을 함께 봅니다**:
 
 ```
@@ -302,12 +304,12 @@ CQ를 자동 생성해줘.
 - **생성된 클래스/OP** — `owl:Class` / `owl:ObjectProperty` 선언. Activity 3-A 에서 예측한 OP 후보(`hasTag` 등)가 실제로 있는지, `rdfs:domain`/`rdfs:range` 방향이 본인 예측과 같은지 비교. **빠지거나 뒤집힌 관계 = Ch5 SPARQL 0건의 후보 원인.**
 - **`improve_tbox_quality` 자동 후처리 흔적** — `t_box.ttl` 안의 `owl:inverseOf` / `owl:AllDisjointClasses` / ODP ([→용어](#부록-c-용어-사전)) / `owl:FunctionalProperty`. 사람이 쓴 게 아니라 후처리가 자동 추가한 것.
 
-**B. 도구 실행 응답으로만 나오는 것** — **파일이 아님.** `generate_tbox_collaborative` 를 직접 실행할 때 그 **응답(화면)** 에만 나타나므로, 미리 만든 산출물 파일에는 없음. 강사 화면(D-1 실행 로그)으로 봄:
+**B. 동봉 산출물에 없는 것**: `generate_tbox_collaborative` 를 실행한 PC 에만 남는다. debate_log 는 그 PC 의 `data/generated/tbox/debate_log.json` 에, 5단계 검증 결과는 도구 응답(화면)에 나오며 `workshop/pre-generated/` 에는 동봉되지 않는다. 강사 화면(D-1 실행 결과)으로 봄:
 
 - **debate_log** ([→용어](#부록-c-용어-사전): Multi-Agent 토론 기록) — Validator 비판을 본인 OP 예측과 비교 (Validator 가 가장 자주 잡는 결함이 OP 방향).
 - **5단계 검증 결과** — `validate_ttl_syntax` → `check_quality_rules` → `validate_owl_consistency` → `classify_tbox` → `validate_tbox_shacl` 통과 여부.
 
-> Multi-Agent (핵심 토론자 Architect + Validator + SME, 합의 보조 Jury + Compromise) 토론 규칙 + debate_log 읽기는 [post-workshop-guide §10 FAQ](post-workshop-guide.md#10-faq--자주-하는-질문), 17단계 후처리 vs 수동 편집은 [§5 의사결정 트리](post-workshop-guide.md#5-의사결정-트리), unsatisfiable class ([→용어](#부록-c-용어-사전): 인스턴스를 가질 수 없는 모순 클래스) 디버깅은 [§4 흔한 에러 Top 10](post-workshop-guide.md#4-흔한-에러-top-10).
+> Multi-Agent (핵심 토론자 Architect + Validator + SME, 최종 심판 Jury, Jury 판정 실패 시 절충 기록 Compromise) 토론 규칙 + debate_log 읽기는 [post-workshop-guide §10 FAQ](post-workshop-guide.md#10-faq--자주-하는-질문), 17단계 후처리 vs 수동 편집은 [§5 의사결정 트리](post-workshop-guide.md#5-의사결정-트리), unsatisfiable class ([→용어](#부록-c-용어-사전): 인스턴스를 가질 수 없는 모순 클래스) 디버깅은 [§4 흔한 에러 Top 10](post-workshop-guide.md#4-흔한-에러-top-10).
 
 ## 3-2. T-Box 시각화 + 분석 (8분) [본인 PC]
 
@@ -398,15 +400,15 @@ SELECT ?p (COUNT(*) AS ?c) WHERE { ?s ?p ?o } GROUP BY ?p ORDER BY DESC(?c) LIMI
 ```
 
 > **추론이 만드는 3가지** (이 3개로 OWL RL 의 80% 설명):
-> - **inverseOf**: `Tag isTagOf EQ` 가 있으면 `EQ hasTag Tag` 자동 생성 (양방향)
-> - **subClassOf 전이**: `EQ001 a EquipmentMaster` + `EquipmentMaster ⊑ Equipment` → `EQ001 a Equipment` 자동
-> - **domain/range 타입**: `hasTag` 의 domain=Equipment 라면 `?x hasTag ?y` 의 `?x` 는 자동으로 Equipment 타입
+> - **inverseOf**: `?tag steel:tagEquipment ?eq` 가 있으면 `?eq steel:equipmentHasTag ?tag` 도 성립 (양방향). `sparql_local` 은 이 역방향을 그래프 로드 시점에 채우므로 `merge` 모드에서도 보인다
+> - **subClassOf 전이**: `EQ001 a EquipmentMaster` + `EquipmentMaster ⊑ EquipmentAsset` → `EQ001 a EquipmentAsset` 자동
+> - **domain/range 타입**: `tagEquipment` 의 domain 이 `TagMaster` 이므로 `?x steel:tagEquipment ?y` 의 `?x` 는 자동으로 TagMaster 타입
 
 | 차이 | 의미 |
 |------|------|
-| 트리플 수 약 1.9배 증가 (718K → 1.38M, +92%) | OWL RL 자동 도출 |
-| `tagEquipment` 옆에 역관계 `equipmentHasTag` 도 등장 | `inverseOf` 자동 채움 |
-| 인스턴스 `rdf:type` 가 상위 클래스로도 출력 | `subClassOf` 전이 |
+| 트리플 수 약 1.9배 증가 (718K → 1.38M, +92%) | OWL RL 자동 도출 (원본 병합 그래프 기준. `sparql_local` 응답의 `load` 수치는 역방향 트리플을 채운 뒤라 `merge` 쪽이 718K 보다 크게 나온다) |
+| `equipmentHasTag` 같은 역관계는 두 결과 모두에 있음 | `inverseOf` 짝은 `sparql_local` 이 그래프를 로드할 때 채우므로 추론 전후의 차이가 아니다 |
+| 인스턴스 `rdf:type` 가 상위 클래스로도 출력 | `subClassOf` 전이 (두 결과에서 `rdf:type` 개수 차이가 가장 크다) |
 
 > **핵심**: 명시되지 않은 관계가 자동 도출. OWL RL 4규칙 (subClassOf 체인 / domain·range 타입 / inverseOf / Transitive) 상세는 [부록 B 파이프라인 14단계](#부록-b-파이프라인-14단계) S8.
 
@@ -448,7 +450,7 @@ KG 를 검증해줘.
 | `a` | `rdf:type` 약어 | `?eq a steel:EquipmentMaster` |
 | `;` | 같은 주어 계속 | `?eq a Cls ; name ?n` |
 | `.` | 트리플 끝 | `?eq a Cls .` |
-| `prefix:` | 네임스페이스 약어 | `steel:Equipment` |
+| `prefix:` | 네임스페이스 약어 | `steel:EquipmentMaster` |
 
 나머지는 SQL 과 비슷 (`SELECT`, `WHERE`, `FILTER`, `GROUP BY`, `LIMIT`).
 
@@ -505,7 +507,7 @@ SELECT ?eqName ?tagName WHERE {
 } LIMIT 20
 ```
 
-> **방향 주의**: Tag → tagEquipment → Equipment (TagMaster 가 domain). 추론 후 (`source="inferred"`) 에는 `inverseOf` (`equipmentHasTag`) 로 양방향.
+> **방향 주의**: Tag → tagEquipment → Equipment (TagMaster 가 domain). `sparql_local` 은 `inverseOf` 역방향 (`equipmentHasTag`) 을 로드 시점에 채우므로 `merge`·`inferred` 두 모드 모두 양방향으로 질의된다.
 
 ```
 설비 상태별 개수를 조회해줘.
@@ -550,7 +552,7 @@ SELECT ?eqName ?maintType ?maintDate WHERE {
 } LIMIT 20
 ```
 
-> **OWL 추론 활용**: `inverseOf` 추론 적용 시 `?eq steel:equipmentHasMaintenanceHistory ?maint` 정방향도 작동 (`source="inferred"`).
+> **역방향 질의**: `sparql_local` 은 `owl:inverseOf` 역방향을 로드 시점에 채우므로 `?eq steel:equipmentHasMaintenanceHistory ?maint` 도 작동한다 (`merge`·`inferred` 두 모드 모두). 원본 `a_box.ttl` 에는 정비 → 설비 방향만 있다.
 
 ### 5-4a. 크로스 도메인 (3-hop + OPTIONAL) — 7분 (최난도, 막히면 강사 시연 전환 OK)
 
@@ -612,12 +614,14 @@ Claude Code 가 `sparql_local` 도구로 SPARQL 생성+실행. **성공/실패�
 
 ## 6-1. 도메인 질의 테스트 (5분) [본인 PC]
 
-CQ 가 현재 KG 구조로 답변 가능한지 **그래프 로드 없이** 빠르게 검증 (`test_domain_queries`).
+CQ 가 현재 KG 구조로 답변 가능한지 고정 연결성 검사로 검증 (`test_domain_queries`, 도구 자체는 **모델을 호출하지 않음**).
+기본 설정은 스키마 검사를 통과한 CQ 의 클래스 조인을 병합 그래프에서 COUNT 로 한 번 더 확인하므로
+그래프를 1회 로드한다.
 
 ```
-도메인 질의 테스트를 실행해줘.
+도메인 질의 테스트를 실행하고 보고서를 브라우저로 열어줘.
 ```
-→ HTML 보고서가 본인 브라우저에 자동 오픈. CQ 별 PASS/FAIL + 연결 경로 (direct/multihop/indirect) + 누락된 클래스/프로퍼티. **80%+ PASS 목표**.
+→ HTML 보고서가 본인 브라우저에 열림 (도구 인자 `open_report=True`. 기본값은 파일만 생성). CQ 별 PASS/FAIL + 연결 경로 (direct/multihop/indirect) + 누락된 클래스/프로퍼티. **80%+ PASS 목표**.
 
 FAIL 3 가지 원인 — Capstone self-assessment 입력으로 활용:
 - 인스턴스 누락 → A-Box 의 CSV 누락
@@ -633,6 +637,8 @@ FAIL 3 가지 원인 — Capstone self-assessment 입력으로 활용:
 ## 6-2. Capstone — 자사 도메인 구상 (17분, 보호)
 
 > 본 모듈의 "자사 도메인" 은 파트너사 SA 라면 **고객 도메인**, 자사 IT 직원이라면 **본인 부서 도메인**.
+> 고객 도메인을 쓴다면 고객 동의 없이 고객 정보를 외부로 공유하지 않습니다. 이 모듈의 산출물에는
+> 가명이나 일반화한 표현만 씁니다 (아래 6-2c 데이터 취급 규칙).
 
 > **사전 워밍업 활용**: Ch2-2 슬롯에 작성한 **표 A (자사 CQ 3~5개)** 를 6-2c 슬롯에서 TEMPLATE 의 §2 에 **복사 + 다듬기** 만 하면 됨. 처음부터 떠올리지 마세요.
 
@@ -665,10 +671,14 @@ T-Box에 "SafetyIncident" 클래스를 추가해줘. EquipmentMaster와 연결�
 >
 > **교훈**: **"설정 파일 80% + 환경변수/SME 20%, 코드 수정 0%"**.
 
-### 6-2c. 본인 명의 산출물 작성 (3분) + Capstone 회수 (2분)
+### 6-2c. 본인 명의 산출물 작성 (3분) + Capstone 제출 (2분, 선택)
 
-`workshop/capstone-outputs/<본인이름>_<날짜>.md` 1페이지로 작성.
+`workshop/capstone-outputs/<닉네임 또는 참가번호>_<날짜>.md` 1페이지로 작성 (실명 대신 닉네임이나 참가번호).
 템플릿: `workshop/capstone-outputs/TEMPLATE.md`.
+
+> **데이터 취급 규칙**: 고객명, 실데이터 값, 기밀 스키마 (실제 테이블·컬럼명), 개인정보는 적지 말고
+> 가명 또는 일반화한 값을 씁니다 (예: 실제 테이블명 대신 "주문 이력 테이블"). 제출하기 전에 소속 조직의 데이터
+> 취급 정책과 고객 NDA 를 확인하세요. 이 폴더의 작성 파일은 `.gitignore` 대상이라 리포에 커밋되지 않습니다.
 
 **필수 3개** — TEMPLATE 의 **§1, §2, §5** (이것만 채워도 D+1 출발 가능):
 - TEMPLATE §1 — 본인 도메인명 + prefix (예: `pharma:`)
@@ -681,7 +691,7 @@ T-Box에 "SafetyIncident" 클래스를 추가해줘. EquipmentMaster와 연결�
 - TEMPLATE §6 — 미니 산출물 (페르소나별 옵션)
 - TEMPLATE §7 — 자사 CQ dry-run 변환
 
-**회수 (2분)**: 작성한 md 파일을 강사가 사전 안내한 채널 (Slack DM / 공유 드라이브 / 이메일 중 하나) 로 첨부 발송. 사전 등록자 명단 대비 제출률이 enablement 측정의 객관 산출물.
+**제출 (2분, 선택)**: 제출은 선택 사항입니다. 강사가 회수를 요청한 경우에만, 위 데이터 취급 규칙을 지킨 파일을 주최 측이 지정한 승인된 채널 하나로 보냅니다. 제출하지 않아도 본인 보관용으로 D+1 숙제에 그대로 이어 쓸 수 있습니다.
 
 ### ✅ Capstone self-assessment (3분, 채점 5문항 + 메타 2문항)
 
@@ -787,7 +797,7 @@ Ch5 에서 철강 CQ (STL-1~STL-3) 중 몇 개를 SPARQL 로 답할 수 있었�
 
 <details><summary><strong>Ch3 — T-Box + 시각화 + 암묵지</strong></summary>
 
-1. Multi-Agent 핵심 토론자 3명 (Architect/Validator/SME) 중 한 명만 있으면 왜 안 되나? (합의 실패 시 Jury/Compromise 가 보조)
+1. Multi-Agent 핵심 토론자 3명 (Architect/Validator/SME) 중 한 명만 있으면 왜 안 되나? (두 리뷰어가 실질 승인하면 Jury 가 매번 독립 최종 판정을 내리고, Compromise 는 마지막 라운드에서 Jury 판정이 실패할 때만 절충 사유를 기록)
 2. OntoQA 의 DIT 1 이하 / 6 이상이면 무엇이 문제?
 3. 암묵지 (a) 자연어 vs (c) CSV+LLM 부트스트랩 — 어느 게 신뢰도 높은가?
 
@@ -835,7 +845,7 @@ Ch5 에서 철강 CQ (STL-1~STL-3) 중 몇 개를 SPARQL 로 답할 수 있었�
 
 오늘 워크샵에서 체험한 코어 14단계 + 자동 sub-step 7개. 본문 챕터는 이 흐름의 부분집합.
 
-> **순서 모순처럼 보이는 이유**: PPTX·본문의 흐름은 "**데이터 → CQ → ...**" (UX/체험
+> **순서 모순처럼 보이는 이유**: 기초 강의·본문의 흐름은 "**데이터 → CQ → ...**" (UX/체험
 > 순서 — 초보 청중에 직관적), 아래 14단계의 S 번호는 "**S0 CQ → S1 데이터 → ...**"
 > ([CLAUDE.md](../CLAUDE.md) 의 파이프라인 ID — 논리 의존성 순서). **두 순서가 다른 것이
 > 정상**입니다. S 번호는 단계 식별자이지 실행 강제 순서가 아닙니다.
@@ -845,7 +855,7 @@ Ch5 에서 철강 CQ (STL-1~STL-3) 중 몇 개를 SPARQL 로 답할 수 있었�
 ```
 S0  CQ 생성 ────── generate_competency_questions (Bedrock)
 S1  데이터 확인 ── CSV 40개 스키마 + ERD
-S2  T-Box 생성 ── Multi-Agent (핵심 토론자 3: Architect+Validator+SME / 합의 보조 2: Jury+Compromise)
+S2  T-Box 생성 ── Multi-Agent (핵심 토론자 3: Architect+Validator+SME / 최종 심판 Jury / 판정 실패 시 절충 Compromise)
 S3  품질 개선 ──── 17단계 후처리 (ODP, OntoQA 등)
 S4  T-Box 검증 ── 구문 + 품질 + HermiT + SHACL
 S5  암묵지 ─────── 현장 도메인 지식 TTL
@@ -914,7 +924,7 @@ S13 최종 보고서 ── HTML
 
 ## 부록 C-1 심화: Triple 읽고 쓰기와 RDF/RDFS/OWL 층위
 
-> PPTX 기초 강의에서 본 Triple·T-Box·A-Box 를 한 단계 더 들여다봅니다. SPARQL·TTL 코드를
+> 기초 강의에서 본 Triple·T-Box·A-Box 를 한 단계 더 들여다봅니다. SPARQL·TTL 코드를
 > 처음 읽을 때 막히는 부분(기호, 따옴표, `a`, 어휘의 층)을 모았습니다. 강의 흐름에는
 > 필수가 아니므로, 코드가 낯설 때 펼쳐 보면 됩니다.
 

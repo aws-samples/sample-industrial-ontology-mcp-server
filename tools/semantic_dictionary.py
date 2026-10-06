@@ -23,7 +23,13 @@ from rdflib import OWL, RDF, RDFS, XSD, BNode, Literal, Namespace, URIRef
 _DCTERMS_NS = Namespace("http://purl.org/dc/terms/")
 
 from config import ABOX_PATH, INFERRED_PATH, LPG_SEMANTIC_DICT_PATH, SEMANTIC_DICT_PATH, TBOX_PATH
-from domain.namespaces import DOMAIN_CONFIG, DOMAIN_INST_NS, DOMAIN_NS, NS_PREFIX
+from domain.namespaces import (
+    DOMAIN_CONFIG,
+    DOMAIN_INST_NS,
+    DOMAIN_NS,
+    NS_PREFIX,
+    sanitize_sparql_value,
+)
 from domain.tbox_utils import _new_graph
 from domain.uri_conventions import local_name as _local_name
 
@@ -530,10 +536,12 @@ def _single_pass_abox_stats(abox, steel_ns, dt_prop_info, obj_prop_names):
             pass
 
     # ── 2) ObjectProperty 트리플 카운트 (steel 네임스페이스) ──
+    # 네임스페이스는 문자열 리터럴 안에 들어가므로 리터럴 경계 문자를 이스케이프한다.
+    ns_literal = sanitize_sparql_value(str(steel_ns))
     op_q = f"""
         SELECT ?p (COUNT(?o) AS ?n) WHERE {{
             ?s ?p ?o .
-            FILTER(STRSTARTS(STR(?p), "{steel_ns}"))
+            FILTER(STRSTARTS(STR(?p), "{ns_literal}"))
             FILTER(isIRI(?o))
         }} GROUP BY ?p
     """
@@ -551,8 +559,8 @@ def _single_pass_abox_stats(abox, steel_ns, dt_prop_info, obj_prop_names):
     dt_q = f"""
         SELECT ?cls ?p ?o WHERE {{
             ?s a ?cls ; ?p ?o .
-            FILTER(STRSTARTS(STR(?cls), "{steel_ns}"))
-            FILTER(STRSTARTS(STR(?p), "{steel_ns}"))
+            FILTER(STRSTARTS(STR(?cls), "{ns_literal}"))
+            FILTER(STRSTARTS(STR(?p), "{ns_literal}"))
             FILTER(isLiteral(?o))
         }}
     """
@@ -647,9 +655,10 @@ def _extract_properties(tbox, abox):
         ]
         is_functional = (s, RDF.type, OWL.FunctionalProperty) in tbox
         # dcterms:source — 이 DP 가 유래한 CSV 컬럼 코드. T-Box 생성 프롬프트
-        # (04-property-rules.md 원칙 4-1) 가 필수로 요구하며, A-Box 생성기가
-        # 컬럼↔DP 를 추측 없이 연결하는 근거이자 SME 가 DP 의 출처를 역추적하는
-        # 통로다. 미표기 DP 는 키가 빠지므로 소비자는 존재 여부를 확인해야 한다.
+        # (04-property-rules.md 의 "DatatypeProperty declaration" 절) 가 필수로
+        # 요구하며, A-Box 생성기가 컬럼↔DP 를 추측 없이 연결하는 근거이자 SME 가
+        # DP 의 출처를 역추적하는 통로다. 미표기 DP 는 키가 빠지므로 소비자는
+        # 존재 여부를 확인해야 한다.
         source_columns = sorted(
             str(src).strip()
             for _, _, src in tbox.triples((s, _DCTERMS_NS.source, None))
@@ -2753,6 +2762,13 @@ def generate_semantic_dictionary(
     로컬 T-Box(TBOX_PATH)와 A-Box(또는 추론 결과)를 읽어
     클래스·프로퍼티·통계·SPARQL 가이드·질문 템플릿을 포함하는
     시맨틱 딕셔너리를 생성하여 SEMANTIC_DICT_PATH에 저장한다.
+
+    Bedrock 호출: 한국어 설명(``description_ko``)만 있고 영문 설명(``description_en``)이
+    없는 클래스가 하나라도 있으면, ``include_stats`` 값과 관계없이 Amazon Bedrock 에 번역
+    요청 1건을 보내 영문 설명을 채운다 (오류가 나면 ``tools.bedrock`` 의 재시도 규칙에
+    따라 같은 요청을 다시 보낼 수 있다). 요청에는 해당 클래스의 이름과 한국어 설명이 담겨 모델로 전송되고
+    모델 호출 비용이 발생한다. 모든 클래스에 영문 설명이 있으면 호출하지 않는다.
+    호출이 실패하면 경고를 남기고 한국어 설명만 유지한다.
 
     Args:
         use_inferred: True면 all_inferred.ttl 기반으로 생성.

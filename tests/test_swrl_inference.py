@@ -48,6 +48,8 @@ class TestSwrlEnabledFlag:
         from tools.swrl_inference import run_swrl_inference
 
         # empty dir — no rules → zero rules (not skipped by env flag)
+        # swrl_dir 는 SWRL_DIR_DEFAULT 자신이나 그 하위만 받으므로 기준을 tmp_path 로 옮긴다.
+        monkeypatch.setattr("tools.swrl_inference.SWRL_DIR_DEFAULT", str(tmp_path))
         monkeypatch.setenv("SWRL_ENABLED", "TRUE")
         result = json.loads(run_swrl_inference(swrl_dir=str(tmp_path)))
         assert result["success"] is True

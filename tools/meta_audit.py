@@ -4,11 +4,16 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 import time
 from collections import defaultdict
 from itertools import combinations
 
 from config import GENERATED_DIR
+from tools.common import error_response, resolve_child_path
+
+#: ``run_meta_audit`` 가 쓰는 감사 파일 이름의 timestamp 형식 (``%Y%m%dT%H%M%SZ``).
+_AUDIT_TIMESTAMP_RE = re.compile(r"[0-9]{8}T[0-9]{6}Z")
 
 
 def compute_sensitivity_matrix(runs: list[dict]) -> dict[str, dict[str, float]]:
@@ -750,10 +755,25 @@ def get_meta_audit_history() -> str:
 
 
 def read_meta_audit(timestamp: str = "latest") -> str:
-    """Read a specific audit run. Default: latest.json."""
+    """Read a specific audit run. Default: latest.json.
+
+    Args:
+        timestamp: ``latest`` 또는 ``run_meta_audit`` 가 만든 ``YYYYMMDDTHHMMSSZ``
+            형식. ``get_meta_audit_history`` 가 돌려주는 ``.json`` 파일명도 받는다.
+            그 밖의 값과 meta_audit 디렉터리 밖을 가리키는 symlink 는 거부한다.
+    """
     out_dir = os.path.join(GENERATED_DIR, "meta_audit")
-    fname = "latest.json" if timestamp == "latest" else f"{timestamp}.json"
-    path = os.path.join(out_dir, fname)
+    stem = timestamp.strip() if isinstance(timestamp, str) else ""
+    if stem.endswith(".json"):
+        stem = stem[: -len(".json")]
+    if stem != "latest" and not _AUDIT_TIMESTAMP_RE.fullmatch(stem):
+        return error_response(
+            "timestamp 는 'latest' 또는 YYYYMMDDTHHMMSSZ 형식이어야 합니다."
+        )
+    try:
+        path = resolve_child_path(out_dir, f"{stem}.json", allowed_suffixes=(".json",))
+    except ValueError as exc:
+        return error_response(exc)
     if not os.path.exists(path):
         return json.dumps({"error": "not_found", "path": path})
     with open(path, encoding="utf-8") as f:

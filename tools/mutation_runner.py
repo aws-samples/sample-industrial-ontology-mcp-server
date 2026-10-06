@@ -26,8 +26,24 @@ from dataclasses import dataclass
 from rdflib import Graph, URIRef
 
 from config import ABOX_PATH, GENERATED_DIR, TBOX_PATH
+from domain.sparql_templates import _require_iri, reject_sparql_egress
 
 logger = logging.getLogger(__name__)
+
+
+def _is_bindable_iri(value: object) -> bool:
+    """placeholder 자리에 ``<...>`` 로 넣을 수 있는 IRI 인지 판정한다.
+
+    IRIREF 본문에 올 수 없는 문자 (``<`` ``>`` ``"`` ``{`` ``}`` 공백 등) 가 있는
+    IRI 는 치환 결과의 질의 구조를 바꿀 수 있으므로 대상 후보에서 뺀다.
+    """
+    if not isinstance(value, URIRef):
+        return False
+    try:
+        _require_iri(str(value))
+    except ValueError:
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -79,7 +95,7 @@ def resolve_targets(graph: Graph, placeholder: str, limit: int = 3) -> list[URIR
         return []
     prefix = "PREFIX owl: <http://www.w3.org/2002/07/owl#>\n"
     rows = list(graph.query(prefix + query))
-    uris = [row[0] for row in rows if isinstance(row[0], URIRef)]
+    uris = [row[0] for row in rows if _is_bindable_iri(row[0])]
     return sorted(uris, key=str)[:limit]
 
 
@@ -186,6 +202,9 @@ def _targets_from_where(
         f"ORDER BY {order}\nLIMIT 1"
     )
     try:
+        # 실행할 최종 SELECT 를 그대로 가드한다. 거부되면 실행 없이 후보 스캔으로
+        # 넘어가고, 그 경로의 UPDATE 도 ``_bind_and_update`` 가 다시 가드한다.
+        reject_sparql_egress(query)
         rows = list(graph.query(query))
     except Exception as exc:  # noqa: BLE001 — WHERE 가 SELECT 로 안 되는 형태면 폴백
         logger.debug("WHERE-기반 타깃 해상 실패 (후보 스캔으로 폴백): %s", exc)
@@ -194,7 +213,7 @@ def _targets_from_where(
         binding = {}
         for i, p in enumerate(placeholders):
             value = row[i]
-            if not isinstance(value, URIRef):
+            if not _is_bindable_iri(value):
                 return None
             binding["?" + p] = value
         return binding
@@ -214,12 +233,19 @@ def _bind_and_update(
 
     치환(replace) 계열 mutator 가 카탈로그의 절반이므로 이 오판이 검출률을
     구조적으로 깎았다.
+
+    바인딩 값은 IRIREF 형식을 확인한 뒤 ``<...>`` 로 치환하고, 치환을 끝낸 UPDATE
+    문자열을 실행 직전 egress 가드에 넣는다.
+
+    Raises:
+        ValueError: 바인딩 값이 IRIREF 형식이 아니거나 최종 UPDATE 가 가드에 거부될 때.
     """
-    mutated = Graph()
-    mutated += graph  # shallow copy of triples; Graph.__iadd__ works
     bound = sparql
     for ph_key, uri in bindings.items():
-        bound = bound.replace(ph_key, f"<{uri}>")
+        bound = bound.replace(ph_key, f"<{_require_iri(str(uri))}>")
+    reject_sparql_egress(bound)
+    mutated = Graph()
+    mutated += graph  # shallow copy of triples; Graph.__iadd__ works
     before = set(mutated)
     mutated.update(bound)
     after = set(mutated)
@@ -240,7 +266,18 @@ def apply_mutator(graph: Graph, mutator: Mutator) -> tuple[Graph, dict]:
 
     후보 순서는 ``resolve_targets`` 의 정렬을 그대로 쓰므로 **결정적** 이다 — 같은
     T-Box 에 대해 항상 같은 mutant 가 나온다.
+
+    카탈로그 원문이 egress 가드에 거부되면 (SERVICE·LOAD·USING 등, 또는 해석 불가)
+    아무 질의도 실행하지 않고 ``reason="sparql_guard_rejected"`` 로 돌려준다.
     """
+    try:
+        reject_sparql_egress(mutator.sparql)
+    except ValueError as exc:
+        logger.warning("mutator %s 를 SPARQL 가드가 거부했다: %s", mutator.name, exc)
+        return graph, {"applied": False, "reason": "sparql_guard_rejected",
+                       "error": str(exc)[:200], "target": None,
+                       "triples_removed": 0, "triples_added": 0}
+
     placeholders = sorted(set(_PLACEHOLDER_RE.findall(mutator.sparql)))
     if not placeholders:
         mutated, removed, added = _bind_and_update(graph, mutator.sparql, {})
@@ -489,6 +526,7 @@ def run_tbox_mutations(
     applied = 0
     skipped_no_target = 0
     skipped_no_effect = 0
+    skipped_rejected = 0
 
     for m in mutators:
         t0 = time.monotonic()
@@ -497,6 +535,8 @@ def run_tbox_mutations(
             reason = info.get("reason", "unknown")
             if reason == "no_effect":
                 skipped_no_effect += 1
+            elif reason == "sparql_guard_rejected":
+                skipped_rejected += 1
             else:
                 skipped_no_target += 1
             mutants_out.append({
@@ -544,6 +584,7 @@ def run_tbox_mutations(
         "applied": applied,
         "skipped_no_target": skipped_no_target,
         "skipped_no_effect": skipped_no_effect,
+        "skipped_rejected": skipped_rejected,
         "duration_s": round(time.monotonic() - start, 3),
         "mutants": mutants_out,
     }
@@ -680,7 +721,7 @@ def _classify_uncaught(mutants_out: list[dict]) -> dict[str, int]:
 
 
 def _run_kg_validators(tbox_path: str, abox_path: str) -> dict[str, str]:
-    """Rerun validate_kg's 23 checks against the given T-Box + A-Box.
+    """Rerun validate_kg's 25 checks against the given T-Box + A-Box.
 
     Path override strategy (Option C): patch the module-level ``TBOX_PATH`` /
     ``ABOX_PATH`` attributes on both ``tools.kg_validation`` (used directly by

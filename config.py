@@ -113,11 +113,6 @@ NEO4J_URI = os.getenv("NEO4J_URI", "")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
 
-# Oracle (선택적 OBDA 실행기용. SQL 계획만 사용할 때는 연결 불필요).
-ORACLE_DSN = os.getenv("ORACLE_DSN", "")
-ORACLE_USER = os.getenv("ORACLE_USER", "")
-ORACLE_PASSWORD = os.getenv("ORACLE_PASSWORD", "")
-
 # Java (OWL 추론기용 — Java 25+ 필요)
 JAVA_EXE = os.getenv("JAVA_EXE", "")
 

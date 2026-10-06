@@ -13,6 +13,10 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.types import ToolAnnotations
 
+# domain 패키지 import 가 프로세스 전체 SPARQL egress 차단점을 설치한다. 도구 타깃을
+# 해석하기 전이라도 이 모듈을 import 하면 차단점이 설치되도록 명시적으로 import 한다.
+import domain  # noqa: F401
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = REPO_ROOT / "mcp-tools.toml"
 

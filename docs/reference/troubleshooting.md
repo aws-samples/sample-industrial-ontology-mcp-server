@@ -160,7 +160,7 @@ T-Box 를 만나면 reasoner 가 전체 결과를 반환하지 못하고 중간�
 ```
 **원인**: Architect LLM 이 numeric 센서 / 화학 성분 / 공정 파라미터 컬럼을 DP 로 선언하지 않음 (특히 ChemicalAnalysis 의 `C_Percent`/`Si_Percent`/`Mn_Percent`, EquipmentMaster 의 `equipment_name`/`type`). CSV 컬럼 커버리지 게이트 (`_check_csv_column_coverage`) 가 감지.
 **해결**:
-1. **warn 모드 (기본)** — stats 기록만. 재생성은 SME 판단. 다음 S2 실행 시 L1 프롬프트 (원칙 1 MANDATORY 전수 커버리지 + 원칙 1.5 self-check) 가 gap 자동 해소 유도
+1. **warn 모드 (기본)** — stats 기록만. 재생성은 SME 판단. 다음 S2 실행 시 L1 프롬프트 (`prompts/tbox-prompt-modules/04-property-rules.md` 의 "Path B naming" 절 전수 매핑 + "Coverage self-check" 절) 가 gap 자동 해소 유도
 2. **fail 모드** — `TBOX_COVERAGE_GATE=fail` 로 CI/CD 엄격 검증. 미달 시 `RuntimeError` 로 파이프라인 중단
 3. 임계치 조정 — `TBOX_COVERAGE_THRESHOLD=0.75` 등으로 완화 가능 (권장 X)
 4. 개별 class 미달 시 `coverage_per_class` stats 에서 `missing` 컬럼 목록 확인 → T-Box 수동 DP 추가

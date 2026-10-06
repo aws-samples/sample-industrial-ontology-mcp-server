@@ -9,7 +9,7 @@
 
 > **"당신은 3시간 후 (a) Knowledge Graph 의 가치를 비유 없이 1분 안에 설명할 수 있고, (b) Claude 가 만든 SPARQL 의 정확성을 직접 검증할 수 있고, (c) 자사 도메인 PoC 의 Day 1 에 무엇부터 시작할지 정확히 안다."**
 
-이 한 줄을 D+1 매니저 / D+30 임원 보고에 그대로 인용. 본 post-workshop-guide 는
+이 한 줄은 워크샵 이후 보고에 그대로 인용할 수 있습니다. 본 post-workshop-guide 는
 약속 (c) 의 실현을 위한 운영 가이드입니다.
 
 ## 강사 follow-up 매트릭스 — 막혔을 때 어디로 (v3.1)
@@ -18,7 +18,7 @@
 
 | 시점 | 막힘 유형 | 1차 채널 | 자체 진행 가능 |
 |------|--------|--------|-----------|
-| **D+1~3** | 환경 이슈 (Ch1-1 막혔던 사람) | setup-guide §10 강사 이메일/Slack | ❌ — 환경 없으면 진행 불가 |
+| **D+1~3** | 환경 이슈 (세션 0 에서 막혔던 사람) | 주최 측이 안내한 강사 연락 채널 + [setup-guide §9 자주 막히는 지점](setup-guide.md#9-자주-막히는-지점) | ❌ (환경 없으면 진행 불가) |
 | **D+7** | 경로 A/B/C 선택 망설임 | 강사 이메일 회신 | ⭕ (이 문서 §0 박스 참조) |
 | **D+14** | Week 1 Go/No-Go 미달 (validate_kg < 18/25 또는 CQ < 60%) | 강사 Slack 채널 (D+10 그룹 office-hour 가능) | ⭕ (§3 T-Box 개선 사이클) |
 | **D+30** | PoC 결과 회수 시점 | 설문 + 1:1 시연 | (시연 후 다음 iteration 결정) |
@@ -146,7 +146,7 @@ git checkout rules/domain/domain_config.json
 
 ### 경로 A — 자사 도메인 PoC 구축 (기술 작업 풀타임 2\~3주 / 병행 4\~6주, **+ 비기술 선행조건 1\~3주**)
 **이런 사람:** "우리 회사 데이터로 처음부터 온톨로지를 만들어 보고 싶다"
-**순서:** 1절 (환경 / CSV / rules — 한 줄 안내 + README 링크) → 2절 (파이프라인 실행) → 3절 (T-Box 개선)
+**순서:** 1절 (환경 / CSV / rules: 한 줄 안내 + 참조 문서 링크) → 2절 (파이프라인 실행) → 3절 (T-Box 개선)
 **성공 기준:** `validate_kg` 에서 18/25+ check PASS + `test_domain_queries` 에서 CQ 80%+ 응답
 **현실 체크:** 첫 파이프라인 실행은 30\~45분 × 여러 번 반복 + S4 실패 복구 2\~3회 + T-Box 개선 사이클.
 - **기술 작업만**: 풀타임 2\~3주, 병행 (하루 2\~3h) 4\~6주.
@@ -165,7 +165,7 @@ git checkout rules/domain/domain_config.json
 
 ### 경로 B — RCA 분석 환경 구축 (1주)
 **이런 사람:** "Neo4j 이미 쓰고 있는데 RDF 를 LPG 로 연결하고 싶다"
-**순서:** 1절 → 2절 (철강 샘플로 1회 전체 파이프라인) → 6절 Neo4j 배포 섹션 →
+**순서:** 1절 → 2절 (철강 샘플로 1회 전체 파이프라인) → [7-2절 Neo4j LPG 배포](#7-2-neo4j-lpg-배포-rca-분석용) →
 Cypher/ask_neo4j 실습
 **성공 기준:** `ask_neo4j` 로 자연어 RCA 질의가 동작
 
@@ -198,8 +198,8 @@ Cypher/ask_neo4j 실습
 > **Golden Query 작업량 가이드**: Week 1 Day 5 는 **P0 (반드시) 3~5개** 만 작성.
 > Workshop Ch5 에서 STL-1\~3 (3개) 변환 체험했으므로 비슷한 규모로 시작. 5\~10개로
 > 확장은 D+10 office-hour 후 또는 Week 2 Day 9 에. Workshop 본 모듈에서는 다루지
-> 않은 도구이므로 본 가이드 §7-3 (없으면 CLAUDE.md GOLDEN_REGRESSION 워크플로우)
-> 참조 후 SME 와 함께 작성.
+> 않은 도구이므로 [CLAUDE.md](../CLAUDE.md) 의 GOLDEN_REGRESSION 워크플로우와
+> `golden_queries_schema_example` 도구가 보여 주는 입력 형식을 참조해 SME 와 함께 작성.
 
 ### Week 2 — 품질 개선 + 테이블 확장
 
@@ -250,8 +250,8 @@ Cypher/ask_neo4j 실습
 
 ## 1. 환경 준비 + CSV + 도메인 설정 — 한 줄 안내
 
-PoC 시작 전 다음 3가지는 **루트 README 와 setup-guide 에 이미 상세 안내**되어
-있습니다. 이 문서에서 다시 풀어쓰지 않고 링크로 참조:
+PoC 시작 전 다음 3가지는 **setup-guide 와 docs/reference/configuration.md 에 이미 상세
+안내**되어 있습니다. 이 문서에서 다시 풀어쓰지 않고 링크로 참조:
 
 | 단계 | 어디 보나 |
 |------|----------|
@@ -421,9 +421,9 @@ CQ 재작성을 고려하세요.
 
 | # | 증상 | 원인 | 해결 |
 |---|------|------|------|
-| 1 | MCP 서버 연결 안 됨 | `.env` 경로 오류, venv 미활성화, `settings.json` 설정 오류 | `.env` 절대경로 확인, `source venv/bin/activate` 실행, `settings.json`의 `command`/`args` 경로 재확인 |
+| 1 | MCP 서버 연결 안 됨 | `.env` 경로 오류, venv 미활성화, `.mcp.json` 설정 오류 | `.env` 절대경로 확인, `source venv/bin/activate` 실행, `.mcp.json` 의 `command`/`args`/`DOTENV_PATH` 경로 재확인 ([setup-guide §5.3](setup-guide.md#53-mcp-등록-troubleshooting)) |
 | 2 | `ThrottlingException` (Bedrock) | API 호출 속도 제한 초과 | 2~3분 대기 후 재시도. S2에서 빈번 → 자동 재시도 내장 |
-| 3 | `AccessDeniedException` (Bedrock) | 모델 접근 권한 없음 | AWS Console > Bedrock > Model access에서 사용할 모델 접근 요청 |
+| 3 | `AccessDeniedException` (Bedrock) | IAM 정책에 inference profile 또는 대상 리전 foundation model ARN 누락, Marketplace 구독 미완료 (계정의 첫 호출 주체에 `aws-marketplace` 권한 없음. 오류 메시지에 `aws-marketplace` 작업이 나옴), Anthropic 첫 사용 양식 미제출, 계정 결제 수단 없음, 또는 조직 SCP 의 리전 제한 | [setup-guide §0.1](setup-guide.md#01-aws-계정--iam-권한) 의 최소 권한 정책 확인. 계정이 아직 활성화되지 않았다면 관리자가 [§0.2](setup-guide.md#02-계정당-1회-모델-활성화-관리자가-수행) 절차로 Marketplace 구독·양식·결제 수단을 갖춘다 ([AWS re:Post](https://repost.aws/knowledge-center/bedrock-resolve-marketplace-permission)). `.env` 의 `BEDROCK_MODEL_ID`·`MULTI_AGENT_MODEL_*` 를 바꿨다면 그 모델 ARN 도 정책에 추가하고, 그 모델이 Marketplace 모델이면 같은 활성화가 필요 |
 | 4 | HermiT unsatisfiable class | `AllDisjointClasses`와 OP domain/range 충돌 | `disjoint_groups.json` 조정, 또는 다중 domain을 `owl:unionOf`로 변환. `improve_tbox_quality`가 대부분 자동 해결 |
 | 5 | SHACL violation 다수 | label 누락, domain/range 미선언 | `improve_tbox_quality` 실행으로 자동 수정. 잔여분은 에이전트 안내에 따라 수동 수정 |
 | 6 | A-Box FK 매칭률 낮음 | FK 컬럼명이 자동 감지 패턴과 불일치, 또는 FK **값** 포맷 변형 (EQ-001 vs EQ001) | ① `rules/contracts/fk_patterns.json`에 해당 패턴 추가 ② ID 포맷이 들쭉날쭉하면 `domain_config.json` 의 `fk_fuzzy_match` 활성화 — `normalized` 는 기본 ON (하이픈/언더스코어/대소문자 흡수), 매칭률이 여전히 낮으면 `levenshtein=true` 로 opt-in. `generate_abox` 응답의 `fk_match_stats` 에서 단계별 히트 수 확인 |
@@ -878,17 +878,32 @@ sparql_local 결과와 Cypher 결과의 수치 일치 확인.
 **Q: Bedrock 비용이 걱정돼요.**
 A: 이 문서는 고정 금액을 제시하지 않습니다. 비용은 사용 모델, 리전, 입력·출력 토큰 수에
 따라 달라지므로 다음 호출 횟수에 [Amazon Bedrock 요금 페이지](https://aws.amazon.com/bedrock/pricing/)
-의 현재 단가를 적용해 계산하세요. Bedrock 호출은 S0 CQ 자동 생성 (1회) 과 S2 T-Box 생성
-(Multi-Agent 토론, 8~12회) 에 몰려 있습니다. T-Box 는 생성 후 재사용하므로 S2 를 반복하지
-않으면 호출이 늘지 않습니다. A-Box 재생성 (S7~S9) 은 LLM 호출 0회입니다. 공통 prefix 를
-재사용하는 호출에는 prompt caching (5분 TTL) 이 적용되어 반복 호출의 입력 비용을 줄입니다.
+의 현재 단가를 적용해 계산하세요. 이 서버의 Bedrock 호출 중 가장 큰 것은 S2 T-Box 생성
+(Multi-Agent 토론, 8~12회) 이고, S0 CQ 자동 생성은 1회입니다. 아래는 외부 서비스 호출 도구
+목록 (`tools/registry.py` 의 `_OPEN_WORLD_TOOLS`) 중 Bedrock 을 호출하는 나머지 도구 전체입니다.
+목록의 다른 도구 (`graphdb_*`, `neo4j_*` 등) 는 Bedrock 이 아니라 원격 저장소를 호출합니다.
+`generate_tbox` (단일 에이전트 T-Box 생성, 테이블 청크마다 호출하고 교정 재시도가 더해질 수 있음),
+`generate_semantic_dictionary` (S6.5·S10, 영문 설명 `rdfs:comment@en` 이 없는 클래스가 있으면
+번역 1회), `update_tbox_incremental`, `run_partial_pipeline_on_drift` (drift 임계를 넘은 테이블을
+묶어 `update_tbox_incremental` 을 1회 경유. `dry_run=True` 면 호출 없음),
+`add_tacit_from_natural_language`, `generate_tacit_from_data`, `suggest_tacit_rules`,
+`initialize_domain_rules` (LLM 생성 단계), `ask_ontology`, `ask_neo4j`, `convert_sensor_to_rdf`.
+T-Box 는 생성 후 재사용하므로 S2 를
+반복하지 않으면 큰 호출은 늘지 않습니다. A-Box 재생성 (S7~S9) 은 LLM 호출 0회입니다. S2 처럼
+공통 prefix 를 재사용하는 호출은 prompt caching 을 쓰므로 5분 캐시 TTL 안의 반복 호출은
+캐시된 입력 토큰이 낮은 단가로 청구됩니다 ([Bedrock prompt caching](https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html)).
+Claude Code 같은 MCP 클라이언트가 자연어 요청을 처리하며 쓰는 모델 비용은 이 서버의
+Bedrock 호출과 별개로, 클라이언트의 계정·백엔드 설정에 따라 발생합니다.
 
 **Q: 자사 SME 가 TTL 을 못 읽어요.**
 A: `generate_semantic_dictionary` → JSON 형태로 클래스/프로퍼티 설명. 한국어 rdfs:label
 / rdfs:comment 로 설명 붙이면 더 친숙. `visualize_tbox` HTML 시각화 공유.
 
 **Q: 워크샵에서 본 Multi-Agent 토론을 로그로 보려면?**
-A: `/tmp/ontology-agent-server.log` 에 라운드별 Architect/Validator/SME 발화 기록.
+A: 토론 기록은 S2 를 실행한 PC 의 `data/generated/tbox/debate_log.json` 에 저장됩니다
+(지문별 `issue_trace` 로 반영 여부 확인). 서버 로그는 운영체제 임시 디렉터리
+(`python -c "import tempfile; print(tempfile.gettempdir())"` 의 출력) 의
+`ontology-agent-server.log` 이고, `ONTOLOGY_SERVER_LOG_FILE` 로 경로를 바꿀 수 있습니다.
 `MULTI_AGENT_DETERMINISM=strict` 환경변수로 재현 가능 모드.
 
 **Q: MCP 서버가 자꾸 죽어요.**
@@ -897,14 +912,16 @@ A: Python 메모리 문제일 가능성. 40 테이블 + 추론 후 graph 객체�
 
 ## (선택) 고급 기능 — 깊이 들어가고 싶을 때
 
-PoC 첫 사이클을 마친 뒤 더 알아두면 좋은 기능들. **루트 README 와 docs 에서
-이미 다루므로 한 줄 안내만**:
+PoC 첫 사이클을 마친 뒤 더 알아두면 좋은 기능들. **상세는 각 행의 "어디 보나" 에 있는
+문서와 MCP 도구 설명(docstring)에 있으므로 여기서는 한 줄 안내만** 한다. 도구 파라미터와
+반환 형식은 MCP 클라이언트가 보여 주는 도구 설명이 정본이다
+([docs/reference/tool-reference.md](../docs/reference/tool-reference.md)):
 
 | 기능 | 언제 쓰나 | 어디 보나 |
 |------|----------|----------|
 | **S0 부터 전체 파이프라인 재실행** | 워크샵에서 체크포인트 건너뛰기로 일부만 봤다면, 자사 도메인은 처음부터 한 번 끝까지 돌려보기 권장 (30\~45분) | `"전체 파이프라인을 처음부터 시작해줘"` → S0\~S13 자동 진행 |
-| **Neo4j LPG 변환 + 자연어 Cypher** | RDF KG → Neo4j 로 배포해 그래프 시각화 + RCA. 사전 조건: `docker ps \| grep neo4j` 실행 중 | [setup-guide.md](setup-guide.md) §7 "(선택) Neo4j" + 루트 README "Neo4j LPG 변환 워크플로우" |
-| **SWRL 규칙 추론** (opt-in) | "알람 3회 → PotentialFailure" 같은 변수 연결 규칙. OWL 2 RL 표현력 너머. 사전 조건: `SWRL_ENABLED=true` + MCP 서버 재시작 | `rules/swrl/README.md` |
-| **추론 triple 품질 감사** | S8 추론 결과의 trivial / suspicious / meaningful 3분류 | 루트 README "자연어 명령 카탈로그 C" 의 `classify_inference_triples` |
-| **CSV drift 증분 업데이트** | CSV 주기 갱신 환경에서 변경 테이블만 T-Box 증분 업데이트 | 같은 카탈로그의 `run_partial_pipeline_on_drift` |
-| **한국어 동의어 사전** (opt-in) | `ask_ontology` 가 한국어 도메인 약어를 클래스명에 매핑 못 할 때 | 루트 README "다른 산업에 적용하기 → 한국어 동의어 사전" |
+| **Neo4j LPG 변환 + 자연어 Cypher** | RDF KG → Neo4j 로 배포해 그래프 시각화 + RCA. 사전 조건: `docker ps \| grep neo4j` 실행 중 | 이 문서 [§7-2 Neo4j LPG 배포](#7-2-neo4j-lpg-배포-rca-분석용) + [setup-guide §7 (선택) Neo4j](setup-guide.md#7-선택-neo4j--rca-분석-데모용) + [CLAUDE.md](../CLAUDE.md) 의 NEO4J_DEPLOY 상태머신 |
+| **SWRL 규칙 추론** (opt-in) | "알람 3회 → PotentialFailure" 같은 변수 연결 규칙. OWL 2 RL 표현력 너머. 사전 조건: `SWRL_ENABLED=true` + MCP 서버 재시작 | [`rules/swrl/README.md`](../rules/swrl/README.md) |
+| **추론 triple 품질 감사** | S8 추론 결과의 trivial / suspicious / meaningful 3분류 | `classify_inference_triples` 도구 설명 (구현 `tools/inference_classify.py`) |
+| **CSV drift 증분 업데이트** | CSV 주기 갱신 환경에서 변경 테이블만 T-Box 증분 업데이트 | `monitor_csv_drift` → `run_partial_pipeline_on_drift` 도구 설명 (구현 `tools/drift_partial_pipeline.py`). 이 도구는 `update_tbox_incremental` 로 T-Box 를 덮어쓰므로 먼저 `dry_run=True` 로 대상 테이블을 확인 |
+| **한국어 동의어 사전** (opt-in) | `ask_ontology` 가 한국어 도메인 약어를 클래스명에 매핑 못 할 때 | [sparql-cheatsheet "한국어 용어 정확도 팁"](sparql-cheatsheet.md#한국어-용어-정확도-팁-ask_ontology-동의어-사전) + `tools/korean_synonyms.py` 모듈 docstring |

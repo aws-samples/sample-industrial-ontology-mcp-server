@@ -17,11 +17,13 @@ reification을 재사용.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Literal as _L
 
 from rdflib import Graph, URIRef
 
-from tools.common import error_response, success_response
+from config import GENERATED_DIR
+from tools.common import error_response, resolve_path_within, success_response
 from tools.triple_confidence import (
     annotate_triple,
     summarize_sidecar,
@@ -97,7 +99,22 @@ def summarize_origin_sidecar(sidecar_path: str) -> str:
 
     triple_confidence.annotate_triple로 태깅된 TTL에서 각 provenance 유형을
     closed-world (CSV), open-world (tacit), inferred로 rollup 분류해 반환.
+
+    Args:
+        sidecar_path: reified origin 이 담긴 data/generated 아래 TTL 파일 경로
+            (절대경로 또는 작업 디렉터리 기준 상대경로). symlink 해석 후에도
+            data/generated 안이어야 하며, 밖이나 URL 이면 읽기 전에 거부한다.
     """
+    try:
+        sidecar_path = resolve_path_within(
+            GENERATED_DIR,
+            sidecar_path,
+            allowed_suffixes=(".ttl",),
+        )
+    except Exception as e:
+        return error_response(e, logger=logger)
+    if not os.path.exists(sidecar_path):
+        return error_response(f"sidecar not found: {sidecar_path}", logger=logger)
     try:
         r = summarize_origin_distribution(sidecar_path)
         return success_response(r)

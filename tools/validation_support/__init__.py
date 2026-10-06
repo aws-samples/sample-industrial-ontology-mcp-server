@@ -1,14 +1,14 @@
-"""tools.validation_support 패키지 — kg_validation 의 23 check 분해.
+"""tools.validation_support 패키지: kg_validation 의 25 check 분해.
 
 이름이 ``validation_support`` 인 이유: 기존 ``tools/validation.py`` re-export
 hub 와 네임스페이스 충돌 회피.
 
 본 ``__init__`` 은 facade — 호출자가 깊은 import 경로 (``checks.referential``
-등) 대신 ``tools.validation_support`` 한 곳에서 가져갈 수 있도록 23 check
+등) 대신 ``tools.validation_support`` 한 곳에서 가져갈 수 있도록 25 check
 함수 + 보조 유틸 + dataclass 를 모두 re-export 한다.
 
 서브패키지:
-- ``checks/``: validate_kg 에 등록되는 23 check (structural / referential /
+- ``checks/``: validate_kg 에 등록되는 25 check (structural / referential /
   semantic / statistical / temporal_cardinality 5그룹) + linked_data 부가 check
   (interlinking / licensing / understandability — validate_kg 미등록, FAIR 평가용)
 - ``common``: SharedCheckContext, validate_prop_name, build_superclass_map 등
@@ -20,7 +20,7 @@ hub 와 네임스페이스 충돌 회피.
 """
 from __future__ import annotations
 
-# ── checks (등록 22 + linked_data 부가 3 함수) ──
+# ── checks (등록 25 + linked_data 부가 3 함수) ──
 from tools.validation_support.checks import (  # noqa: F401
     check_bidirectional_op,
     check_cardinality_constraints,
@@ -30,6 +30,7 @@ from tools.validation_support.checks import (  # noqa: F401
     check_dangling_references,
     check_disjoint_class_violations,
     check_domain_range_conformance,
+    check_existential_participation,
     check_fk_op_coverage,
     check_fk_referential_integrity,
     check_functional_violations,
@@ -42,8 +43,11 @@ from tools.validation_support.checks import (  # noqa: F401
     check_property_completeness,
     check_property_coverage,
     check_relationship_outliers,
+    check_schema_reference_integrity,
     check_string_patterns,
     check_tbox_fitness,
+    check_undeclared_dp,
+    check_undeclared_op,
     check_understandability,
     check_value_ranges,
     load_master_instance_uris,

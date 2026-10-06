@@ -18,11 +18,14 @@ not at top) 를 구조적으로 피할 수 없다 — 아래 ruff 억제는 그 
 """
 # ruff: noqa: E402, SIM103, SIM105, SIM115
 
+import functools
+import io
 import json
 import logging
 import os
 import tempfile
 import time
+import xml.parsers.expat
 from pathlib import Path
 
 from domain.namespaces import DOMAIN_INST_NS, DOMAIN_NS, ONTOLOGY_URI
@@ -133,6 +136,264 @@ def _register_local_imports_dir() -> None:
 
 _register_local_imports_dir()
 
+
+# ── owl:imports 를 로컬 파일로만 해석 ────────────────
+#
+# owlready2 의 ``load()`` 는 기본값 ``only_local=False`` 로 import 를 재귀 로드하고,
+# ``onto_path`` 에 없는 IRI 는 HTTP 로 받는다. 이 값은 하위 import 에도 전달되지 않으므로
+# 로더가 import 폐포를 미리 채워 owlready2 가 IRI 를 해석할 일을 없앤다.
+#
+# ``load()`` 는 import 처리 뒤 온톨로지의 ``python_module`` annotation 값마다
+# ``importlib.__import__`` 를 호출한다. 로더는 입력 TTL 에서 이 annotation 을 지우고,
+# 이 annotation 을 담은 파일은 owlready2 에 넘기지 않는다.
+#
+# import 폐포와 annotation 판정은 owlready2 가 실제로 읽을 파일을 ``load()`` 와 같은
+# 파서로 읽은 결과를 기준으로 한다 (:func:`_scan_owlready_file`). rdflib 그래프를 기준으로
+# 삼으면 RDF/XML 직렬화가 이스케이프하지 않는 IRI 처럼 두 파서의 시각이 어긋나는 지점에서
+# owlready2 만 보는 import 와 annotation 이 생긴다.
+
+#: 로컬 사본이 없는 하위 import 를 대신하는 빈 온톨로지 (RDF/XML).
+_EMPTY_ONTOLOGY_RDFXML = (
+    b'<?xml version="1.0"?>\n'
+    b'<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>\n'
+)
+
+#: owlready2 가 값마다 Python 모듈을 import 하는 온톨로지 annotation (``owlready2.base``).
+_OWLREADY_PYTHON_MODULE = (
+    "http://www.lesfleursdunormal.fr/static/_downloads/owlready_ontology.owl#python_module"
+)
+
+#: 로컬 import 파일의 XML root 요소 → owlready2 파서 형식 이름.
+_XML_ROOT_FORMATS = {
+    "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}RDF": "rdfxml",
+    "{http://www.w3.org/2002/07/owl#}Ontology": "owlxml",
+}
+
+#: owlready2 ``_get_onto_file`` 이 온톨로지 이름 뒤에 붙여 보는 확장자 순서와 같다.
+_LOCAL_IMPORT_SUFFIXES = ("", ".nt", ".ntriples", ".rdf", ".owl")
+
+
+def _local_import_names(base: str) -> list[str]:
+    """``onto_path`` 디렉터리마다 시도할 파일명 후보를 owlready2 와 같은 순서로 돌려준다.
+
+    ``base`` 는 끝의 ``#`` 또는 ``/`` 하나를 뗀 IRI 다. owlready2 는 디렉터리마다
+    마지막 경로 조각(stem)을 먼저 보고, 이어서 온톨로지 이름(stem 에서 ``.owl`` 또는
+    ``.rdf`` 를 뗀 값, ``Namespace.__init__`` 과 같은 규칙)에 확장자 후보를 붙여 본다.
+    """
+    stem = base.rsplit("/", 1)[-1]
+    if not stem:
+        return []
+    name = stem[:-4] if stem.endswith((".owl", ".rdf")) else stem
+    candidates = [stem, *(f"{name}{suffix}" for suffix in _LOCAL_IMPORT_SUFFIXES)]
+    return [c for c in dict.fromkeys(candidates) if c]
+
+
+def _local_import_file(iri: str) -> str | None:
+    """owl:imports IRI 를 승인된 로컬 파일로 해석한다. 없으면 None.
+
+    승인 위치는 owlready2 동봉 온톨로지와 ``onto_path`` 디렉터리뿐이다. ``onto_path``
+    는 owlready2 ``_get_onto_file`` 과 같은 후보와 순서(:func:`_local_import_names`)
+    로 찾되, 각 후보를 :func:`resolve_child_path` 로 해석해 디렉터리 밖을 가리키는
+    symlink 는 쓰지 않는다. owlready2 와 달리 http(s) 가 아닌 IRI (``file:`` 등) 는
+    임의 로컬 파일을 가리킬 수 있으므로 승인하지 않는다.
+    """
+    if not iri.startswith(("http://", "https://")):
+        return None
+    base = iri[:-1] if iri.endswith(("#", "/")) else iri
+    predefined = owlready2.namespace.PREDEFINED_ONTOLOGIES
+    for key in (iri, base, f"{base}#", f"{base}/"):
+        builtin = predefined.get(key)
+        if builtin and not builtin.startswith(("http://", "https://")):
+            if not os.path.isabs(builtin):
+                builtin = os.path.join(os.path.dirname(owlready2.__file__), "ontos", builtin)
+            return builtin if os.path.isfile(builtin) else None
+    names = _local_import_names(base)
+    for directory in owlready2.onto_path:
+        for filename in names:
+            try:
+                path = resolve_child_path(directory, filename)
+            except ValueError:
+                continue
+            if os.path.isfile(path):
+                return path
+    return None
+
+
+class _XmlRootFound(Exception):
+    """expat 파싱을 첫 요소에서 멈추기 위한 신호."""
+
+
+def _xml_root_tag(path: str) -> str:
+    """XML 파일의 첫 요소 이름을 ``{namespace}local`` 형태로 돌려준다.
+
+    owlready2 의 파서와 같은 expat 을 쓰고, 첫 요소에서 멈추므로 본문은 읽지 않는다.
+    외부 엔티티 처리기를 두지 않으므로 DTD 나 외부 엔티티를 가져오지 않는다.
+    """
+    parser = xml.parsers.expat.ParserCreate(namespace_separator=" ")
+    found: list[str] = []
+
+    def _start(name: str, _attrs) -> None:
+        found.append(name)
+        raise _XmlRootFound
+
+    parser.StartElementHandler = _start
+    try:
+        with open(path, "rb") as handle:
+            parser.ParseFile(handle)
+    except _XmlRootFound:
+        pass
+    except (xml.parsers.expat.ExpatError, OSError) as exc:
+        raise ValueError(f"로컬 import 파일을 XML 로 읽을 수 없습니다: {path}") from exc
+    if not found:
+        raise ValueError(f"로컬 import 파일에 XML 요소가 없습니다: {path}")
+    namespace, _, local = found[0].rpartition(" ")
+    return f"{{{namespace}}}{local}" if namespace else local
+
+
+def _local_import_format(path: str) -> str:
+    """로컬 import 파일의 형식을 owlready2 파서 이름으로 판별한다.
+
+    ``.nt`` / ``.ntriples`` 는 N-Triples 다. 나머지는 XML root 요소로 정한다.
+    ``rdf:RDF`` 는 RDF/XML, OWL 이름공간의 ``Ontology`` 는 OWL/XML 이고 그 밖의 형식은
+    ValueError 로 거부한다. owlready2 는 파일 앞부분 바이트로 형식을 추정하므로, 판별한
+    형식을 import 열거(:func:`_scan_owlready_file`)와 ``load()`` 에 똑같이 넘겨 두 단계가
+    같은 파서로 읽게 한다.
+    """
+    if path.endswith((".nt", ".ntriples")):
+        return "ntriples"
+    tag = _xml_root_tag(path)
+    fmt = _XML_ROOT_FORMATS.get(tag)
+    if fmt is None:
+        raise ValueError(
+            f"로컬 import 파일의 형식을 지원하지 않습니다 (root 요소 {tag!r}): {path}. "
+            "RDF/XML(rdf:RDF), OWL/XML(Ontology), N-Triples(.nt/.ntriples) 만 읽습니다."
+        )
+    return fmt
+
+
+def _scan_owlready_file(path: str, fmt: str, default_base: str, label: str) -> tuple[str, ...]:
+    """``path`` 를 owlready2 ``load()`` 와 같은 파서로 읽어 owl:imports IRI 를 돌려준다.
+
+    owlready2 의 RDF/XML 파서는 상대 IRI 를 온톨로지 IRI 기준의 자체 규칙으로 풀고 끝의
+    ``/`` 를 떼며, OWL/XML 의 ``Import`` 는 요소 텍스트를 그대로 쓴다. 다른 파서로 읽은
+    결과는 owlready2 가 요청할 IRI 나 실행할 annotation 과 어긋날 수 있으므로, ``load()``
+    와 같은 파서(``graph.parse``)·형식·기준 IRI 로 별도 World 에 읽어 모은다. owlready2 는
+    World 전체에서 온톨로지의 import 를 찾으므로 import 와 python_module annotation 을
+    주어와 무관하게 모두 모은다.
+
+    파서가 파일을 읽지 못하거나, python_module annotation 이 있거나, import 대상이 IRI 가
+    아니면 ValueError. ``label`` 은 오류 메시지에서 이 파일을 부르는 이름이다.
+    """
+    from rdflib import OWL, URIRef
+
+    probe = owlready2.World()
+    try:
+        holder = probe.get_ontology(default_base)
+        with open(path, "rb") as handle:
+            parsed = holder.graph.parse(handle, format=fmt, default_base=default_base)
+        if parsed is None:
+            # 파서 오류는 OwlReadyOntologyParsingError 로 올라와 아래 except 가 받는다.
+            # 정상 반환값은 온톨로지 IRI 문자열(없으면 빈 문자열)이므로, 이 검사는 반환
+            # 계약이 바뀔 때를 대비한 방어다.
+            raise ValueError("owlready2 파서가 온톨로지 IRI 를 돌려주지 않았다")
+        view = probe.as_rdflib_graph()
+        targets = set(view.objects(None, OWL.imports))
+        has_python_module = any(
+            True for _ in view.triples((None, URIRef(_OWLREADY_PYTHON_MODULE), None))
+        )
+    except Exception as exc:
+        # import 를 알 수 없으면 owlready2 가 그것을 네트워크로 받을 수 있다.
+        raise ValueError(f"{label}을 해석할 수 없습니다: {path}") from exc
+    finally:
+        probe.close()
+    if has_python_module:
+        raise ValueError(
+            f"{label}이 owlready2 python_module annotation 을 선언해 읽지 않습니다: {path}"
+        )
+    non_iri = sorted(str(t) for t in targets if not isinstance(t, URIRef))
+    if non_iri:
+        raise ValueError(f"{label}의 owl:imports 대상이 IRI 가 아닙니다: {path} {non_iri}")
+    return tuple(sorted(str(t) for t in targets))
+
+
+@functools.lru_cache(maxsize=64)
+def _declared_imports_cached(
+    path: str, fmt: str, default_base: str, _mtime_ns: int, _size: int,
+) -> tuple[str, ...]:
+    return _scan_owlready_file(path, fmt, default_base, "로컬 import 파일")
+
+
+def _declared_imports(path: str, fmt: str, default_base: str) -> tuple[str, ...]:
+    """로컬 import 파일의 owl:imports IRI 를 owlready2 가 읽는 문자열 그대로 돌려준다.
+
+    :func:`_scan_owlready_file` 의 결과를 파일 경로·크기·수정 시각으로 캐시하므로 파일이
+    바뀌면 다시 읽는다.
+    """
+    st = os.stat(path)
+    return _declared_imports_cached(path, fmt, default_base, st.st_mtime_ns, st.st_size)
+
+
+def _preload_import_closure(top_imports) -> list[str]:
+    """주 입력이 선언한 owl:imports 의 폐포를 승인된 로컬 파일로만 미리 로드한다.
+
+    ``top_imports`` 는 owlready2 가 주 입력 파일에서 읽을 import IRI 그대로다
+    (:func:`_scan_owlready_file`). owlready2 는 이미 로드된 온톨로지를 다시 해석하지
+    않으므로, 하위 import 부터 (후위 순서로) 채우면 이어지는 ``load()`` 가 어떤 import 도
+    직접 해석하지 않는다.
+
+    - 주 입력이 직접 선언한 import 가 로컬 파일로 해석되지 않으면 ValueError.
+    - 로컬 파일이 다시 선언한 import 중 해석되지 않는 것은 빈 온톨로지로 채운다.
+    - 로컬 파일의 형식을 판별하지 못하거나 그 파일이 python_module annotation 을
+      선언하면 ValueError (:func:`_local_import_format`, :func:`_declared_imports`).
+    - import 순환은 후위 순서가 없어 owlready2 가 직접 해석하게 되므로 ValueError.
+
+    Returns:
+        빈 온톨로지로 채운 하위 import IRI 목록.
+    """
+    top = sorted(set(top_imports))
+    missing = [iri for iri in top if _local_import_file(iri) is None]
+    if missing:
+        raise ValueError(
+            f"owl:imports 의 로컬 사본이 없어 추론기에 넘기지 않습니다: {missing}. "
+            f"로컬 import 디렉터리 {list(owlready2.onto_path)} 에 사본을 두거나 "
+            "import 를 제거하세요."
+        )
+
+    stubbed: list[str] = []
+    state: dict[str, str] = {}
+
+    def _visit(iri: str) -> None:
+        mark = state.get(iri)
+        if mark == "done":
+            return
+        if mark == "active":
+            raise ValueError(f"owl:imports 순환은 로컬 로더가 지원하지 않습니다: {iri}")
+        state[iri] = "active"
+        onto = default_world.get_ontology(iri)
+        path = _local_import_file(iri)
+        if path is None:
+            stubbed.append(iri)
+            if not onto.loaded:
+                onto.load(fileobj=io.BytesIO(_EMPTY_ONTOLOGY_RDFXML), format="rdfxml")
+        elif not onto.loaded:
+            fmt = _local_import_format(path)
+            # owlready2 는 ``_orig_base_iri`` 를 기준 IRI 로 이 파일을 읽는다.
+            for child in _declared_imports(path, fmt, onto._orig_base_iri):
+                _visit(child)
+            with open(path, "rb") as handle:
+                onto.load(fileobj=handle, format=fmt)
+        state[iri] = "done"
+
+    for iri in top:
+        _visit(iri)
+    if stubbed:
+        logger.warning(
+            "로컬 사본이 없는 하위 owl:imports 를 빈 온톨로지로 대체했다: %s",
+            sorted(stubbed),
+        )
+    return sorted(stubbed)
+
+
 # ── 헬퍼 ──────────────────────────────────────────
 
 
@@ -173,10 +434,43 @@ def _anonymize_named_restrictions(g) -> int:
     return len(named)
 
 
+def _strip_python_module_annotations(g) -> int:
+    """owlready2 python_module annotation 트리플을 지운다 → 지운 개수.
+
+    owlready2 ``Ontology.load()`` 는 온톨로지의 이 annotation 값마다
+    ``importlib.__import__`` 를 호출하므로, 남겨 두면 입력 TTL 한 줄이 설치된 임의 모듈의
+    최상위 코드를 실행한다. owlready2 전용 annotation 이라 지워도 추론 결과는 같다.
+    주어와 목적어의 종류에 관계없이 이 술어를 쓴 트리플을 모두 지운다.
+    """
+    from rdflib import URIRef
+
+    found = list(g.triples((None, URIRef(_OWLREADY_PYTHON_MODULE), None)))
+    for triple in found:
+        g.remove(triple)
+    if found:
+        logger.warning(
+            "추론기 입력에서 owlready2 python_module annotation %d개를 지웠다", len(found),
+        )
+    return len(found)
+
+
 def _ttl_to_owlready(ttl_content: str, onto_iri: str = ONTOLOGY_URI):
     """TTL 문자열을 owlready2 Ontology로 로드한다.
 
     owlready2는 RDF/XML을 선호하므로 rdflib로 중간 변환 후 로드.
+
+    owlready2 에 넘기기 전에 RDF/XML 직렬화본을 ``load()`` 와 같은 파서로 먼저 읽는다
+    (:func:`_scan_owlready_file`). rdflib XMLSerializer 는 datatype IRI 와 이름공간 IRI 를
+    이스케이프하지 않으므로, ``default`` 스토어처럼 그런 IRI 를 받아들이는 파서에서는
+    rdflib 그래프에 없는 요소가 직렬화본에 생길 수 있다. 판정은 그래서 직렬화본 기준이다.
+
+    owl:imports 는 직렬화본이 선언한 import 를 출발점으로 :func:`_preload_import_closure`
+    가 승인된 로컬 파일에서만 읽는다. 직접 선언한 import 에 로컬 사본이 없으면
+    ValueError 이며, 어떤 import 도 네트워크로 가져오지 않는다.
+
+    owlready2 python_module annotation 은 직렬화 전에 지우고
+    (:func:`_strip_python_module_annotations`), 직렬화본에 남아 있으면 ValueError 로
+    거부한다. 입력 TTL 이 owlready2 의 Python 모듈 import 를 지시하지 못한다.
 
     명명 Restriction 은 로드 전에 익명화한다 (:func:`_anonymize_named_restrictions`)
     — 그렇지 않으면 추론기가 제약을 보지 못하고 ``consistent: true`` 를 반환한다.
@@ -187,6 +481,7 @@ def _ttl_to_owlready(ttl_content: str, onto_iri: str = ONTOLOGY_URI):
     # rdflib로 TTL 파싱 → RDF/XML 변환
     g = _new_graph()
     g.parse(data=ttl_content, format="turtle")
+    _strip_python_module_annotations(g)
     if os.getenv(
         "OWL_KEEP_NAMED_RESTRICTIONS", "false",
     ).strip().lower() not in ("true", "1", "yes"):
@@ -206,7 +501,13 @@ def _ttl_to_owlready(ttl_content: str, onto_iri: str = ONTOLOGY_URI):
     tmp.close()
 
     try:
-        onto = get_ontology(Path(tmp.name).resolve().as_uri()).load()
+        onto = get_ontology(Path(tmp.name).resolve().as_uri())
+        # ``load()`` 는 ``_orig_base_iri`` 를 기준 IRI 로 이 파일을 읽는다.
+        top_imports = _scan_owlready_file(
+            tmp.name, "rdfxml", onto._orig_base_iri, "추론기 입력의 RDF/XML 직렬화본",
+        )
+        _preload_import_closure(top_imports)
+        onto.load(format="rdfxml")
         return onto, tmp.name
     except Exception:
         _safe_unlink(tmp.name)

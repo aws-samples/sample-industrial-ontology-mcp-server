@@ -20,10 +20,24 @@ class TestValidateTtlSyntax:
         result = json.loads(validate_ttl_syntax(invalid_ttl))
         assert result.get("success") is not True or "error" in result
 
-    def test_empty_string(self):
+    def test_empty_string(self, sample_tbox_ttl, tmp_path, monkeypatch):
+        # 빈 문자열이면 기본 T-Box 경로를 읽는다. 생성 산출물 유무에 결과가 좌우되지
+        # 않도록 기본 경로를 픽스처 파일로 돌린다.
+        tbox_path = tmp_path / "t_box.ttl"
+        tbox_path.write_text(sample_tbox_ttl, encoding="utf-8")
+        monkeypatch.setattr("tools.validation_core.TBOX_PATH", str(tbox_path))
         result = json.loads(validate_ttl_syntax(""))
-        # 빈 문자열이면 기본 T-Box 파일 로드 (존재 시 트리플 > 0)
         assert result["success"] is True
+        assert result["triples"] > 0
+
+    def test_empty_string_without_default_tbox(self, tmp_path, monkeypatch):
+        # 파이프라인을 돌리기 전에는 기본 T-Box 가 없다. 이때는 성공을 꾸며내지 않고
+        # 오류를 반환해야 한다.
+        missing = tmp_path / "t_box.ttl"
+        monkeypatch.setattr("tools.validation_core.TBOX_PATH", str(missing))
+        result = json.loads(validate_ttl_syntax(""))
+        assert result["success"] is False
+        assert str(missing) in result["error"]
 
     def test_abox_ttl(self, sample_abox_ttl):
         result = json.loads(validate_ttl_syntax(sample_abox_ttl))
@@ -301,10 +315,23 @@ class TestValidateShacl:
         result = json.loads(validate_shacl(invalid_ttl))
         assert "error" in result
 
-    def test_empty_data(self):
+    def test_empty_data(self, sample_tbox_ttl, tmp_path, monkeypatch):
+        # 빈 입력은 기본 T-Box 경로를 검증한다. 생성 산출물 대신 픽스처 파일을 쓴다.
+        tbox_path = tmp_path / "t_box.ttl"
+        tbox_path.write_text(sample_tbox_ttl, encoding="utf-8")
+        monkeypatch.setattr("tools.validation_core.TBOX_PATH", str(tbox_path))
         result = json.loads(validate_shacl(""))
         assert "conforms" in result
         assert result["conforms"] is True
+
+    def test_empty_data_without_default_tbox(self, tmp_path, monkeypatch):
+        # 기본 T-Box 가 없으면 conforms 를 보고하지 않고 오류를 반환한다.
+        monkeypatch.setattr(
+            "tools.validation_core.TBOX_PATH", str(tmp_path / "t_box.ttl"),
+        )
+        result = json.loads(validate_shacl(""))
+        assert result["success"] is False
+        assert "conforms" not in result
 
 
 class TestAnalyzeTbox:
@@ -369,3 +396,127 @@ class TestCheckCardinalityWithCompleteness:
             actual=0,
         )
         assert result is None
+
+
+class TestValidateKgDescription:
+    """``validate_kg`` docstring 은 MCP 도구 설명으로 게시된다.
+
+    설명에 적힌 검증 목록이 실제 등록 check 와 어긋나면 사용자는 없는 검증을 믿거나
+    있는 검증을 모른다. 목록의 괄호 key 집합이 레지스트리 key 집합과 같아야 한다.
+    """
+
+    def test_docstring_lists_exactly_registered_checks(self):
+        import inspect
+        import re
+
+        from tools.kg_validation import _build_check_registry, validate_kg
+
+        # lambda 는 실행하지 않으므로 그래프 없이 key 만 읽는다.
+        registry = _build_check_registry(
+            g=None, tbox=None, shared=None, class_tiers=None, raw_triple_count=0,
+        )
+        doc = inspect.getdoc(validate_kg)
+        listed = re.findall(r"^\s*\d+\. .+? \(([a-z_]+)[,)]", doc, flags=re.MULTILINE)
+        assert len(listed) == len(set(listed)), f"중복 항목: {listed}"
+        assert sorted(listed) == sorted(registry.keys())
+        assert f"{len(registry)}가지" in doc
+
+
+class TestOpGroundingGateDiagnosis:
+    """step_22f 경고가 A-Box 신호 부재를 S2 출력 결함으로 오진하지 않는가.
+
+    S3 는 S7 앞이라 A-Box 근거를 이전 세대 파일로 판정한다. 파일이 없거나 판정이
+    불가하면 CSV FK 로 채워질 OP 도 근거 없음으로 세므로, 메시지는 그 단서를 싣고
+    S2 진단을 내지 않아야 한다. 신호가 정상일 때만 S2 진단을 낸다.
+    """
+
+    _S2_BLAME = "S2 출력이 그 절을 어겼거나"
+    _THIN_CLUE = "op_grounding_abox_file_present=False"
+
+    @staticmethod
+    def _graph(op_names):
+        from rdflib import Graph
+
+        from domain.namespaces import DOMAIN_NS, NS_PREFIX
+
+        body = "".join(f"{NS_PREFIX}:{name} a owl:ObjectProperty .\n" for name in op_names)
+        g = Graph()
+        g.parse(
+            data=(
+                f"@prefix {NS_PREFIX}: <{DOMAIN_NS}> .\n"
+                "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n" + body
+            ),
+            format="turtle",
+        )
+        return g
+
+    @staticmethod
+    def _point_signal_paths(monkeypatch, abox_path, source_dir):
+        import config
+        from tools.quality_steps import step_22f_op_grounding_gate as gate
+
+        monkeypatch.setattr(config, "ABOX_PATH", str(abox_path))
+        monkeypatch.setattr(config, "SOURCE_DIR", str(source_dir))
+        monkeypatch.setattr(gate, "ABOX_PATH", str(abox_path))
+        monkeypatch.setattr(gate, "_config_mentioned_names", lambda: set())
+        monkeypatch.setenv("TBOX_OP_GROUNDING_MAX", "0")
+        return gate
+
+    def _fail_message(self, monkeypatch, gate, op_names):
+        import pytest
+
+        from domain.namespaces import DOMAIN_NS
+        from tools.quality_steps._base import StepContext
+
+        monkeypatch.setenv("TBOX_OP_GROUNDING_GATE", "fail")
+        with pytest.raises(RuntimeError) as excinfo:
+            gate.apply(self._graph(op_names), StepContext(domain_ns=DOMAIN_NS))
+        return str(excinfo.value)
+
+    def test_missing_abox_message_carries_the_signal_clue(self, monkeypatch, tmp_path):
+        gate = self._point_signal_paths(
+            monkeypatch, tmp_path / "abox" / "a_box.ttl", tmp_path / "source",
+        )
+        message = self._fail_message(monkeypatch, gate, [f"op{i}" for i in range(45)])
+
+        assert self._THIN_CLUE in message
+        assert "S7" in message
+        assert self._S2_BLAME not in message
+
+    def test_missing_abox_warn_log_carries_the_signal_clue(
+        self, monkeypatch, tmp_path, caplog,
+    ):
+        import logging
+
+        from domain.namespaces import DOMAIN_NS
+        from tools.quality_steps._base import StepContext
+
+        gate = self._point_signal_paths(
+            monkeypatch, tmp_path / "abox" / "a_box.ttl", tmp_path / "source",
+        )
+        monkeypatch.delenv("TBOX_OP_GROUNDING_GATE", raising=False)
+        with caplog.at_level(logging.WARNING, logger=gate.__name__):
+            stats = gate.apply(
+                self._graph(["imaginedOp"]), StepContext(domain_ns=DOMAIN_NS),
+            ).stats
+
+        assert stats["op_grounding_abox_file_present"] is False
+        warnings = [r.getMessage() for r in caplog.records if "WARN" in r.getMessage()]
+        assert warnings, caplog.text
+        assert self._THIN_CLUE in warnings[0]
+        assert self._S2_BLAME not in warnings[0]
+
+    def test_healthy_signal_keeps_the_s2_diagnosis(self, monkeypatch, tmp_path):
+        from domain.namespaces import DOMAIN_NS
+
+        abox_path = tmp_path / "abox" / "a_box.ttl"
+        abox_path.parent.mkdir()
+        abox_path.write_text(
+            f"<{DOMAIN_NS}item1> <{DOMAIN_NS}unrelatedOp> <{DOMAIN_NS}item2> .\n",
+            encoding="utf-8",
+        )
+        gate = self._point_signal_paths(monkeypatch, abox_path, tmp_path / "source")
+        message = self._fail_message(monkeypatch, gate, ["imaginedOp"])
+
+        assert self._S2_BLAME in message
+        assert "op_grounding_abox_file_present" not in message

@@ -23,13 +23,27 @@ import os
 from datetime import datetime
 
 from config import GENERATED_REPORTS_DIR, SOURCE_RAWDATA_DIR
-from tools.common import error_response, success_response
+from tools.common import error_response, resolve_path_within, success_response
 
 logger = logging.getLogger(__name__)
 
 DRIFT_DIR = os.path.join(
     os.path.dirname(GENERATED_REPORTS_DIR.rstrip("/")), "drift",
 )
+
+
+def resolve_rawdata_dir(rawdata_dir: str) -> str:
+    """공개 도구가 받은 CSV 디렉터리를 SOURCE_RAWDATA_DIR 자신 또는 그 하위로 해석한다.
+
+    symlink 해석 후 기준 디렉터리 밖이면 ValueError 를 낸다. ``resolve_path_within``
+    은 기준 디렉터리 자체를 거부하므로 그 경우만 먼저 받는다.
+    """
+    if not isinstance(rawdata_dir, str) or not rawdata_dir.strip():
+        raise ValueError("rawdata_dir 는 비어 있을 수 없습니다.")
+    base = os.path.realpath(SOURCE_RAWDATA_DIR)
+    if os.path.realpath(rawdata_dir.strip()) == base:
+        return base
+    return resolve_path_within(SOURCE_RAWDATA_DIR, rawdata_dir)
 
 
 def _snapshot_path(table: str) -> str:
@@ -175,7 +189,17 @@ def monitor_all_csvs(rawdata_dir: str | None = None, *, save: bool = True) -> di
     """
     import glob
     rd = rawdata_dir or SOURCE_RAWDATA_DIR
-    files = sorted(glob.glob(os.path.join(rd, "*.csv")))
+    files: list[str] = []
+    # 디렉터리 안의 symlink 가 밖의 파일을 가리키면 읽지 않고 응답에 남긴다.
+    skipped_outside: list[str] = []
+    for p in sorted(glob.glob(os.path.join(rd, "*.csv"))):
+        try:
+            resolve_path_within(rd, p, allowed_suffixes=(".csv",))
+        except ValueError:
+            logger.warning("CSV 디렉터리 밖을 가리키는 파일을 건너뛴다: %s", p)
+            skipped_outside.append(os.path.basename(p))
+            continue
+        files.append(p)
     per_table = [snapshot_csv(p, save=save) for p in files]
 
     total_added = sum(
@@ -193,6 +217,7 @@ def monitor_all_csvs(rawdata_dir: str | None = None, *, save: bool = True) -> di
         "per_table": per_table,
         # baseline 전진 여부 — 프리뷰 호출과 정기 모니터링을 구분한다.
         "snapshot_saved": save,
+        "skipped_outside_files": skipped_outside,
     }
 
 
@@ -204,7 +229,8 @@ def monitor_csv_drift(rawdata_dir: str = "", save_snapshot: bool = True) -> str:
     emerging concept 후보로 분류.
 
     Args:
-        rawdata_dir: CSV 디렉터리 (비어있으면 SOURCE_RAWDATA_DIR).
+        rawdata_dir: CSV 디렉터리 (비어있으면 SOURCE_RAWDATA_DIR). SOURCE_RAWDATA_DIR
+            자신이나 그 하위 디렉터리만 받으며, symlink 해석 후 밖이면 거부한다.
         save_snapshot: ``True`` (기본) 면 baseline 을 전진시킨다 — 정기 모니터링의
             정상 동작이다. ``False`` 면 **읽기 전용** 으로 delta 만 본다.
 
@@ -215,6 +241,8 @@ def monitor_csv_drift(rawdata_dir: str = "", save_snapshot: bool = True) -> str:
             (``snapshot_csv`` docstring 의 근거 소모 실측 참조).
     """
     try:
+        if rawdata_dir:
+            rawdata_dir = resolve_rawdata_dir(rawdata_dir)
         report = monitor_all_csvs(rawdata_dir or None, save=save_snapshot)
         try:
             os.makedirs(GENERATED_REPORTS_DIR, exist_ok=True)

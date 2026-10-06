@@ -29,7 +29,7 @@ from pathlib import Path
 from rdflib import Graph
 
 from config import INFERRED_PATH, PROJECT_ROOT
-from tools.common import atomic_write, error_response, success_response
+from tools.common import atomic_write, error_response, resolve_path_within, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,24 @@ def _parse_swrl_line(line: str, fallback_label: str) -> dict | None:
     return {"label": fallback_label, "dl": line, "source": fallback_label}
 
 
+def _resolve_swrl_dir(swrl_dir: str) -> str:
+    """공개 도구가 받은 SWRL 디렉터리를 SWRL_DIR_DEFAULT 자신 또는 그 하위로 해석한다.
+
+    symlink 해석 후 기준 디렉터리 밖이면 ValueError 를 낸다. ``resolve_path_within``
+    은 기준 디렉터리 자체를 거부하므로 그 경우만 먼저 받는다.
+    """
+    if not isinstance(swrl_dir, str) or not swrl_dir.strip():
+        raise ValueError("swrl_dir 는 비어 있을 수 없습니다.")
+    base = os.path.realpath(SWRL_DIR_DEFAULT)
+    if os.path.realpath(swrl_dir.strip()) == base:
+        return base
+    return resolve_path_within(SWRL_DIR_DEFAULT, swrl_dir)
+
+
 def _load_swrl_rules(swrl_dir: str) -> list[dict]:
     """swrl_dir 의 *.swrl 파일 전부 → [{label, dl, source}, ...].
+
+    symlink 해석 후 swrl_dir 밖을 가리키는 파일은 읽지 않는다.
 
     Returns:
         빈 리스트 if dir 이 없거나 .swrl 파일이 없음.
@@ -85,6 +101,11 @@ def _load_swrl_rules(swrl_dir: str) -> list[dict]:
         return rules
 
     for ttl in sorted(glob.glob(os.path.join(swrl_dir, f"*{SWRL_EXT}"))):
+        try:
+            resolve_path_within(swrl_dir, ttl, allowed_suffixes=(SWRL_EXT,))
+        except ValueError:
+            logger.warning("SWRL 디렉터리 밖을 가리키는 파일을 건너뛴다: %s", ttl)
+            continue
         try:
             fname = Path(ttl).stem
             with open(ttl, encoding="utf-8") as f:
@@ -152,10 +173,10 @@ _SWRL_BUILTINS = frozenset({
 
 
 def _referenced_names(normalized_rules: list[str]) -> tuple[str, ...]:
-    """Local names the rules use as predicates, built-ins excluded.
+    """규칙이 술어로 쓰는 로컬명을 빌트인을 빼고 등장 순서대로 돌려준다.
 
-    Used to probe which namespace resolves them — the choice must be measured
-    because both name-based heuristics were falsified in practice.
+    :func:`_rule_context` 가 이 이름으로 어느 네임스페이스가 실제로 해석하는지 프로브한다.
+    IRI 문자열만 보고 네임스페이스를 고르면 다른 NS 를 쓰는 그래프를 깨기 때문이다.
     """
     import re
     seen: list[str] = []
@@ -167,33 +188,32 @@ def _referenced_names(normalized_rules: list[str]) -> tuple[str, ...]:
 
 
 def _rule_context(loaded, domain_ns: str, probe_names: tuple[str, ...] = ()):
-    """Return the context that resolves the rules' bare local names.
+    """규칙의 맨 로컬명을 해석할 컨텍스트를 돌려준다.
 
-    ``set_as_rule`` resolves bare local names against the enclosing context's
-    namespace. Entering the *ontology* uses its ``base_iri``, which is wrong when
-    that differs from the namespace the entities actually live in.
+    ``set_as_rule`` 은 맨 로컬명을 감싸는 컨텍스트의 네임스페이스에서 찾는다. 로드한
+    온톨로지를 컨텍스트로 쓰면 그 ``base_iri`` 가 기준이 되므로, ``base_iri`` 가 엔티티가
+    실제로 속한 네임스페이스와 다르면 규칙이 첫 원자에서 "Cannot find entity" 로 실패한다.
 
-    2026-08-28 실측: 추론 그래프를 로드하면 owlready2 가 base_iri 를
-    ``https://w3id.org/steel-ontology-sample#`` 로 잡는다. T-Box 에는 FAIR alias
-    (``owl:sameAs``, domain_config.json 의 persistent_iri) 한 줄뿐인데 OWL RL 이
-    sameAs 를 양방향 전파해 alias 노드가 imports/versionIRI/label 을 전부 복제받아
-    **완전한 owl:Ontology 로 실체화**되고, 로더는 owl:Ontology 노드 중 하나를 고른다
-    (alias 트리플만 지워도 ``…/abox#`` 를 고른다). 그 상태에서 규칙은 전부 첫 원자에서
-    "Cannot find entity 'EquipmentMaster'!" 로 실패했다.
+    배포 설정의 T-Box 는 ``owl:sameAs`` alias 를 선언하지 않는다. 그래도 이 교정이 필요한
+    이유는 추론 그래프에 owl:Ontology 노드가 여럿이기 때문이다. T-Box 의 ``ONTOLOGY_URI``
+    와 A-Box 생성기가 선언하는 ``{ONTOLOGY_URI}/abox`` 가 함께 있고, owlready2 로더는
+    그중 하나를 ``base_iri`` 로 잡는다. 두 노드를 함께 로드하면 ``…/abox#`` 가 잡힐 수
+    있고, 그러면 ``EquipmentMaster`` 같은 T-Box 클래스가 그 온톨로지 속성으로 조회되지
+    않는다. 도메인 설정이 ``metadata.persistent_iri`` 를 선언하면 step_07 이
+    ``owl:sameAs`` 를 추가하고, OWL RL 이 이를 전파해 alias IRI 도 owl:Ontology 노드가
+    되므로 후보가 하나 더 는다. 온톨로지 노드를 지워 로더의 선택을 바꾸는 방식은 남은
+    노드 중 다른 하나가 잡힐 뿐이다.
 
-    엔티티는 그대로 있었다 — owlready2 는 엔티티를 온톨로지가 아니라 **네임스페이스**에
-    담고, 실측상 그 네임스페이스는 DOMAIN_NS 로 올바랐다 (소유 온톨로지만 alias)::
+    owlready2 는 엔티티를 온톨로지가 아니라 **네임스페이스**에 담고, 그 네임스페이스는
+    엔티티 IRI 를 따른다. 그래서 온톨로지를 갈아타는 대신 **네임스페이스를 컨텍스트로
+    준다**. 다음 두 방식은 쓰지 않는다.
 
-        EquipmentMaster.namespace         → http://example.com/steel-ontology#   (맞음)
-        EquipmentMaster.namespace.ontology → https://w3id.org/steel-ontology-sample#
+    * ``get_ontology(DOMAIN_NS)``: 새 빈 온톨로지라 ``classes()`` 가 0 이어서 판별할 수 없다.
+    * 무조건 ``get_namespace(DOMAIN_NS)``: 다른 NS 를 쓰는 그래프(``http://test.org/onto#``
+      테스트 픽스처, 타 도메인 이식본)의 이름 해석을 깬다.
 
-    그래서 온톨로지를 갈아타는 대신 **네임스페이스를 컨텍스트로 준다**. 다만 그 선택을
-    이름으로 단정하면 다른 NS 를 쓰는 그래프(테스트 픽스처, 타 도메인 이식본)를 깬다 —
-    실측으로 기각된 접근 2개: ``get_ontology(DOMAIN_NS)`` (새 온톨로지라 ``classes()``
-    가 0), 무조건 ``get_namespace(DOMAIN_NS)`` (``http://test.org/onto#`` 픽스처 파손).
-
-    그러므로 **엔티티가 실제로 어디서 해석되는지 확인하고** 고른다: 로더의 base_iri 로
-    풀리면 그대로 두고, 안 풀리는데 DOMAIN_NS 로 풀리면 그쪽 네임스페이스를 쓴다.
+    그러므로 **엔티티가 실제로 어디서 해석되는지 확인하고** 고른다. 로더의 ``base_iri``
+    로 풀리면 그대로 두고, 안 풀리는데 DOMAIN_NS 로 풀리면 그쪽 네임스페이스를 쓴다.
     """
     if str(loaded.base_iri).rstrip("#/") == domain_ns.rstrip("#/"):
         return loaded
@@ -202,7 +222,7 @@ def _rule_context(loaded, domain_ns: str, probe_names: tuple[str, ...] = ()):
     for probe in probe_names:
         if not probe:
             continue
-        # A name that the loader's namespace already resolves needs no redirect.
+        # 로더의 네임스페이스가 이미 푸는 이름이면 옮기지 않는다.
         if getattr(loaded, probe, None) is not None:
             return loaded
         if getattr(domain_ns_obj, probe, None) is not None:
@@ -244,9 +264,9 @@ def _run_pellet_on_graph(
         from domain.namespaces import DOMAIN_NS, NS_PREFIX
         domain_prefixes = {NS_PREFIX: DOMAIN_NS}
 
-        # Resolve local names in whichever namespace actually holds them — see
-        # _rule_context for the alias-ontology failure this avoids. Probe with the
-        # names the rules reference so the choice is measured, not assumed.
+        # 로컬명은 엔티티가 실제로 있는 네임스페이스에서 푼다. 추론 그래프의 owl:Ontology
+        # 노드가 여럿이라 로더 base_iri 가 DOMAIN_NS 와 다를 수 있다 (_rule_context 참조).
+        # 규칙이 참조하는 이름으로 프로브해 IRI 문자열만으로 고르지 않는다.
         normalized_rules = [
             _normalize_dl_for_owlready(rule["dl"], domain_prefixes) for rule in rules
         ]
@@ -433,7 +453,8 @@ def run_swrl_inference(
     7. I2 reification 및 justifications.json 통합 (non-blocking)
 
     Args:
-        swrl_dir: SWRL TTL 디렉토리 (기본: rules/swrl/).
+        swrl_dir: SWRL 규칙 디렉토리 (기본: rules/swrl/). rules/swrl 자신이나 그
+            하위 디렉터리만 받으며, symlink 해석 후 밖이면 거부한다.
         append_to_inferred: True 면 all_inferred.ttl 에 append (기본).
 
     Returns:
@@ -459,7 +480,7 @@ def run_swrl_inference(
 
     try:
         start = time.monotonic()
-        swrl_dir = swrl_dir or SWRL_DIR_DEFAULT
+        swrl_dir = _resolve_swrl_dir(swrl_dir) if swrl_dir else SWRL_DIR_DEFAULT
 
         # 1. Load SWRL rules
         rules = _load_swrl_rules(swrl_dir)
@@ -485,6 +506,14 @@ def run_swrl_inference(
         # Merge tbox_extensions.ttl if exists (for PotentialFailure/QualityViolation)
         ext_path = os.path.join(swrl_dir, "tbox_extensions.ttl")
         if os.path.exists(ext_path):
+            try:
+                ext_path = resolve_path_within(
+                    swrl_dir, ext_path, allowed_suffixes=(".ttl",),
+                )
+            except ValueError:
+                logger.warning("SWRL 디렉터리 밖을 가리키는 파일을 건너뛴다: %s", ext_path)
+                ext_path = ""
+        if ext_path and os.path.exists(ext_path):
             try:
                 base_graph.parse(ext_path, format="turtle")
             except Exception as exc:

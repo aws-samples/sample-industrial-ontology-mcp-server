@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from rdflib import Literal, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
@@ -114,18 +115,33 @@ def test_analyze_ontoclean_no_meta(tmp_path):
     assert r["labeling_coverage_pct"] == 0.0
 
 
-def test_mcp_tool(tmp_path):
+@pytest.fixture
+def tbox_dir(tmp_path, monkeypatch):
+    """도구의 T-Box 경계 디렉터리를 tmp_path 아래로 옮긴다.
+
+    ``validate_ontoclean`` 은 tbox_path 를 GENERATED_TBOX_DIR 바로 아래 파일명으로만
+    받으므로, 픽스처를 이 디렉터리에 쓰고 파일명만 넘긴다.
+    """
+    import tools.ontoclean as oc
+
+    directory = tmp_path / "tbox"
+    directory.mkdir()
+    monkeypatch.setattr(oc, "GENERATED_TBOX_DIR", str(directory))
+    return directory
+
+
+def test_mcp_tool(tbox_dir):
     from tools.ontoclean import validate_ontoclean
     g = _new_graph()
     g.add((_cls("A"), RDF.type, OWL.Class))
-    path = tmp_path / "t.ttl"
+    path = tbox_dir / "t.ttl"
     g.serialize(destination=str(path), format="turtle")
-    raw = validate_ontoclean(str(path))
+    raw = validate_ontoclean(path.name)
     data = json.loads(raw)
     assert data["success"] is True
 
 
-def test_mcp_tool_missing_tbox():
+def test_mcp_tool_missing_tbox(tbox_dir):
     """없는 T-Box 는 **실패**로 보고돼야 한다 (성공으로 감싸지 않는다).
 
     이 테스트는 원래 ``success is True`` 를 주장했다 — ``analyze_ontoclean`` 이
@@ -136,13 +152,15 @@ def test_mcp_tool_missing_tbox():
     내린다. 손으로 적은 기대값이 결함을 지키고 있었으므로 기대값을 바꾼다.
     """
     from tools.ontoclean import validate_ontoclean
-    raw = validate_ontoclean("/nonexistent/t.ttl")
+    # 경계 안의 없는 파일명이어야 경계 거부가 아니라 analyze_ontoclean 의
+    # '없음' 결과를 감싸는 분기를 탄다.
+    raw = validate_ontoclean("t.ttl")
     data = json.loads(raw)
     assert data["success"] is False
-    assert "error" in data
+    assert "T-Box not found" in data["error"]
 
 
-def test_missing_tbox_does_not_persist_a_report(tmp_path, monkeypatch):
+def test_missing_tbox_does_not_persist_a_report(tmp_path, tbox_dir, monkeypatch):
     """실패한 분석이 배포 보고서를 덮어쓰지 않는다 (오염 경로 차단)."""
     import tools.ontoclean as oc
     reports = tmp_path / "reports"
@@ -151,5 +169,6 @@ def test_missing_tbox_does_not_persist_a_report(tmp_path, monkeypatch):
     target.write_text('{"keep": true}', encoding="utf-8")
     monkeypatch.setattr(oc, "GENERATED_REPORTS_DIR", str(reports))
 
-    oc.validate_ontoclean("/nonexistent/t.ttl")
+    data = json.loads(oc.validate_ontoclean("t.ttl"))
+    assert "T-Box not found" in data["error"]
     assert json.loads(target.read_text(encoding="utf-8")) == {"keep": True}

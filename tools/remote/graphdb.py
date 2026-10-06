@@ -20,10 +20,13 @@ Endpoint convention (GraphDB 11.3 default):
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
+import re
 
 import requests
+from rdflib import Literal
 
 from config import (
     DATA_DIR,
@@ -38,7 +41,15 @@ from tools.common import JobRegistry, error_response, resolve_path_within
 logger = logging.getLogger(__name__)
 
 
+class _GraphDBInputError(ValueError):
+    """GraphDB 요청을 보내기 전에 거부한 입력값."""
+
+
 def _gdb_error(e: Exception, operation: str) -> str:
+    if isinstance(e, _GraphDBInputError):
+        return error_response(
+            e, hint=f"GraphDB {operation} 요청을 보내지 않았습니다. 입력값을 확인하세요.",
+        )
     if isinstance(e, requests.exceptions.ConnectionError):
         return error_response(
             e,
@@ -62,9 +73,28 @@ def _gdb_error(e: Exception, operation: str) -> str:
     )
 
 
-def _repo_url(repo: str = "") -> str:
+# GraphDB repository ID 는 영문자·숫자·'-'·'_' 만 허용한다. ID 는 REST 경로와 저장소
+# 설정 Turtle 에 들어가므로 이 규칙 밖의 값은 요청 전에 거부한다. 그래야 '/', '?', '#'
+# 로 다른 엔드포인트를 가리키거나 질의 파라미터를 덧붙이지 못한다.
+_REPO_ID_RE = re.compile(r"[A-Za-z0-9_-]+")
+
+
+def _repo_id(repo: str = "") -> str:
+    """repository ID 를 확정한다. 비어 있으면 GRAPHDB_REPOSITORY 다.
+
+    Raises:
+        _GraphDBInputError: GraphDB repository ID 규칙에 맞지 않을 때.
+    """
     rid = repo or GRAPHDB_REPOSITORY
-    return f"{GRAPHDB_BASE_URL}/repositories/{rid}"
+    if not isinstance(rid, str) or not _REPO_ID_RE.fullmatch(rid):
+        raise _GraphDBInputError(
+            "GraphDB repository ID 는 영문자, 숫자, '-', '_' 만 쓸 수 있습니다."
+        )
+    return rid
+
+
+def _repo_url(repo: str = "") -> str:
+    return f"{GRAPHDB_BASE_URL}/repositories/{_repo_id(repo)}"
 
 
 # ─────────────────────────────────────────────────────────
@@ -128,6 +158,8 @@ def graphdb_health() -> str:
 # ─────────────────────────────────────────────────────────
 
 
+# 자리표시자에는 Literal(...).n3() 로 만든 Turtle 리터럴을 넣는다. 값 안의 따옴표나
+# 줄바꿈이 리터럴을 닫고 설정 트리플(graphdb:imports 등)을 덧붙이지 못한다.
 _DEFAULT_REPO_TTL = """\
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix rep: <http://www.openrdf.org/config/repository#> .
@@ -136,8 +168,8 @@ _DEFAULT_REPO_TTL = """\
 @prefix graphdb: <http://www.ontotext.com/config/graphdb#> .
 
 [] a rep:Repository ;
-    rep:repositoryID "{repo_id}" ;
-    rdfs:label "{label}" ;
+    rep:repositoryID {repo_id} ;
+    rdfs:label {label} ;
     rep:repositoryImpl [
         rep:repositoryType "graphdb:SailRepository" ;
         sr:sailImpl [
@@ -148,7 +180,7 @@ _DEFAULT_REPO_TTL = """\
             graphdb:entity-id-size "32" ;
             graphdb:imports "" ;
             graphdb:repository-type "file-repository" ;
-            graphdb:ruleset "{ruleset}" ;
+            graphdb:ruleset {ruleset} ;
             graphdb:storage-folder "storage" ;
             graphdb:enable-context-index "false" ;
             graphdb:enablePredicateList "true" ;
@@ -174,17 +206,18 @@ def graphdb_create_repository(
     """GraphDB repository 를 생성한다 (없으면).
 
     Args:
-        repo_id: repository ID. 기본 GRAPHDB_REPOSITORY env, 미지정 시
-                 domain_config.json 의 namespace.prefix → '{prefix}-kg' 로 유도.
+        repo_id: repository ID (영문자·숫자·'-'·'_'). 기본 GRAPHDB_REPOSITORY env,
+                 미지정 시 domain_config.json 의 namespace.prefix → '{prefix}-kg' 로 유도.
         ruleset: 추론 룰셋. owl2-rl-optimized (기본) / owl-horst-optimized
                  / rdfs-optimized / empty 등.
         label: rdfs:label 표시명. 기본 repo_id 와 동일.
-        overwrite: 기존 repository 가 있으면 삭제 후 재생성.
+        overwrite: True 면 같은 ID 의 기존 repository 와 그 데이터를 삭제한 뒤 재생성한다.
+                   기본 False 는 기존 repository 를 바꾸지 않고 "이미 존재" 를 반환한다.
     """
-    rid = repo_id or GRAPHDB_REPOSITORY
     rs = ruleset or GRAPHDB_RULESET
-    lbl = label or rid
     try:
+        rid = _repo_id(repo_id)
+        lbl = label or rid
         # Existing?
         existing = requests.get(
             f"{GRAPHDB_BASE_URL}/rest/repositories", timeout=10,
@@ -202,7 +235,9 @@ def graphdb_create_repository(
 
         # Create via multipart upload (config.ttl)
         ttl_body = _DEFAULT_REPO_TTL.format(
-            repo_id=rid, label=lbl, ruleset=rs,
+            repo_id=Literal(rid).n3(),
+            label=Literal(lbl).n3(),
+            ruleset=Literal(rs).n3(),
         )
         files = {
             "config": (
@@ -279,7 +314,10 @@ def graphdb_import_file(
     if not os.path.exists(resolved_file_path):
         return f"파일 없음: {file_path}"
 
-    rid = repo or GRAPHDB_REPOSITORY
+    try:
+        rid = _repo_id(repo)
+    except _GraphDBInputError as e:
+        return _gdb_error(e, "import_file")
     ct = _content_type_for(resolved_file_path)
     size_mb = os.path.getsize(resolved_file_path) / 1024 / 1024
     url = f"{_repo_url(rid)}/statements"
@@ -380,8 +418,8 @@ def graphdb_count_triples(
     repo: str = "", include_inferred: bool = True,
 ) -> str:
     """repository 의 trip 수를 explicit / inferred 분리해서 보고."""
-    rid = repo or GRAPHDB_REPOSITORY
     try:
+        rid = _repo_id(repo)
         out: dict[str, int] = {}
         for label, infer in (("explicit", "false"), ("with_inferred", "true")):
             resp = requests.post(
@@ -459,7 +497,10 @@ def graphdb_export_inferred(
                 다운스트림 (sparql_local / validate_kg / semantic_dictionary) 은
                 INFERRED_PATH 를 turtle 로 파싱하므로 turtle 권장.
     """
-    rid = repo or GRAPHDB_REPOSITORY
+    try:
+        rid = _repo_id(repo)
+    except _GraphDBInputError as e:
+        return _gdb_error(e, "export_inferred")
     accept = _EXPORT_FORMATS.get(format.lower())
     if accept is None:
         return f"지원하지 않는 format: {format} (turtle / nt)"
@@ -501,26 +542,66 @@ def graphdb_export_inferred(
         return _gdb_error(e, "export_inferred")
 
 
+def _resolve_inference_targets(
+    tbox_path: str, abox_path: str, output_path: str, repo: str,
+) -> tuple[str, str, str, str]:
+    """추론 잡의 repository ID 와 입력·출력 경로를 GraphDB 요청 전에 확정한다.
+
+    tbox_path·abox_path 는 graphdb_import_file 과 같은 규칙(DATA_DIR 안, RDF 확장자)으로,
+    output_path 는 _resolve_export_path 규칙으로 해석한다. 비어 있는 입력은 기본
+    TBOX_PATH·ABOX_PATH·INFERRED_PATH 다. 존재 확인·크기 조회·repository 생성보다 먼저
+    호출하므로 경계 밖 경로의 메타데이터를 읽지 않고 원격 저장소도 바꾸지 않는다.
+
+    Returns:
+        (repository ID, T-Box 경로, A-Box 경로, export 경로)
+
+    Raises:
+        ValueError: 거부 사유. 메시지에는 입력·해석 경로를 넣지 않는다.
+    """
+    from config import ABOX_PATH, TBOX_PATH
+
+    rid = _repo_id(repo)
+    try:
+        out_path = _resolve_export_path(output_path)
+    except ValueError as e:
+        raise ValueError(f"export 경로 거부: {e}") from e
+    inputs: list[str] = []
+    for name, raw, default in (
+        ("tbox_path", tbox_path, TBOX_PATH),
+        ("abox_path", abox_path, ABOX_PATH),
+    ):
+        if not raw:
+            inputs.append(default)
+            continue
+        try:
+            inputs.append(resolve_path_within(
+                DATA_DIR, raw, allowed_suffixes=tuple(_CONTENT_TYPES),
+            ))
+        except ValueError as e:
+            raise ValueError(f"{name} 경로 거부: {e}") from e
+    return rid, inputs[0], inputs[1], out_path
+
+
 def _graphdb_run_inference_sync(
     tbox_path: str = "",
     abox_path: str = "",
     repo: str = "",
     output_path: str = "",
     ruleset: str = "",
-    overwrite_repo: bool = True,
+    overwrite_repo: bool = False,
     import_timeout: int = 7200,
 ) -> str:
     """대용량 입력에서 OWL 2 RL 추론을 GraphDB Free 로 실행 (동기 본문).
 
-    최대 ~4시간 걸리는 블로킹 작업이다. MCP 진입점 graphdb_run_inference 는
-    이 함수를 잡 워커로 돌리고 job_id 만 즉시 반환한다. run_owl_rl_inference
-    의 대용량 위임 경로는 이 _sync 를 직접 호출한다 (S8 잡 워커 안에서 또
-    잡을 띄우는 이중 디스패치를 피하기 위함).
+    최대 ~4시간 걸리는 블로킹 작업이다. 이 함수를 부르는 곳은 MCP 진입점
+    graphdb_run_inference 의 잡 워커뿐이고, 진입점은 job_id 만 즉시 반환한다.
+    run_owl_rl_inference 는 이 함수를 호출하지 않으며 입력을 GraphDB 로 보내지 않는다.
 
     Why: reasonable.PyReasoner 가 ~12M triples 를 넘어가면 비선형 비용 폭발
     (32GB RAM 노트북에서 미완료). GraphDB Free 는 Lucene+RocksDB 인덱스로
     52M+ triples 도 안정적으로 처리. 본 함수는 import → reinfer → export
-    파이프라인을 한 번에 실행해 기존 reasonable 경로의 대체로 사용.
+    파이프라인을 한 번에 실행한다. 로컬 상한을 넘는 입력은 사용자가 이 도구를
+    명시적으로 실행할 때만 GraphDB 로 처리된다.
 
     전제조건:
       - GraphDB Desktop.app 이 실행 중이고 http://localhost:7200 응답.
@@ -528,24 +609,29 @@ def _graphdb_run_inference_sync(
       - 디스크 여유 공간 ~30 GB (storage + export 합산).
 
     동작:
+      0. repository ID 와 tbox_path / abox_path / output_path 를 확정한다. 거부되면
+         GraphDB 요청 없이 중단한다.
       1. graphdb_health 로 가동 확인 → 안 되면 명확한 에러 + 중단.
-      2. repository 생성 (ruleset=empty) — overwrite_repo=True 면 기존 삭제.
+      2. repository 생성 (ruleset=empty). 같은 ID 가 이미 있으면 overwrite_repo=True
+         일 때만 삭제 후 재생성하고, False 면 기존 repository 를 바꾸지 않고 중단한다.
       3. T-Box / A-Box / tacit/*.ttl 차례 import (timeout=import_timeout).
       4. ruleset 을 owl2-rl-optimized 로 전환 (addRuleset + defaultRuleset).
       5. SPARQL `INSERT DATA { [] sys:reinfer [] }` 트리거 — fixpoint 도달까지 대기.
       6. 최종 graph 를 N-Triples 로 export.
 
     Args:
-        tbox_path: T-Box TTL 경로. 기본 TBOX_PATH.
-        abox_path: A-Box TTL 경로. 기본 ABOX_PATH.
-        repo: GraphDB repository ID. 기본 GRAPHDB_REPOSITORY env, 미지정 시
-              domain_config.json 의 namespace.prefix → '{prefix}-kg' 로 유도.
+        tbox_path: T-Box 경로. DATA_DIR 안의 .ttl / .nt / .nq / .rdf / .jsonld 만
+                   허용하며 symlink 해석 후 검사한다. 기본 TBOX_PATH.
+        abox_path: A-Box 경로. 규칙은 tbox_path 와 같다. 기본 ABOX_PATH.
+        repo: GraphDB repository ID (영문자·숫자·'-'·'_'). 기본 GRAPHDB_REPOSITORY env,
+              미지정 시 domain_config.json 의 namespace.prefix → '{prefix}-kg' 로 유도.
         output_path: 추론 결과 export 경로. data/generated/inferred 아래
                      .ttl / .nt / .ntriples 만 허용하며 import 전에 검사한다.
                      기본 INFERRED_PATH (turtle, 다운스트림 sparql_local /
                      validate_kg / semantic_dictionary 와 일관).
         ruleset: 추론 룰셋. 기본 GRAPHDB_RULESET (owl2-rl-optimized).
-        overwrite_repo: True 면 기존 repository 삭제 후 재생성 (clean state).
+        overwrite_repo: True 면 같은 ID 의 기존 repository 와 그 데이터를 삭제한 뒤
+                        재생성한다 (clean state). 기본 False.
         import_timeout: 청크당 client read timeout (초). 기본 7200 (2시간).
                         큰 단일 파일 import 시 600s 기본값으로는 부족함.
 
@@ -555,18 +641,19 @@ def _graphdb_run_inference_sync(
     import json as _json
     import time as _time
 
-    from config import ABOX_PATH, SOURCE_TACIT_DIR, TBOX_PATH
+    from config import SOURCE_TACIT_DIR
 
-    rid = repo or GRAPHDB_REPOSITORY
     rs = ruleset or GRAPHDB_RULESET
-    # export 경로는 수 시간 걸리는 import·reinfer 전에 확정한다.
+    # repository ID 와 입출력 경로는 GraphDB 요청과 수 시간 걸리는 import·reinfer 전에 확정한다.
     try:
-        out_path = _resolve_export_path(output_path)
+        rid, tbox, abox, out_path = _resolve_inference_targets(
+            tbox_path, abox_path, output_path, repo,
+        )
     except ValueError as e:
         return _json.dumps({
             "success": False,
             "engine": "graphdb",
-            "error": f"export 경로 거부: {e}",
+            "error": str(e),
         }, ensure_ascii=False, indent=2)
     # 다운스트림이 INFERRED_PATH 를 turtle 로 파싱하므로, 확장자에 맞춰 export
     # 포맷을 결정. .nt / .ntriples 를 명시한 caller 만 N-Triples 로 받음.
@@ -597,7 +684,20 @@ def _graphdb_run_inference_sync(
         repo_id=rid, ruleset="empty", overwrite=overwrite_repo,
     )
     stages["create_repository"] = round(_time.monotonic() - t0, 2)
-    if "생성됨" not in create_resp and "이미 존재" not in create_resp:
+    if create_resp.startswith("이미 존재"):
+        # 기존 repository 에 import·ruleset 전환·reinfer 를 덧씌우면 이전 데이터가
+        # 결과에 섞이고 사용자의 저장소가 바뀐다. 삭제는 overwrite_repo=True 로만 한다.
+        return _json.dumps({
+            "success": False,
+            "engine": "graphdb",
+            "error": f"repository 가 이미 존재해 변경하지 않았습니다: {rid}",
+            "hint": (
+                "기존 repository 와 그 데이터를 삭제하고 다시 만들려면 overwrite_repo=True, "
+                "보존하려면 다른 repo ID 를 지정하세요."
+            ),
+            "stages": stages,
+        }, ensure_ascii=False, indent=2)
+    if "생성됨" not in create_resp:
         return _json.dumps({
             "success": False,
             "engine": "graphdb",
@@ -608,8 +708,6 @@ def _graphdb_run_inference_sync(
     # 3. import T-Box + A-Box + tacit ────────────────────────
     t0 = _time.monotonic()
     files: list[str] = []
-    tbox = tbox_path or TBOX_PATH
-    abox = abox_path or ABOX_PATH
     if os.path.exists(tbox):
         files.append(tbox)
     if os.path.exists(abox):
@@ -652,6 +750,9 @@ def _graphdb_run_inference_sync(
 
     # 4. ruleset 전환 (empty → owl2-rl-optimized) ────────────
     t0 = _time.monotonic()
+    # ruleset 은 SPARQL 문자열 리터럴로 직렬화해 넣는다. 따옴표가 리터럴을 닫고
+    # 같은 요청에 다른 update 연산을 덧붙이지 못한다.
+    ruleset_literal = Literal(rs).n3()
     try:
         for sys_pred, _label in (
             ("addRuleset", "addRuleset"),
@@ -663,7 +764,7 @@ def _graphdb_run_inference_sync(
                     "update": (
                         f"INSERT DATA {{ _:b "
                         f"<http://www.ontotext.com/owlim/system#{sys_pred}> "
-                        f"\"{rs}\" }}"
+                        f"{ruleset_literal} }}"
                     ),
                 },
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -742,10 +843,9 @@ def _graphdb_run_inference_sync(
     }, ensure_ascii=False, indent=2)
 
 
-# S8-large GraphDB 추론 잡 레지스트리. graphdb_run_inference 직접 호출은 reinfer
-# 단계가 최대 ~4시간이라 동기 응답 시 MCP stdio 가 끊긴다(S8 과 동일 메커니즘).
-# run_owl_rl_inference 위임 경로는 _graphdb_run_inference_sync 를 직접 부르므로
-# 이 디스패처를 거치지 않는다(이중 잡 방지).
+# GraphDB 추론 잡 레지스트리. reinfer 단계가 최대 ~4시간이라 동기 응답하면 MCP stdio
+# 가 끊기므로 graphdb_run_inference 는 이 레지스트리로 워커를 띄운다. 로컬 추론
+# (run_owl_rl_inference) 은 이 레지스트리도 _graphdb_run_inference_sync 도 쓰지 않는다.
 _GRAPHDB_JOBS = JobRegistry(
     name="gdbinfer", poll_with="get_inference_status", logger=logger,
 )
@@ -757,7 +857,7 @@ def graphdb_run_inference(
     repo: str = "",
     output_path: str = "",
     ruleset: str = "",
-    overwrite_repo: bool = True,
+    overwrite_repo: bool = False,
     import_timeout: int = 7200,
 ) -> str:
     """대용량 입력에서 OWL 2 RL 추론을 GraphDB Free 로 **백그라운드 실행**한다.
@@ -765,15 +865,44 @@ def graphdb_run_inference(
     ⚠️ 비동기 잡 패턴: daemon 워커를 띄우고 즉시 job_id 를 반환한다(수십 ms).
     실제 추론(import→reinfer→export)은 최대 ~4시간 걸리므로 동기 응답하면 MCP
     stdio 타임아웃으로 서버가 끊긴다. ``get_inference_status(job_id)`` 로
-    폴링하라. (run_owl_rl_inference 대용량 위임 경로는 내부적으로 동기 본문을
-    직접 호출하므로 이 도구를 거치지 않는다.)
+    폴링하라.
 
-    Args/동작 상세는 _graphdb_run_inference_sync docstring 참조.
+    run_owl_rl_inference 는 이 도구를 호출하지 않고 대용량 입력을 GraphDB 로 보내지도
+    않는다. 로컬 상한을 넘는 입력은 사용자가 이 도구를 명시적으로 실행할 때만 GraphDB
+    로 처리된다.
+
+    주의: overwrite_repo=True 면 repo 와 같은 ID 의 기존 GraphDB repository 와 그 안의
+    데이터를 삭제한 뒤 다시 만든다. 기본값 False 에서 그 repository 가 이미 있으면
+    아무것도 바꾸지 않고 실패한다. 없으면 새로 만든다.
+
+    Args:
+        tbox_path: T-Box 경로. DATA_DIR 안의 .ttl / .nt / .nq / .rdf / .jsonld 만
+                   허용하며 symlink 해석 후 검사한다. 기본 TBOX_PATH.
+        abox_path: A-Box 경로. 규칙은 tbox_path 와 같다. 기본 ABOX_PATH.
+        repo: GraphDB repository ID (영문자·숫자·'-'·'_'). 기본 GRAPHDB_REPOSITORY.
+        output_path: 추론 결과 export 경로. data/generated/inferred 아래
+                     .ttl / .nt / .ntriples 만 허용한다. 기본 INFERRED_PATH.
+        ruleset: 추론 룰셋. 기본 GRAPHDB_RULESET (owl2-rl-optimized).
+        overwrite_repo: True 일 때만 같은 ID 의 기존 repository 를 삭제하고
+                        재생성한다. 기본 False.
+        import_timeout: 파일당 client read timeout (초). 기본 7200 (2시간).
+
+    repository ID 와 경로 인자는 잡을 띄우기 전에 검사하며, 거부되면 잡 없이
+    {"started": false, "success": false, "engine": "graphdb", "error": str} 를 반환한다.
 
     Returns:
         {"started": bool, "job_id": str, "status": "running"|"reused",
          "poll_with": "get_inference_status", "message": str}
     """
+    try:
+        _resolve_inference_targets(tbox_path, abox_path, output_path, repo)
+    except ValueError as e:
+        return json.dumps({
+            "started": False,
+            "success": False,
+            "engine": "graphdb",
+            "error": str(e),
+        }, ensure_ascii=False, indent=2)
     key = f"{tbox_path}|{abox_path}|{repo}|{ruleset}"
     return _GRAPHDB_JOBS.dispatch(
         key=key,

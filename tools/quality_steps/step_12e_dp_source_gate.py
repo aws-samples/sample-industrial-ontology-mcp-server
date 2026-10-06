@@ -1,10 +1,11 @@
 """Step 12e — DP 출처 컬럼 (``dcterms:source``) 게이트.
 
-T-Box 생성 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md``
-원칙 4-1) 는 모든 DatatypeProperty 에 유래한 CSV 컬럼 코드를
-``dcterms:source "<COLUMN>"`` 으로 기록하도록 요구한다. 이 표기가 A-Box
-생성기의 **1순위 매핑 근거** 이므로 (``_col_to_prop`` step 0), 누락되면 해당
-컬럼은 이름 추측 경로로 떨어지고 매칭 실패 시 조용히 폐기된다.
+T-Box 생성 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md`` 의
+"DatatypeProperty declaration" 절과 "DatatypeProperty source column" 절) 는 모든
+DatatypeProperty 에 유래한 CSV 컬럼 헤더를 ``dcterms:source "<COLUMN>"`` 으로
+기록하도록 요구한다. 이 표기가 A-Box 생성기의 **1순위 매핑 근거** 이므로
+(``_col_to_prop`` step 0), 누락되면 해당 컬럼은 이름 추측 경로로 떨어지고 매칭
+실패 시 조용히 폐기된다.
 
 이 단계는 T-Box 를 수정하지 않고 (read-only) 다음을 측정한다:
 
@@ -147,7 +148,8 @@ def _measure(g: Graph, steel_str: str) -> dict:
     # 필터하면 두 체계의 표준번호가 섞여 나오고, 집계는 중복 계수된다.
     # 다른 ``*_SPEC_NO_COL`` 컬럼들은 전용 DP 를 갖고 있어 이 DP 만 예외였다.
     #
-    # ``_1``/``_2`` 같은 번호 계열은 각자 별개 DP 를 갖는 것이 원칙(원칙 4-1)이므로,
+    # ``_1``/``_2`` 같은 번호 계열도 각자 별개 DP 를 가져야 하므로
+    # (04-property-rules.md 의 "DatatypeProperty source column" 절),
     # 컬럼이 2개 이상이면 이름이 비슷해도 병합 오류로 본다.
     multi_column = {
         dp_name: columns
@@ -229,7 +231,9 @@ def apply(g: Graph, ctx: StepContext) -> StepResult:
                 f"임계치 {threshold:.1%} — 미표기 DP {shortfall}개. "
                 "이 DP 들은 A-Box 가 컬럼명 추측으로 매칭을 시도하며, 실패 시 "
                 "해당 CSV 컬럼이 조용히 폐기된다. "
-                "prompts/tbox-prompt-modules/04-property-rules.md 원칙 4-1 참조."
+                "prompts/tbox-prompt-modules/04-property-rules.md 의 "
+                "\"DatatypeProperty declaration\" 절과 "
+                "\"DatatypeProperty source column\" 절 참조."
             )
             if mode == "fail":
                 logger.error("Step 12e DP source gate FAIL: %s", message)
@@ -253,7 +257,7 @@ def apply(g: Graph, ctx: StepContext) -> StepResult:
             logger.warning(
                 "Step 12e: 한 DP 가 서로 다른 컬럼 여럿을 주장 %d건 — 두 컬럼 값이 "
                 "한 속성에 합쳐져 질의 결과가 섞인다 (예: %s). 컬럼마다 별개 DP 로 "
-                "분리할 것 (원칙 4-1).",
+                "분리할 것 (04-property-rules.md 의 \"DatatypeProperty source column\" 절).",
                 stats["multi_column_dp_count"],
                 list(stats.get("multi_column_dps", {}).items())[:2],
             )

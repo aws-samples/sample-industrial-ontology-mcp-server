@@ -1,17 +1,18 @@
 """``table_pk_columns`` 선언이 실제 CSV 헤더와 일치하는지 검사.
 
-**왜 필요한가** (2026-07-26 실측 회귀): `_rename_headers.py` 가 CSV 헤더를 개명할 때
-``rules/domain/table_class_mapping.json`` 의 ``table_pk_columns`` 를 함께 갱신하지 않으면
-**PK 선언이 존재하지 않는 컬럼을 가리킨다.** 그러면 A-Box 생성기가 PK 를 못 찾아
-감사 컬럼 조합으로 폴백하고, 인스턴스가 조용히 뭉친다:
+**왜 필요한가**: CSV 헤더를 개명하면서 ``rules/domain/table_class_mapping.json`` 의
+``table_pk_columns`` 를 함께 갱신하지 않으면 **PK 선언이 존재하지 않는 컬럼을
+가리킨다.** A-Box 생성기는 경고 로그만 남기고 휴리스틱 PK 탐지로 폴백한다. 휴리스틱이
+다른 컬럼이나 조합을 고르면 인스턴스 IRI 가 바뀌고 서로 다른 행이 한 인스턴스로
+합쳐질 수 있지만, 생성은 성공으로 끝난다.
 
-    InputMaterialA: MATERIAL_NO → KEY_COL_4 개명, PK 선언은 MATERIAL_NO 유지
-      → 인스턴스 약 800 → 약 790 (7개 손실)
-      → IRI 가 InputMaterialA_AB12345 에서
-         InputMaterialA_AUD1_AUD2_2026 (감사 컬럼 조합) 으로 변질
+    예 (공개 합성 데이터 기준): ``Equipment_Master.csv`` 의 ``Equipment_ID`` 를
+    ``EquipmentId`` 로 개명하고 선언은 ``Equipment_ID`` 로 남기면 선언이 헤더와
+    어긋난다.
 
-에러도 경고도 없이 진행되므로 A-Box 를 직접 열어보지 않으면 발견되지 않는다.
-이 테스트는 선언↔헤더 불일치를 즉시 잡는다.
+이 테스트는 선언과 헤더의 불일치를 A-Box 생성 전에 잡는다. 공개 매핑은
+``table_pk_columns`` 를 선언하지 않으므로 이 파일의 테스트는 PK 를 선언한 배포에서만
+동작하고, 그 밖에서는 skip 한다.
 """
 from __future__ import annotations
 
@@ -69,35 +70,26 @@ def test_declared_pk_columns_exist_in_csv():
     if checked == 0:
         pytest.skip("검사 가능한 CSV 없음")
     assert not missing, (
-        "PK 선언이 CSV 에 없는 컬럼을 가리킨다 — 개명 후 동기화 누락으로 보인다. "
-        f"A-Box 인스턴스가 감사 컬럼으로 폴백해 뭉친다: {missing}"
+        "PK 선언이 CSV 에 없는 컬럼을 가리킨다. 개명 후 동기화 누락으로 보인다. "
+        f"A-Box 생성기가 휴리스틱 PK 로 폴백해 IRI 가 바뀔 수 있다: {missing}"
     )
 
 
-#: PK 선언이 CSV 에서 유일하지 않지만 **의도적으로 유지** 하는 테이블.
-#: 값은 사유. A-Box 는 이 경우 timestamp 등을 덧붙여 IRI 를 만든다.
+#: PK 선언이 CSV 에서 유일하지 않지만 **의도적으로 유지** 하는 테이블. 값은 사유.
+#: 권위 PK 는 timestamp 접미 없이 IRI 를 만들므로, 값이 겹치는 행은 한 인스턴스로
+#: 합쳐진다. 그 결과를 받아들이기로 한 테이블만 등록한다.
 #:
-#: 키는 ``table_pk_columns`` 의 테이블명과 정확히 일치해야 면제가 걸린다. 아래
-#: 항목은 가명이므로 실제 배포에서는 **매칭되지 않는다** — 판단 근거를 남기려고
-#: 보존한 기록이고, 면제로 동작하지는 않는다 (실측 확인). 자기 배포에서 이 면제가
-#: 필요하면 로컬 매핑의 테이블명으로 키를 바꿔 등록해야 한다. 실제 테이블명을
-#: 여기 적으면 고객 스키마가 tracked 파일로 들어간다.
-_KNOWN_NON_UNIQUE_PK = {
-    "SOURCE_TABLE_013": (
-        "KEY_COL_7 는 3,600행 중 60행이 빈값이라 약 3.5천 고유 (mapping 주석 (B)). "
-        "완벽한 대안 KEY_COL_6(약 3.6천 고유, 빈값 0) 가 있으나 그것을 PK 로 "
-        "선언하면 A-Box self-PK guard 가 같은 컬럼의 FK 를 막아 "
-        "MaterialSpecA→MaterialB 연결 3,597건이 사라진다. PK 유일성보다 "
-        "계보 연결이 가치가 크므로 현 조합을 유지한다."
-    ),
-}
+#: 키는 ``table_pk_columns`` 의 테이블명과 정확히 일치해야 면제가 걸린다. 공개 매핑은
+#: PK 를 선언하지 않으므로 비어 있다. 자기 배포에서 면제가 필요하면 그 배포 매핑의
+#: 테이블명과 사유를 등록한다.
+_KNOWN_NON_UNIQUE_PK: dict[str, str] = {}
 
 
 def test_declared_pk_columns_are_unique_in_csv():
     """선언된 PK 는 CSV 안에서 실제로 유일해야 한다 (단일 컬럼 선언 기준).
 
-    유일하지 않으면 A-Box 가 여러 행을 한 인스턴스로 합치거나 timestamp 를 덧붙여
-    IRI 를 만든다. 복합키 선언은 조합 유일성을 본다.
+    유일하지 않으면 A-Box 가 값이 겹치는 여러 행을 한 인스턴스로 합친다. 복합키
+    선언은 조합 유일성을 본다.
 
     ``_KNOWN_NON_UNIQUE_PK`` 에 사유와 함께 등록된 테이블은 제외한다 — 새로운
     불일치만 잡는 것이 목적이다.
@@ -140,8 +132,8 @@ def test_declared_pk_columns_are_unique_in_csv():
     if checked == 0:
         pytest.skip("검사 가능한 CSV 없음")
     assert not violations, (
-        "PK 선언이 CSV 에서 유일하지 않다 — 인스턴스가 뭉치거나 IRI 에 "
-        f"timestamp 가 붙는다: {violations}"
+        "PK 선언이 CSV 에서 유일하지 않다. 값이 겹치는 행이 한 인스턴스로 "
+        f"합쳐진다: {violations}"
     )
 
 

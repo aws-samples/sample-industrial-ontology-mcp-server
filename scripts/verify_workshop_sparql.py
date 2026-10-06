@@ -35,6 +35,13 @@ from pathlib import Path
 import rdflib
 
 REPO = Path(__file__).resolve().parent.parent
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+# domain 패키지 import 가 프로세스 전체 SPARQL egress 차단점을 설치한다. 문서의 SPARQL
+# 블록은 아래 reject_sparql_egress 로 한 번 더 검사한 뒤 실행한다.
+from domain.sparql_templates import reject_sparql_egress  # noqa: E402 - sys.path 조정 후 import
+
 PRE_TBOX = REPO / "workshop/pre-generated/t_box.ttl"
 PRE_ABOX = REPO / "workshop/pre-generated/a_box.ttl.gz"
 PRE_ABOX_SHA256 = (
@@ -203,8 +210,13 @@ def verify_sparql(block: str, graph: rdflib.Graph) -> tuple[bool, str]:
     cleaned = strip_sparql_comments(block)
     if not QUERY_KEYWORD.search(cleaned):
         return True, "skip (not SELECT/ASK)"
+    query = PREFIXES + cleaned
     try:
-        rows = list(graph.query(PREFIXES + cleaned))
+        reject_sparql_egress(query)
+    except ValueError as exc:
+        return False, f"EGRESS REJECTED: {str(exc)[:80]}"
+    try:
+        rows = list(graph.query(query))
     except Exception as exc:
         return False, f"PARSE ERROR: {str(exc)[:80]}"
     return (len(rows) > 0), f"{len(rows)} rows"
@@ -242,7 +254,8 @@ def verify_bash(block: str) -> tuple[bool, str]:
         result = subprocess.run(
             ["bash", "-n", "-c", block],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
         )
         if result.returncode == 0:
@@ -294,7 +307,9 @@ def main() -> int:
     for path in DOCS:
         if not path.exists():
             continue
-        text = path.read_text()
+        # 워크샵 문서는 UTF-8 이다. Windows 의 기본 locale 인코딩 (cp949, cp1252) 으로
+        # 읽으면 한국어 본문에서 UnicodeDecodeError 가 난다.
+        text = path.read_text(encoding="utf-8")
         rel = str(path.relative_to(REPO))
         print(f"=== {rel} ===")
 
@@ -411,4 +426,10 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # 출력에는 한국어와 기호 (✓ ✗ ─) 가 있다. 출력을 파일이나 파이프로 돌리면 Windows 는
+    # locale 인코딩으로 쓰려다 UnicodeEncodeError 를 내므로 UTF-8 로 고정한다.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
     sys.exit(main())

@@ -366,7 +366,7 @@ quality_history / 08-28 semantic_dictionary / 09-01 54개 중 12개 교체). 경
 |---|---|---|---|
 | 0 | `S0_CQ` | check_competency_questions_exist → generate_competency_questions | **규칙 1** 사용자 분기 (`user_provided` / `auto_approved`). 거절 시 S0 중단 |
 | 1 | `S1_DATA` | list_csv_tables → read_csv_schema → generate_csv_erd → profile_csv_data | — |
-| 2 | `S2_TBOX` | generate_tbox_collaborative → **get_tbox_status(job_id) 30~60초 폴링** → done | 잡 패턴 필수 (동기 15~40분 응답 시 stdio 끊김). 최소 2라운드 / 합의 = Validator + SME 모두 `approved=true` / 3라운드 미합의 → Architect 절충안 (수락·거부 이유는 debate_log 기록). `partial: true` 와 `save_guard` → **아래 S2 주의사항** |
+| 2 | `S2_TBOX` | generate_tbox_collaborative → **get_tbox_status(job_id) 30~60초 폴링** → done | 잡 패턴 필수 (동기 15~40분 응답 시 stdio 끊김). 예비 합의 = 토론 2라운드부터 Validator·SME **실질 승인** (`approved=false` 라도 차단 이슈가 없으면 승인) + T-Box 로 고칠 수 있는 CQ 갭 0 + veto lock 해제 / 합의 = 예비 합의 뒤 Jury `production_ready=true` 뿐 (아니면 Jury `required_fixes` 적용 후 토론 계속) / 마지막 라운드 (기본 `max_rounds=4`) 까지 미합의 → Jury 최종 `required_fixes` 적용 후 미합의로 종료, Jury 판정이 실패할 때만 Architect 절충 사유를 기록 (debate_log·`compromise_audit.json`). CSV FK 가 없는 CQ 갭은 합의를 막지 않으므로 합의가 CQ 전부의 답변 가능성을 보장하지 않는다. 실행 가능한 차단 수정이 0건이면 조기 종료 (끄는 스위치는 `generate_tbox_collaborative` docstring 참조). `partial: true` 와 `save_guard` → **아래 S2 주의사항** |
 | 3 | `S3_IMPROVE` | improve_tbox_quality | step_30 (`_PRE_STEPS`) 이 `rules/domain/tbox_manual_additions.ttl` 병합 — S2 가 자동 생성 못 하는 수동 추가분 (고립 클래스 연결 OP / 차원 클래스·OP·DP) 을 결정적 복원. 파일 없으면 no-op (도메인-중립) |
 | 4 | `S4_VALIDATE` | validate_ttl_syntax → check_quality_rules → validate_owl_consistency → classify_tbox → validate_tbox_shacl → **compare_tbox_baseline** | FAIL → 자동 수정 후 재검증 (§4 프로토콜). 6번째는 **WARN-only 세대 비교** — 아래 참조 |
 | 5 | `S4_5_MUTATION` | run_tbox_mutation_audit | **opt-in, WARN-only** — 기본 흐름은 건너뜀 (사용자 요청 시에만) |
@@ -555,7 +555,7 @@ read_tbox 존재 확인 → generate_abox → validate_ttl_syntax + validate_owl
 | S5 암묵지 (목록/검증) | ~3초 | `check_tacit_exist` + TTL parse |
 | S5 (b) 규칙기반 생성 | ~30초 | `generate_tacit_from_rules` 분기를 택할 때만 |
 | S6 시각화 | ~3초 | HTML 생성 |
-| S6.5 딕셔너리 v1 | ~10초 | T-Box 구조만 추출 (include_stats=False), A-Box 생성기용 vocabulary contract. SEMANTIC_DICT_PATH 저장 — S10 에서 v2 로 덮어쓰기 |
+| S6.5 딕셔너리 v1 | ~10초 + 번역 시 Bedrock 응답 시간 | T-Box 구조만 추출 (include_stats=False), A-Box 생성기용 vocabulary contract. SEMANTIC_DICT_PATH 에 저장하고 S10 에서 v2 로 덮어쓴다. **Bedrock 1회 조건**: `description_ko` 만 있고 `description_en` 이 없는 클래스가 있으면 그 클래스 이름·한국어 설명을 번역 요청으로 모델에 보낸다 (`include_stats` 와 무관, `_translate_missing_descriptions_en`). 동봉 워크샵 T-Box 는 이 조건에 해당한다 |
 | S7 A-Box | 30~50초 | rdflib 변환. use_dict_contract=True (default) 로 S6.5 딕셔너리의 class-specific DP 이름 강제 참조 |
 | S8 OWL 추론 (small) | wall-clock 6분+ (reason 53s + post-rl-cleanup 146s + step10 등) / peak RSS 3.8GB | reasonable (Rust) OWL 2 RL + Oxigraph 인메모리. 입력 추정 줄 수가 로컬 상한 12,000,000 이하일 때 수행되고, 초과하면 **오류**다 (자동 위임 없음). **잡 패턴 필수**: `run_owl_rl_inference` 는 job_id 만 즉시(ms) 반환 — 동기 6분 응답 시 MCP stdio 가 클라이언트 per-request 타임아웃으로 끊겨 서버가 EOF 종료된다(2026-06-20 규명). `get_inference_status(job_id)` 로 폴링하라. |
 | S8 OWL 추론 (대용량) | 해당 없음 | ⚠️ **자동 위임은 제거됐다.** 로컬 상한을 넘는 입력은 오류이고, 사용자가 입력을 줄이거나 분할해야 한다. GraphDB 도구는 남아 있으나 **명시 호출 전용**이다 (자체 설치·라이선스 전제). |
@@ -564,7 +564,7 @@ read_tbox 존재 확인 → generate_abox → validate_ttl_syntax + validate_owl
 | S9.1 OWL sanity | 1~3분 | check_owl2_profile + validate_owl_consistency (HermiT) + run_entailment_regression (WARN-only) |
 | S9.2 품질 점수 기록 | ~15초 | measure_instance_quality (91.6/100 류 5-메트릭 스코어) + read_inferred_delta 샘플 → quality_history |
 | S9.5 KG Mutation | **7~8분** | **opt-in** — 8 mutant 샘플 (M1/M2/M3/M6), validate_kg 재호출 (WARN-only). baseline validate_kg 1회가 ~65초라 mutant 수에 비례 (실측 `duration_s` 448·450초) |
-| S10~S11 딕셔너리 | ~15초 | T-Box 분석 |
+| S10~S11 딕셔너리 | ~15초 + 번역 시 Bedrock 응답 시간 | T-Box 분석 + A-Box 실측 통계. S10 도 S6.5 와 같은 조건에서 Bedrock 번역 1회를 호출한다. S11 `validate_semantic_dictionary` 는 로컬 |
 | S12 질의 테스트 | 10~15초 (기본 `verify_joins=True`) / <1초 (`False`) | **Bedrock 0회 — LLM 미사용**, 프로그래매틱 연결성 검사다 (`query_test.py` 가 `bedrock_calls` 를 상수 0 으로 반환) |
 | S12.5 골든 회귀 | 5~30초 (케이스 수 × 복잡도) | 사용자 입력 없으면 <1초 skip. WARN-only |
 | S13 보고서 | ~5초 | HTML 생성 |

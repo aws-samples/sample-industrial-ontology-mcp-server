@@ -485,7 +485,7 @@ from tools.validation_support.registry import CheckRegistry  # noqa: E402
 def _namespace_mismatch_warning(tbox) -> dict | None:
     """T-Box 의 실제 도메인 네임스페이스가 설정과 다르면 경고 dict, 같으면 None.
 
-    23개 check 중 대부분은 모듈 상수 ``DOMAIN_NS`` (설정값) 로 필터링한다. T-Box/
+    등록된 25개 check 중 대부분은 모듈 상수 ``DOMAIN_NS`` (설정값) 로 필터링한다. T-Box/
     A-Box 가 다른 네임스페이스를 쓰면 그 필터가 **0행** 을 반환하므로 게이트들이
     통과해 버리고, 결과적으로 **점수가 오른다** — 운영자는 개선으로 읽는다.
     2026-08-08 실측: 같은 결함(prov 트리플만 가진 인스턴스)이 설정 네임스페이스에서
@@ -666,26 +666,43 @@ def validate_kg(use_inferred: bool = False) -> str:
 
     예상 소요시간: 5~8분 (추론 그래프 기준)
 
-    1. ObjectProperty 양방향 연결
-    2. 암묵지 공정 흐름 체인
-    3. 고아 노드 탐지
-    4. 클래스별 인스턴스 수
-    5. FK 참조 무결성
-    6. 추론 sanity check
-    7. domain/range 타입 정합성
-    8. 프로퍼티 사용 커버리지
-    9. 값 범위 검증
-    10. T-Box Fitness
-    11. FK-OP Gap 분석
-    12. 프로퍼티별 완전성
-    13. 수치 이상치 탐지
-    14. 시간 정합성
-    15. 댕글링 참조 탐지
-    16. 문자열 패턴 검증
-    17. Functional Property 위반 (Farber 2018)
-    18. Relationship Pattern 이상치 (Paulheim 2017)
-    19. 카디널리티 제약 위반 (OWL min/max/exactCardinality)
-    20. AllDisjointClasses 위반
+    검증 목록은 ``_build_check_registry`` 에 등록된 25개와 같다. 괄호 안은 등록
+    key 이고, 그룹은 ``tools/validation_support/checks/`` 의 파일 구분을 따른다.
+
+    구조 (4)
+      1. ObjectProperty 양방향 연결 (bidirectional)
+      2. 공정 흐름 체인 (process_flow)
+      3. 고아 노드 탐지 (orphan)
+      4. 클래스별 인스턴스 수 (class_count)
+
+    참조 (7)
+      5. FK 참조 무결성 (fk_ref)
+      6. FK-OP Gap 분석 (fk_op)
+      7. 댕글링 참조 탐지 (dangling)
+      8. 미선언 ObjectProperty 탐지 (undeclared_op)
+      9. 미선언 DatatypeProperty 탐지 (undeclared_dp)
+      10. Closed-World master 고립 (cw_master_orphan)
+      11. Closed-World FK 미해결 (cw_fk_unresolved)
+
+    의미 (5)
+      12. domain/range 타입 정합성 (domain_range)
+      13. 스키마 참조 무결성 (schema_ref)
+      14. 프로퍼티 사용 커버리지 (property_coverage)
+      15. T-Box Fitness (tbox_fitness)
+      16. 필수참여 공리 충족 (existential_participation)
+
+    통계 (4)
+      17. 값 범위 검증 (value_ranges)
+      18. 수치 이상치 탐지 (numeric_outliers)
+      19. 문자열 패턴 검증 (string_patterns)
+      20. Relationship Pattern 이상치 (relationship_outliers, Paulheim 2017)
+
+    추론·카디널리티 (5)
+      21. 추론 sanity check (inference)
+      22. 프로퍼티별 완전성 (prop_completeness)
+      23. Functional Property 위반 (functional, Farber 2018)
+      24. 카디널리티 제약 위반 (cardinality, OWL min/max/exactCardinality)
+      25. AllDisjointClasses 위반 (disjoint)
 
     Args:
         use_inferred: True면 all_inferred.ttl 사용, False면 T-Box+A-Box+tacit 병합.

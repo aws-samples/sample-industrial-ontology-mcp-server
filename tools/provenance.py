@@ -30,10 +30,10 @@ from datetime import UTC, datetime
 from rdflib import XSD, Graph, Literal, URIRef
 from rdflib.namespace import RDF
 
-from config import ABOX_PATH, INFERRED_PATH
+from config import ABOX_PATH, GENERATED_DIR, INFERRED_PATH
 from domain.namespaces import DOMAIN_NS_OBJ, PROV
 from domain.tbox_utils import _new_graph
-from tools.common import error_response, success_response
+from tools.common import error_response, resolve_path_within, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -546,21 +546,25 @@ def trace_provenance(instance_uri: str, prov_path: str = "") -> str:
 
     Args:
         instance_uri: 조회할 A-Box 인스턴스 URI (전체 URI).
-        prov_path: provenance TTL 경로. 비어있으면 A-Box의 provenance sidecar
-                   (data/generated/abox_provenance.ttl) 또는 A-Box 자체에서 검색.
+        prov_path: data/generated 아래 provenance TTL 경로 (절대경로 또는 작업
+                   디렉터리 기준 상대경로). symlink 해석 후에도 data/generated 안이어야
+                   한다. 비어있으면 A-Box 디렉터리의 provenance sidecar
+                   (data/generated/abox/abox_provenance.ttl) 또는 A-Box 자체에서 검색.
     """
     logger = logging.getLogger(__name__)
     try:
-        g = _new_graph()
         candidate_paths = []
         if prov_path:
-            candidate_paths.append(prov_path)
+            candidate_paths.append(
+                resolve_path_within(GENERATED_DIR, prov_path, allowed_suffixes=(".ttl",)),
+            )
         else:
             abox_dir = os.path.dirname(ABOX_PATH)
             candidate_paths.extend([
                 os.path.join(abox_dir, "abox_provenance.ttl"),
                 ABOX_PATH,
             ])
+        g = _new_graph()
         loaded = False
         for p in candidate_paths:
             if os.path.exists(p):
@@ -603,7 +607,9 @@ def query_inference_justification(
 
     Args:
         s, p, o: 조회할 추론 triple (전체 URI 문자열, 예: "http://.../EQ001").
-        prov_path: inference_provenance.ttl 경로. 빈 문자열이면 기본 위치 사용.
+        prov_path: data/generated 아래 inference_provenance.ttl 경로 (절대경로 또는
+            작업 디렉터리 기준 상대경로). symlink 해석 후에도 data/generated 안이어야
+            한다. 빈 문자열이면 기본 위치 사용.
 
     Returns:
         success_response({
@@ -615,7 +621,11 @@ def query_inference_justification(
         또는 error_response (파일 없음 / SPARQL 실패).
     """
     try:
-        path = prov_path or _default_inference_prov_path()
+        path = _default_inference_prov_path()
+        if prov_path:
+            path = resolve_path_within(
+                GENERATED_DIR, prov_path, allowed_suffixes=(".ttl",),
+            )
         if not os.path.exists(path):
             return error_response(
                 f"inference_provenance.ttl 없음: {path}",

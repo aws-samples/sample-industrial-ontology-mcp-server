@@ -587,8 +587,8 @@ def _parse_tbox(tbox_ttl: str) -> dict:
             dp_ranges[name.lower()] = str(range_val)
 
     # ── 출처 컬럼 인덱스 (dcterms:source) ──────────────────────────────
-    # T-Box 생성 프롬프트 (04-property-rules.md 원칙 4-1) 가 모든 DP 에
-    # `dcterms:source "<CSV_COLUMN_CODE>"` 를 필수로 요구한다. 이 표기는 DP 이름
+    # T-Box 생성 프롬프트 (04-property-rules.md 의 "DatatypeProperty declaration" 절)
+    # 가 모든 DP 에 `dcterms:source "<CSV_COLUMN_CODE>"` 를 필수로 요구한다. 이 표기는 DP 이름
     # 추측을 없애는 authoritative 매핑 — LLM 이 권위 한글명 기반으로 의미 있는
     # 이름 (processStepABottomNozzleFlowQty1) 을 짓더라도 원본 컬럼
     # (QTY_COL_1) 과 직접 연결된다. 표기 없는 DP 는 이 인덱스에
@@ -4403,9 +4403,10 @@ def _check_required_props_coverage(
 
         # ``dcterms:source`` 역인덱스 — **이름 추측보다 강한 근거**.
         #
-        # T-Box 는 DP 마다 유래 CSV 컬럼을 ``dcterms:source`` 로 기록한다 (원칙 4-1,
-        # 배포 T-Box 에서 268/268 기록됨). canonical 의 alias 는 곧 CSV 컬럼명이므로
-        # (``hasTimestamp`` → ``timestamp``/``datetime``), (클래스, 컬럼) 으로 조회하면
+        # T-Box 는 DP 마다 유래 CSV 컬럼을 ``dcterms:source`` 로 기록한다
+        # (04-property-rules.md 의 "DatatypeProperty source column" 절). canonical 의
+        # alias 는 곧 CSV 컬럼명이므로 (``hasTimestamp`` → ``timestamp``/``datetime``),
+        # (클래스, 컬럼) 으로 조회하면
         # 이름 규칙과 무관하게 정확한 DP 를 얻는다. 위 전개가 못 맞춘 형태도 여기서
         # 해결된다.
         if for_class:

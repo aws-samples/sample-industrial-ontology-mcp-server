@@ -9,8 +9,12 @@ OP 에는 그 넷이 하나도 없었다. 실측 (2026-08-12):
   선언된 OP = 229  /  A-Box 가 쓰는 OP = 14
   S2 작성 OP 사용률 4/160 (2%)  vs  같은 산출물의 DP 171/252 (68%)
 
-근본 원인은 프롬프트다: ``04-property-rules.md`` 원칙 2 가 CSV FK 없이 24개 관계
-쌍을 열거하고 원칙 5 가 모든 OP 에 역방향을 요구한다.
+현재 S2 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md``) 는
+"ObjectProperty evidence" 절에서 CSV FK, 검토된 tacit 규칙, 제공된 CQ 중 하나가
+뒷받침할 때만 OP 를 만들라고 하고, "ObjectProperty declaration" 절에서 역방향 OP 는
+CQ 나 필요한 탐색이 요구할 때만 두라고 지시한다. 프롬프트는 LLM 에 대한 요청이라
+S2 출력이 이를 어길 수 있고, CQ 만 근거인 OP 는 채울 데이터가 없으면 값 0건으로
+남는다. 이 게이트가 S3 에서 그런 OP 를 센다.
 
 **이 게이트는 삭제하지 않는다** — 값 0건 OP 도 tacit·Restriction·설정·미래 CSV 라는
 근거를 가질 수 있다. 근거를 네 갈래로 세고 **어떤 근거도 없는 것** 만 보고한다.
@@ -160,8 +164,8 @@ def test_fail_mode_raises_over_the_threshold(monkeypatch):
 def test_threshold_allows_the_current_baseline(monkeypatch):
     """임계치 이내면 PASS — 기준선을 잡아 **악화만** 잡는다.
 
-    무근거 OP 는 프롬프트가 만든 것이라 S3 가 고칠 수 없다. 임계치를 0 으로 두면
-    매 실행 FAIL 이라 아무도 보지 않게 된다.
+    무근거 OP 는 S2 출력에서 오고 이 게이트는 읽기 전용이라 S3 가 고칠 수 없다.
+    임계치를 0 으로 두면 매 실행 FAIL 이라 아무도 보지 않게 된다.
     """
     _isolate(monkeypatch)
     monkeypatch.setenv("TBOX_OP_GROUNDING_MAX", "5")
@@ -192,7 +196,8 @@ def test_empty_tbox_is_a_clean_no_op(monkeypatch):
 def test_pipeline_output_stays_within_the_baseline(s3_output_stats):
     """실측 고정: 현재 S3 산출물의 무근거 OP 가 기준선을 넘지 않는다.
 
-    이 수치가 오르면 프롬프트가 더 많은 유령 관계를 만들기 시작했다는 뜻이다.
+    이 수치가 오르면 S2 출력이 "ObjectProperty evidence" 절을 어긴 관계를 더 많이
+    만들기 시작했다는 뜻이다.
     """
     if s3_output_stats is None:
         pytest.skip("S2 초안 픽스처 없음")

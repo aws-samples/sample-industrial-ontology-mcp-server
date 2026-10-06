@@ -12,7 +12,7 @@ customer data.
 | `data/source/rawdata/*.csv` | Synthetic data | 40 files | Workshop inputs created for the manufacturing example, not records from an operating environment. |
 | `data/source/reference/` | Third-party ontology material | 5 third-party assets totaling 879,121 bytes | IOF, BFO, and an IOF-derived reference index. These assets retain their upstream licenses and are excluded from implied MIT-0 relicensing. The directory also contains an AWS-authored 1,956-byte attribution README. |
 | `data/source/tacit/*.ttl` | Synthetic tacit knowledge | 8 files | Deterministic rule outputs and workshop assertions derived from the synthetic example. |
-| `workshop/pre-generated/` | Synthetic derived output, including model-generated ontology content | 7 files totaling 7,058,620 bytes (6.7 MiB) | Pre-generated T-Box, A-Box, inferred graph, semantic dictionary, and reports derived from the synthetic inputs. The T-Box was generated with an Amazon Bedrock model and requires domain-expert review before use. |
+| `workshop/pre-generated/` | Synthetic derived output, including model-generated ontology content | 7 files totaling 7,059,053 bytes (6.7 MiB) | Pre-generated T-Box, A-Box, inferred graph, semantic dictionary, and reports derived from the synthetic inputs. The T-Box was generated with an Amazon Bedrock model and requires domain-expert review before use. |
 
 The inventory was measured from tracked files for this release:
 
@@ -38,6 +38,13 @@ checked-in A-Box, inferred graph, and semantic dictionary carry the same
 values. They were updated by exact literal replacement, together with the
 recorded checksum of that CSV, without rerunning the pipeline, so their RDF
 triple counts are unchanged.
+
+The checked-in T-Box and inferred graph declare no persistent identifier for
+the ontology. The `owl:sameAs` alias to a `w3id.org` path that has not been
+registered for this sample was removed from the T-Box, together with the 28
+inferred-graph triples that used that alias as subject or object. The removal
+deleted those statements exactly, without rerunning the pipeline, so the T-Box
+now holds 5,009 triples and the inferred graph 1,376,144.
 
 ## Handling Requirements
 

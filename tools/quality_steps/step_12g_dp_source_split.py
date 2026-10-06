@@ -1,8 +1,9 @@
 """Step 12g — 한 DP 가 여러 CSV 컬럼을 주장할 때 하나만 남긴다.
 
 ``dcterms:source`` 는 "이 DP 가 어느 CSV 컬럼에서 왔는가" 를 단일하게 지목해야
-한다 (원칙 4-1: 컬럼 1개 = DP 1개). 여러 컬럼을 주장하면 A-Box 생성기가 각 컬럼을
-순회하며 **같은 속성에 값을 합쳐** 넣는다.
+한다 (``prompts/tbox-prompt-modules/04-property-rules.md`` 의 "DatatypeProperty
+source column" 절: 컬럼 1개 = DP 1개). 여러 컬럼을 주장하면 A-Box 생성기가 각
+컬럼을 순회하며 **같은 속성에 값을 합쳐** 넣는다.
 
 **실측 (2026-07-27)**: ``orderStdNoBOld`` 가 ``STD_NO_B_OLD`` 와
 ``STD_NO_B_NEW`` 을 함께 주장했다. 두 컬럼은 7,272행에서 모두 채워지지만

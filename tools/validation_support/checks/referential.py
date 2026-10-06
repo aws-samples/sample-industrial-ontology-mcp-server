@@ -22,7 +22,7 @@ from config import (
     MASTER_DATA_PATH,
     SOURCE_RAWDATA_DIR,
 )
-from domain.namespaces import DOMAIN_INST_NS, DOMAIN_NS
+from domain.namespaces import DOMAIN_INST_NS, DOMAIN_NS, sparql_iri
 from domain.rules_paths import rules_path
 from domain.tbox_utils import _new_graph
 from domain.uri_conventions import local_name as _local_name
@@ -68,7 +68,7 @@ def check_fk_referential_integrity(
     # SPARQL 단일 쿼리로 per-OP total + dangling count 집계.
     # dangling 판정: object 가 IRI 이지만 rdf:type 트리플이 없음 (typed_subjects
     # 에 미포함) → FILTER NOT EXISTS { ?o a ?_t }.
-    values_block = " ".join(f"<{u}>" for _, u, _ in prop_checks)
+    values_block = " ".join(sparql_iri(u) for _, u, _ in prop_checks)
     q = (
         "SELECT ?p (COUNT(?o) AS ?total) "
         "(SUM(IF(isIRI(?o) && NOT EXISTS { ?o a ?_t }, 1, 0)) AS ?dangling) "
@@ -578,14 +578,16 @@ def check_closed_world_master_orphan(
             logger.debug("master_data 타입 추출 실패: %s", e)
 
     referenced: set[URIRef] = set()
-    values_block = " ".join(f"<{u}>" for u in master_uris)
-    query = (
-        "SELECT DISTINCT ?o WHERE { "
-        f"  VALUES ?o {{ {values_block} }} "
-        "  ?s ?p ?o . "
-        "}"
-    )
     try:
+        # 질의에 넣을 수 없는 IRI 가 있으면 sparql_iri 가 ValueError 를 내고 아래
+        # Python 순회 경로가 같은 판정을 한다.
+        values_block = " ".join(sparql_iri(u) for u in master_uris)
+        query = (
+            "SELECT DISTINCT ?o WHERE { "
+            f"  VALUES ?o {{ {values_block} }} "
+            "  ?s ?p ?o . "
+            "}"
+        )
         for row in g.query(query):
             referenced.add(row[0])
     except Exception as e:
@@ -724,7 +726,7 @@ def check_closed_world_fk_unresolved(
     unresolved_by_prop: dict[str, int] = defaultdict(int)
     total_fk = 0
     unresolved_total = 0
-    values_block = " ".join(f"<{u}>" for u in op_uris)
+    values_block = " ".join(sparql_iri(u) for u in op_uris)
     query = (
         "SELECT ?p ?o WHERE { "
         f"  VALUES ?p {{ {values_block} }} "

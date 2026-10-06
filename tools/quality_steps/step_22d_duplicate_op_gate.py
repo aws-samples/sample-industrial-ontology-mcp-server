@@ -1,8 +1,10 @@
 """Step 22d — 중복 ObjectProperty 게이트 (read-only 측정).
 
-T-Box 생성 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md`` 원칙 6)
-는 같은 ``(rdfs:domain, rdfs:range)`` 쌍에 관계를 중복 생성하지 말도록 요구한다.
-프롬프트는 LLM 에 대한 요청이므로 지켜지지 않을 수 있고, 실제로 지켜지지 않았다.
+T-Box 생성 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md`` 의
+"One ObjectProperty per domain and range" 절) 는 같은 ``(rdfs:domain, rdfs:range)``
+쌍에 ObjectProperty 를 하나만 선언하도록 요구한다. 각자 FK 컬럼을 가진 서로 다른
+관계 (출발지·목적지처럼 방향이 대립하는 관계) 만 예외다. 프롬프트는 LLM 에 대한
+요청이므로 출력이 이 규칙을 어길 수 있다.
 
 **실측 (2026-07-26)**: ``domain=MaterialA, range=ProcessStepA`` 인 OP 가 **7개** 생성됐다.
 주석을 읽으면 넷 이상이 같은 사실을 관점만 달리해 서술한다 (중간재 실적 /
@@ -186,7 +188,8 @@ def apply(g: Graph, ctx: StepContext) -> StepResult:
                 f"{worst.get('count')}개 {worst.get('properties')}. "
                 "CSV FK 컬럼은 하나뿐이라 A-Box 는 그중 하나만 채우고 나머지는 "
                 "값 0건으로 남는다 — 빈 관계로 질의하면 0건이 정답처럼 반환된다. "
-                "prompts/tbox-prompt-modules/04-property-rules.md 원칙 6 참조."
+                "prompts/tbox-prompt-modules/04-property-rules.md 의 "
+                "\"One ObjectProperty per domain and range\" 절 참조."
             )
             if mode == "fail":
                 logger.error("Step 22d duplicate OP gate FAIL: %s", message)

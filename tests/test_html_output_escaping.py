@@ -142,6 +142,8 @@ function element(id) {
 const registry = {};
 const document = {
   getElementById(id) { return registry[id] || (registry[id] = element(id)); },
+  // 생성한 요소도 같은 스텁이라 innerHTML 대입이 있으면 writes 에 기록돼 검사된다.
+  createElement(tag) { return element(tag); },
   querySelector() { return null; },
   querySelectorAll() { return []; },
 };

@@ -7,12 +7,17 @@
 조용히 폐기되고 T-Box DP 781 개가 값 0건 공백으로 남았다.
 
 해결: T-Box 가 각 DP 에 유래 컬럼을 ``dcterms:source`` 로 선언하고
-(``prompts/tbox-prompt-modules/04-property-rules.md`` 원칙 4-1),
+(``prompts/tbox-prompt-modules/04-property-rules.md`` 의 "DatatypeProperty source column" 절),
 ``_col_to_prop`` 이 이를 **1순위** 로 조회한다 (step 0). 본 테스트는 그 경로와
 안전장치 (충돌 무효화 / domain 가드 / 폴백 하위호환) 를 고정한다.
 """
 from __future__ import annotations
 
+import logging
+import re
+from pathlib import Path
+
+import pytest
 from rdflib import OWL, RDF, RDFS, Literal, Namespace, URIRef
 
 from domain.tbox_utils import _new_graph
@@ -213,8 +218,6 @@ def test_gate_warns_below_threshold_without_raising(monkeypatch):
 
 
 def test_gate_fails_hard_in_fail_mode(monkeypatch):
-    import pytest
-
     monkeypatch.setenv("TBOX_DP_SOURCE_GATE", "fail")
     monkeypatch.setenv("TBOX_DP_SOURCE_THRESHOLD", "0.95")
     with pytest.raises(RuntimeError, match="커버리지"):
@@ -313,3 +316,65 @@ def test_gate_flags_duplicate_source_claims(monkeypatch):
     result = s12e.apply(g, StepContext(domain_ns=STEEL_STR))
     assert result.stats["duplicate_source_count"] == 1
     assert "ProcessStepA/COL_WITH_0" in result.stats["duplicate_sources_sample"]
+
+
+# ── 프롬프트 인용 계약 ─────────────────────────────────────────────────
+#
+# 04-property-rules.md 에는 번호 붙은 원칙이 없고 절 제목만 있다. 게이트 메시지가
+# 번호나 없는 제목을 가리키면 사용자는 근거를 찾지 못한다.
+
+_REPO = Path(__file__).resolve().parent.parent
+_PROPERTY_RULES = _REPO / "prompts" / "tbox-prompt-modules" / "04-property-rules.md"
+_QUALITY_STEPS = _REPO / "tools" / "quality_steps"
+_SECTION_CITATION = re.compile(r'\\?"([A-Za-z][A-Za-z ]*[A-Za-z])\\?" 절')
+_NUMBERED_PRINCIPLE = re.compile(r"원칙\s*\d")
+
+
+def _property_rule_headings() -> set[str]:
+    text = _PROPERTY_RULES.read_text(encoding="utf-8")
+    return {line.lstrip("#").strip() for line in text.splitlines() if line.startswith("#")}
+
+
+def _assert_cites_existing_sections(text: str) -> None:
+    assert not _NUMBERED_PRINCIPLE.search(text), f"번호 원칙을 인용한다: {text}"
+    cited = set(_SECTION_CITATION.findall(text))
+    assert cited, f"04-property-rules.md 절 제목 인용이 없다: {text}"
+    missing = cited - _property_rule_headings()
+    assert not missing, f"04-property-rules.md 에 없는 절: {sorted(missing)}"
+
+
+def test_gate_failure_message_cites_existing_prompt_sections(monkeypatch):
+    """커버리지 미달 RuntimeError 가 실제 절 제목으로 근거를 안내한다."""
+    monkeypatch.setenv("TBOX_DP_SOURCE_GATE", "fail")
+    monkeypatch.setenv("TBOX_DP_SOURCE_THRESHOLD", "0.95")
+    with pytest.raises(RuntimeError) as excinfo:
+        s12e.apply(_gate_graph(5, 15), StepContext(domain_ns=STEEL_STR))
+    _assert_cites_existing_sections(str(excinfo.value))
+
+
+def test_multi_column_warning_cites_existing_prompt_section(monkeypatch, caplog):
+    """한 DP 가 여러 컬럼을 주장할 때의 WARN 도 실제 절 제목을 가리킨다."""
+    monkeypatch.setenv("TBOX_DP_SOURCE_GATE", "warn")
+    g = _gate_graph(1, 0)
+    g.add((URIRef(STEEL_STR + "dpWith0"), DCTERMS.source, Literal("COL_OTHER")))
+    with caplog.at_level(logging.WARNING, logger=s12e.logger.name):
+        result = s12e.apply(g, StepContext(domain_ns=STEEL_STR))
+    assert result.stats["multi_column_dp_count"] == 1
+    warnings = [r.getMessage() for r in caplog.records if "컬럼 여럿" in r.getMessage()]
+    assert len(warnings) == 1
+    _assert_cites_existing_sections(warnings[0])
+
+
+def test_quality_step_prompt_citations_name_existing_sections():
+    """04-property-rules.md 를 인용하는 S3 스텝은 번호 원칙 대신 실제 절 제목을 쓴다."""
+    citing = [
+        path for path in sorted(_QUALITY_STEPS.glob("*.py"))
+        if "04-property-rules" in path.read_text(encoding="utf-8")
+    ]
+    assert citing
+    headings = _property_rule_headings()
+    for path in citing:
+        src = path.read_text(encoding="utf-8")
+        assert not _NUMBERED_PRINCIPLE.search(src), f"{path.name}: 번호 원칙 인용"
+        missing = set(_SECTION_CITATION.findall(src)) - headings
+        assert not missing, f"{path.name}: 04-property-rules.md 에 없는 절 {sorted(missing)}"

@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-"""Render Capstone markdown output to standalone HTML 1-pager.
+"""Capstone 마크다운을 단일 파일 HTML 1페이지로 렌더링한다.
 
-Usage:
-    python scripts/render_capstone.py --name <participant-name> --date 2026-XX-XX
+사용법:
+    python scripts/render_capstone.py --name <닉네임 또는 참가번호> --date YYYY-MM-DD
 
-Reads workshop/capstone-outputs/<name>_<date>.md, renders to single-file HTML
-that participant emails to themselves as the visible artifact of the workshop.
-
-참가자가 눈으로 확인할 수 있는 산출물을 남기는 것이 이 스크립트의 목적이다.
+workshop/capstone-outputs/<name>_<date>.md 를 읽어 같은 이름의 .html 을 만든다. 마크다운
+파일이 없으면 TEMPLATE.md 를 그 경로로 복사한다. 결과물은 참가자 본인 보관용이고, 제출은
+워크북 6-2c 의 규칙을 따르는 선택 사항이다.
 """
 from __future__ import annotations
 
@@ -17,6 +16,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CAPSTONE_DIR = REPO_ROOT / "workshop" / "capstone-outputs"
@@ -101,13 +101,60 @@ def render_markdown_to_html(md: str) -> str:
     return "\n".join(out)
 
 
+_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+_LINK_SLOT_RE = re.compile("\x00(\\d+)\x00")
+
+#: ``href`` 로 내보내는 scheme. 나머지(javascript:, data:, vbscript:, file: 등)는 링크로 만들지 않는다.
+_ALLOWED_LINK_SCHEMES = frozenset({"http", "https"})
+#: 브라우저는 URL 양끝의 C0 제어 문자와 공백을 버리고 중간의 탭·개행을 지운 뒤 scheme 을 읽는다.
+_URL_EDGE_CHARS = "".join(chr(code) for code in range(0x21))
+_URL_DROPPED_CHARS = str.maketrans("", "", "\t\n\r")
+
+
+def _safe_href(url: str) -> str | None:
+    """링크 대상이 http(s) URL 이나 상대 참조면 브라우저가 읽을 형태로, 아니면 None 을 돌려준다.
+
+    scheme 없는 대상이 ``//`` 로 시작하면 슬래시 개수와 무관하게 거부하고, 역슬래시도 거부한다.
+    브라우저는 역슬래시를 ``/`` 로 읽는다. 이 HTML 은 ``file:`` 로 열리므로 ``//host`` 는 다른
+    호스트를 가리키고, ``////host`` 처럼 netloc 이 비어 보이는 형태도 Windows 에서 UNC 경로로
+    열린다. 그래서 ``urlsplit`` 의 netloc 만으로는 판정하지 않는다.
+    """
+    normalized = url.strip(_URL_EDGE_CHARS).translate(_URL_DROPPED_CHARS)
+    if not normalized or "\\" in normalized:
+        return None
+    try:
+        parts = urlsplit(normalized)
+    except ValueError:
+        return None
+    if parts.scheme:
+        return normalized if parts.scheme.lower() in _ALLOWED_LINK_SCHEMES else None
+    return None if parts.netloc or normalized.startswith("//") else normalized
+
+
+def _render_emphasis(escaped: str) -> str:
+    """이미 escape 한 텍스트에 굵게와 인라인 코드를 적용한다."""
+    escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
+    return re.sub(r"`([^`]+?)`", r"<code>\1</code>", escaped)
+
+
 def render_inline(text: str) -> str:
-    """Inline markdown: bold / italic / code / links."""
-    text = html.escape(text)
-    text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
-    text = re.sub(r"`([^`]+?)`", r"<code>\1</code>", text)
-    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
-    return text
+    """Inline markdown: bold / code / links.
+
+    링크는 굵게·코드 처리 전에 자리표시자로 빼 둔다. 그래서 URL 안의 ``**`` 나 backtick 이
+    속성 값 안에 태그를 만들지 않는다. 대상이 ``_safe_href`` 를 통과할 때만 ``<a href>`` 가 되고,
+    통과하지 못하면 링크 텍스트만 남는다. 자리표시자 구분자인 NUL 은 입력에서 지운다.
+    """
+    anchors: list[str] = []
+
+    def stash(match: re.Match[str]) -> str:
+        label = _render_emphasis(html.escape(match.group(1)))
+        href = _safe_href(match.group(2))
+        anchors.append(label if href is None else f'<a href="{html.escape(href)}">{label}</a>')
+        return f"\x00{len(anchors) - 1}\x00"
+
+    body = _LINK_RE.sub(stash, text.replace("\x00", ""))
+    body = _render_emphasis(html.escape(body))
+    return _LINK_SLOT_RE.sub(lambda slot: anchors[int(slot.group(1))], body)
 
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -137,9 +184,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </div>
 {body}
 <div class="footer">
-  📎 3.5시간 워크샵의 visible artifact — D+1 매니저 1:1 에 첨부.<br>
-  🎯 한 줄 약속: "당신은 3.5시간 후 (a) KG 가치 1분 설명, (b) Claude SPARQL 검증,
-  (c) 자사 PoC Day 1 청사진 — 모두 가능."
+  📎 워크샵 Capstone 본인 보관용 1페이지. 제출은 선택 사항이며, 제출한다면 데이터 취급 규칙을
+  지킨 파일을 주최 측이 지정한 승인된 채널로 보냅니다.<br>
+  🎯 워크샵 목표: (a) KG 가치 1분 설명, (b) Claude 가 만든 SPARQL 검증, (c) 자사 PoC 첫날 계획.
 </div>
 </body>
 </html>
@@ -148,7 +195,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--name", required=True, help="Participant name (kebab-case)")
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="닉네임 또는 참가번호 (실명 대신). 파일 이름 <name>_<date>.md 에 쓰인다",
+    )
     parser.add_argument(
         "--date",
         default=datetime.now().strftime("%Y-%m-%d"),
@@ -164,10 +215,12 @@ def main() -> int:
             print(f"[ERROR] Neither {md_path} nor TEMPLATE.md found.", file=sys.stderr)
             return 1
         print(
-            f"[INFO] {md_path} not found — copying TEMPLATE.md to that path.\n"
-            f"       Edit it (5 minutes) then re-run this script."
+            f"[INFO] {md_path} not found; copying TEMPLATE.md to that path.\n"
+            f"       Edit it, then re-run this script."
         )
-        md_path.write_text(template.read_text(), encoding="utf-8")
+        # TEMPLATE.md 는 UTF-8 한국어 문서다. 인코딩을 생략하면 Windows 기본 locale
+        # 인코딩 (cp949, cp1252) 으로 디코드하다 UnicodeDecodeError 가 난다.
+        md_path.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
         print(f"[OK] Created {md_path}")
         return 0
 
@@ -184,11 +237,17 @@ def main() -> int:
     out_path.write_text(html_out, encoding="utf-8")
     print(f"[OK] Rendered {out_path}")
     print(
-        "     → 본인 노트북에 저장 + 이메일/Slack 으로 자기 자신에게 발송.\n"
-        "     → D+1 매니저 1:1 에 첨부 (workbook §M11 1-pager 5줄과 함께)."
+        "     → 본인 보관용입니다. 제출은 선택 사항이며, 강사가 회수를 요청한 경우에만\n"
+        "       데이터 취급 규칙을 지킨 파일을 주최 측이 지정한 승인된 채널로 보냅니다 (워크북 6-2c)."
     )
     return 0
 
 
 if __name__ == "__main__":
+    # 출력에는 한국어와 기호 (→) 가 있다. 출력을 파일이나 파이프로 돌리면 Windows 는
+    # locale 인코딩으로 쓰려다 UnicodeEncodeError 를 내므로 UTF-8 로 고정한다.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
     sys.exit(main())

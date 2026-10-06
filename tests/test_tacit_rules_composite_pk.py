@@ -88,14 +88,18 @@ def test_steel_surface_quality_regression(tmp_path, monkeypatch):
     import json
     rawdata = tmp_path / "rawdata"
     tacit = tmp_path / "tacit"
+    # generate_tacit_from_rules 는 RULES_ROOT 아래 규칙 파일만 받는다.
+    rules_dir = tmp_path / "rules"
     rawdata.mkdir()
     tacit.mkdir()
+    rules_dir.mkdir()
     import config
     import tools.tacit_rules as tr
     monkeypatch.setattr(config, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(config, "SOURCE_TACIT_DIR", str(tacit))
     monkeypatch.setattr(tr, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(tr, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(tr, "RULES_ROOT", str(rules_dir))
 
     # Unique Sample_ID + Test_DateTime — like real Surface_Quality.csv
     with open(rawdata / "Surface_Quality.csv", "w", encoding="utf-8") as f:
@@ -104,7 +108,7 @@ def test_steel_surface_quality_regression(tmp_path, monkeypatch):
         w.writerow(["Q0001", "P001", "2025-09-30 19:04:59"])
         w.writerow(["Q0002", "P001", "2025-09-01 06:49:57"])
 
-    rules_path = tmp_path / "rules.json"
+    rules_path = rules_dir / "rules.json"
     rules_path.write_text(json.dumps({"mappings": [{
         "name": "sq",
         "strategy": "simple_join",

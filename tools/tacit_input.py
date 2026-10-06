@@ -24,7 +24,7 @@ import re
 from config import SOURCE_RAWDATA_DIR, SOURCE_TACIT_DIR, TBOX_PATH
 from domain.namespaces import DOMAIN_CONFIG, DOMAIN_INST_NS, DOMAIN_NS, NS_INST_PREFIX, NS_PREFIX
 from tools.bedrock import invoke_bedrock_text
-from tools.common import atomic_write, error_response
+from tools.common import atomic_write, error_response, resolve_child_path
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def _load_tbox_context(max_chars: int = 8000) -> str:
     lines.append("")
     lines.append("## 클래스 목록 (암묵지 인스턴스가 속할 수 있는 타입)")
     for c in classes:
-        lines.append(f"- steel:{c}")
+        lines.append(f"- {NS_PREFIX}:{c}")
     lines.append("")
     lines.append("## 클래스별 허용 속성 (★ 매우 중요: 해당 클래스에 한정된 DP/OP만 사용해야 T-Box 일관성 유지)")
     for c in classes:
@@ -130,15 +130,15 @@ def _load_tbox_context(max_chars: int = 8000) -> str:
         if d_list:
             lines.append("  DP:")
             for n, rng in d_list[:20]:
-                lines.append(f"    - steel:{n} (range: {rng})")
+                lines.append(f"    - {NS_PREFIX}:{n} (range: {rng})")
         if o_list:
             lines.append("  OP:")
             for n, rng in o_list[:20]:
-                lines.append(f"    - steel:{n} → {rng}")
+                lines.append(f"    - {NS_PREFIX}:{n} → {rng}")
     lines.append("")
     lines.append("## 제약 (★ 준수 필수)")
     lines.append("- 인스턴스에 DP 를 붙일 때, 그 DP 의 domain 클래스와 일치하는 rdf:type 을 선언할 것.")
-    lines.append("- 예: steel:equipmentType 의 domain 이 EquipmentMaster 이면, 해당 DP 를 쓰는 인스턴스는 EquipmentMaster 타입.")
+    lines.append(f"- 예: {NS_PREFIX}:equipmentType 의 domain 이 EquipmentMaster 이면, 해당 DP 를 쓰는 인스턴스는 EquipmentMaster 타입.")
     lines.append("- 반대로 FailurePattern 에 equipmentType 을 쓰면 OWL RL 이 FailurePattern → EquipmentMaster 로 타입 확산시켜 AllDisjoint 위반.")
     lines.append("- 만약 어떤 DP 가 여러 클래스에 공통으로 필요하면 '새 DP' 를 만들지 말고 '주체 클래스를 domain 에 맞게 선택' 하거나 literal 을 OP 대상으로 재모델링.")
 
@@ -175,6 +175,8 @@ def _load_csv_summary(max_chars: int = 5000) -> str:
 
 def _safe_filename(name: str) -> str:
     """사용자가 준 파일명을 TTL 저장용으로 정규화. 허용: 영숫자/_/-"""
+    if not isinstance(name, str):
+        raise ValueError("filename 은 문자열이어야 합니다.")
     cleaned = name.strip()
     if cleaned.endswith(".ttl"):
         cleaned = cleaned[:-4]
@@ -183,6 +185,14 @@ def _safe_filename(name: str) -> str:
             f"filename '{name}' 은 영숫자/언더스코어/하이픈만 허용됩니다."
         )
     return cleaned + ".ttl"
+
+
+def _tacit_dest(safe_name: str) -> str:
+    """정규화된 파일명을 SOURCE_TACIT_DIR 바로 아래 경로로 해석한다.
+
+    같은 이름의 symlink 가 디렉터리 밖을 가리키면 거부한다 (ValueError).
+    """
+    return resolve_child_path(SOURCE_TACIT_DIR, safe_name, allowed_suffixes=(".ttl",))
 
 
 def _validate_tbox_compliance(ttl: str) -> tuple[bool, list[dict]]:
@@ -434,6 +444,8 @@ def add_tacit_from_natural_language(
 
     Args:
         filename: 저장할 파일명 (확장자 제외, 영숫자/_/-만). 예: "process_flow".
+            data/source/tacit 바로 아래에 저장하며, 같은 이름의 symlink 가 밖을
+            가리키면 거부한다.
         text: 자연어 설명. 여러 규칙을 한 번에 담아도 됨.
         overwrite: True 면 동일 파일명 덮어쓰기. False 면 존재 시 에러.
     """
@@ -448,7 +460,10 @@ def add_tacit_from_natural_language(
             return error_response(str(ve), hint=_input_guide(), logger=logger)
 
         _ensure_tacit_dir()
-        dest = os.path.join(SOURCE_TACIT_DIR, safe_name)
+        try:
+            dest = _tacit_dest(safe_name)
+        except ValueError as ve:
+            return error_response(str(ve), hint=_input_guide(), logger=logger)
         if os.path.exists(dest) and not overwrite:
             return error_response(
                 f"파일이 이미 존재합니다: {dest}",
@@ -462,7 +477,7 @@ def add_tacit_from_natural_language(
 
         prompt = f"""당신은 OWL 온톨로지 엔지니어입니다.
 {domain['name_ko']} 도메인의 현장 운영자가 자연어로 설명한 **암묵지**를
-steel/steel-inst 네임스페이스를 사용한 **RDF Turtle** 트리플로 변환하세요.
+{NS_PREFIX}/{NS_INST_PREFIX} 네임스페이스를 사용한 **RDF Turtle** 트리플로 변환하세요.
 
 ## 네임스페이스 (필수 prefix)
 @prefix {NS_PREFIX}: <{DOMAIN_NS}> .
@@ -483,10 +498,10 @@ steel/steel-inst 네임스페이스를 사용한 **RDF Turtle** 트리플로 변
 3. T-Box 에 정의된 클래스/프로퍼티만 재사용. **새 클래스/DP/OP 정의 금지.**
 4. **★ Domain 준수 (가장 중요)**: 인스턴스에 DatatypeProperty 를 붙일 때,
    해당 DP 의 domain 클래스와 인스턴스의 rdf:type 이 일치해야 한다.
-   - 예: steel:equipmentType 의 domain 이 EquipmentMaster 라면,
-     `steel-inst:XYZ a steel:FailurePattern ; steel:equipmentType "..."` 는 금지.
+   - 예: {NS_PREFIX}:equipmentType 의 domain 이 EquipmentMaster 라면,
+     `{NS_INST_PREFIX}:XYZ a {NS_PREFIX}:FailurePattern ; {NS_PREFIX}:equipmentType "..."` 는 금지.
    - 대신 "triggerCondition", "failureCauseCategory" 같은 **FailurePattern domain 의 DP** 만 사용.
-5. 인스턴스는 steel-inst:{{ClassName}}_{{ID}} 패턴.
+5. 인스턴스는 {NS_INST_PREFIX}:{{ClassName}}_{{ID}} 패턴.
 6. rdfs:label (@ko, @en) 과 rdfs:comment (@ko) 로 의미를 주석화.
 7. 설명이 여러 규칙이면 각각 별도 트리플로 분해.
 8. 만약 적합한 DP/OP 가 T-Box 에 없으면, 해당 사실은 rdfs:comment 에 자연어로만 기록하고
@@ -571,7 +586,8 @@ def generate_tacit_from_data(
         (``_extract_ttl_from_response`` 가 R23 강화로 대부분 복구하지만 완벽하지 않음).
 
     Args:
-        filename: 저장할 파일명.
+        filename: 저장할 파일명 (확장자 제외, 영숫자/_/-만). data/source/tacit 바로
+            아래에 저장하며, 같은 이름의 symlink 가 밖을 가리키면 거부한다.
         focus: 강조할 암묵지 영역 (예: "공정 흐름", "설비-에너지원 매핑"). 비어있으면 범용.
         overwrite: 덮어쓰기 허용.
     """
@@ -582,7 +598,10 @@ def generate_tacit_from_data(
             return error_response(str(ve), hint=_input_guide(), logger=logger)
 
         _ensure_tacit_dir()
-        dest = os.path.join(SOURCE_TACIT_DIR, safe_name)
+        try:
+            dest = _tacit_dest(safe_name)
+        except ValueError as ve:
+            return error_response(str(ve), hint=_input_guide(), logger=logger)
         if os.path.exists(dest) and not overwrite:
             return error_response(
                 f"파일이 이미 존재합니다: {dest}",

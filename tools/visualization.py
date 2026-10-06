@@ -210,7 +210,8 @@ def _build_html(data: dict) -> str:
 
     label·comment·IRI 지역명은 T-Box 에서 그대로 온 값이다. 서버 쪽 HTML 은
     ``html.escape``, script 블록의 JSON 은 ``json_for_script``, 브라우저에서 조립하는
-    innerHTML 은 ``escapeHtml`` 을 거친다. 클릭 대상 클래스 ID 는 인라인 핸들러 문자열에
+    innerHTML 은 ``escapeHtml`` 을 거친다. vis-network 노드 툴팁은 ``textTooltip`` 이
+    ``textContent`` 로 채운 요소로 넘긴다. 클릭 대상 클래스 ID 는 인라인 핸들러 문자열에
     넣지 않고 ``data-*`` 속성으로 넘긴다.
     """
     data_json = json_for_script(data)
@@ -346,6 +347,15 @@ function getColor(parentLocal) {{
     return colorMap[parentLocal] || '#BDC3C7';
 }}
 
+// vis-network 툴팁은 title 이 Element 면 그 노드를 그대로 붙인다. 문자열 title 의 해석은
+// 라이브러리 버전에 맡기지 않고 textContent 로 채운 요소를 넘긴다.
+function textTooltip(value) {{
+    if (!value) return undefined;
+    const el = document.createElement('div');
+    el.textContent = value;
+    return el;
+}}
+
 // Build vis.js nodes
 const nodes = new vis.DataSet(
     DATA.classes.map(c => ({{
@@ -361,7 +371,7 @@ const nodes = new vis.DataSet(
         borderWidth: 0,
         borderWidthSelected: 3,
         margin: 8,
-        title: c.comment_ko || c.label_en,
+        title: textTooltip(c.comment_ko || c.label_en),
     }}))
 );
 

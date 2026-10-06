@@ -21,10 +21,10 @@
       "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
     },
     "instance_uri_pattern": "steel-inst:{ClassName}_{NNNN}",
-    "tbox_triples": 5010,
+    "tbox_triples": 5009,
     "abox_triples": 713276,
     "all_dates_are_xsd_dateTime": true,
-    "inferred_file_size_bytes": 131223779,
+    "inferred_file_size_bytes": 131222302,
     "inference_preservation_rate": 0.9998,
     "lpg_dictionary_available": false,
     "source_mtimes": {

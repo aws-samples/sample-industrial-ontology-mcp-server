@@ -2,6 +2,9 @@
 
 Uses tmp_path + monkeypatch to isolate SOURCE_RAWDATA_DIR/SOURCE_TACIT_DIR
 so the suite never mutates the actual project data.
+
+``generate_tacit_from_rules`` 는 rules_path 를 RULES_ROOT 아래 경로로만 받으므로
+RULES_ROOT 도 tmp_path 아래 rules 디렉터리로 옮기고 규칙 JSON 을 그 안에 쓴다.
 """
 from __future__ import annotations
 
@@ -21,14 +24,17 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
 def _setup_dirs(tmp_path: Path, monkeypatch):
     rawdata = tmp_path / "rawdata"
     tacit = tmp_path / "tacit"
+    rules = tmp_path / "rules"
     rawdata.mkdir()
     tacit.mkdir()
+    rules.mkdir()
     import config
     import tools.tacit_rules as tr
     monkeypatch.setattr(config, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(config, "SOURCE_TACIT_DIR", str(tacit))
     monkeypatch.setattr(tr, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(tr, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(tr, "RULES_ROOT", str(rules))
     return rawdata, tacit
 
 
@@ -110,7 +116,8 @@ def test_augment_csv_fk_rejects_path_traversal(tmp_path, monkeypatch):
 
 
 def _write_rules(tmp_path: Path, mappings: list[dict]) -> Path:
-    p = tmp_path / "tacit_rules.json"
+    """규칙 JSON 을 ``_setup_dirs`` 가 RULES_ROOT 로 지정한 디렉터리에 쓴다."""
+    p = tmp_path / "rules" / "tacit_rules.json"
     p.write_text(json.dumps({"mappings": mappings}), encoding="utf-8")
     return p
 
@@ -362,7 +369,8 @@ def test_unknown_strategy_is_recorded_not_crashed(tmp_path, monkeypatch):
 def test_missing_rules_file_returns_error(tmp_path, monkeypatch):
     _setup_dirs(tmp_path, monkeypatch)
     from tools.tacit_rules import generate_tacit_from_rules
-    result = json.loads(generate_tacit_from_rules(str(tmp_path / "nope.json")))
+    # 경계 안의 없는 파일이어야 경계 거부가 아니라 '없음' 분기를 탄다.
+    result = json.loads(generate_tacit_from_rules(str(tmp_path / "rules" / "nope.json")))
     assert result["success"] is False
     assert "not found" in result["error"].lower()
 

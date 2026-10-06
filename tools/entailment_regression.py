@@ -24,10 +24,11 @@ from typing import Any
 
 from rdflib import Graph
 
-from config import INFERRED_PATH
+from config import GENERATED_DIR, INFERRED_PATH
 from domain.rules_paths import RULES_ROOT, rules_path
+from domain.sparql_templates import reject_sparql_egress
 from domain.tbox_utils import _new_graph
-from tools.common import error_response, success_response
+from tools.common import error_response, resolve_path_within, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +55,13 @@ def load_golden_set(path: str | None = None) -> dict[str, list[dict]]:
 
 
 def _eval_ask(g: Graph, query: str) -> tuple[bool, str | None]:
-    """Run a SPARQL ASK on g. Return (answer, error_or_None)."""
+    """Run a SPARQL ASK on g. Return (answer, error_or_None).
+
+    golden 질의 원문을 실행 직전 그대로 egress 가드에 넣는다. 거부된 질의는
+    실행하지 않고 오류로 돌려준다.
+    """
     try:
+        reject_sparql_egress(query)
         result = g.query(query)
         return bool(result.askAnswer), None
     except Exception as e:
@@ -128,6 +134,42 @@ def _run_golden_set(
     }
 
 
+def _resolve_inferred_path(inferred_path: str) -> str:
+    """공개 ``inferred_path`` 를 data/generated 아래 ``.ttl`` 파일로 제한한다.
+
+    빈 값은 기본 ``INFERRED_PATH`` 를 쓴다.
+
+    Raises:
+        ValueError: 허용 디렉터리 밖이거나 확장자가 ``.ttl`` 이 아닐 때.
+    """
+    if not inferred_path:
+        return INFERRED_PATH
+    try:
+        return resolve_path_within(
+            GENERATED_DIR, inferred_path, allowed_suffixes=(".ttl",),
+        )
+    except ValueError as exc:
+        raise ValueError(f"inferred_path: {exc}") from exc
+
+
+def _resolve_golden_path(golden_path: str) -> str | None:
+    """공개 ``golden_path`` 를 rules/ 아래 ``.json`` 파일로 제한한다.
+
+    빈 값은 ``None`` 을 돌려주고 ``load_golden_set`` 이 기본 경로를 쓴다.
+
+    Raises:
+        ValueError: 허용 디렉터리 밖이거나 확장자가 ``.json`` 이 아닐 때.
+    """
+    if not golden_path:
+        return None
+    try:
+        return resolve_path_within(
+            _RULES_DIR, golden_path, allowed_suffixes=(".json",),
+        )
+    except ValueError as exc:
+        raise ValueError(f"golden_path: {exc}") from exc
+
+
 def run_entailment_regression(
     inferred_path: str = "", golden_path: str = "",
 ) -> str:
@@ -140,7 +182,9 @@ def run_entailment_regression(
 
     Args:
         inferred_path: path to the inferred TTL. Empty → default INFERRED_PATH.
+            symlink 해석 후에도 data/generated 아래의 ``.ttl`` 파일이어야 한다.
         golden_path: path to entailment_golden.json. Empty → project default.
+            symlink 해석 후에도 rules/ 아래의 ``.json`` 파일이어야 한다.
 
     Returns:
         JSON string with total / pass_rate / per-kind counts / failure list.
@@ -148,7 +192,11 @@ def run_entailment_regression(
         early pipelines that haven't authored the golden set yet.
     """
     try:
-        path = inferred_path or INFERRED_PATH
+        path = _resolve_inferred_path(inferred_path)
+        golden_file = _resolve_golden_path(golden_path)
+    except ValueError as e:
+        return error_response(e, logger=logger)
+    try:
         if not os.path.exists(path):
             return error_response(
                 f"추론 결과 파일이 없습니다: {path}",
@@ -157,7 +205,7 @@ def run_entailment_regression(
             )
         g = _new_graph()
         g.parse(path, format="turtle")
-        golden = load_golden_set(golden_path or None)
+        golden = load_golden_set(golden_file)
         report = _run_golden_set(g, golden)
         return success_response(report)
     except Exception as e:

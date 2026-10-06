@@ -26,7 +26,11 @@ Korean: [README.ko.md](README.ko.md)
 
 The included workshop is designed as a self-service guided example. An
 instructor can facilitate the session, but participants can complete the labs
-with the checked-in guides and pre-generated artifacts.
+with the checked-in guides and pre-generated artifacts. Lecture slides are not
+included. The 30-minute ontology foundations segment uses the
+[ontology foundations section](workshop/participant-workbook.md#온톨로지-기초-강의-30분)
+of the participant workbook, which an instructor can present or a participant
+can read alone.
 
 | Time | Activity | Learning objective |
 |---:|---|---|
@@ -106,10 +110,20 @@ permissions. Do not store credentials in this repository.
 ## Cost considerations
 
 Most profiling, conversion, validation, reasoning, and query operations run
-locally. Model charges apply only to explicitly invoked Amazon Bedrock steps,
+locally. Amazon Bedrock model charges apply to the model-assisted tools,
 especially competency-question generation and collaborative T-Box design.
-The pre-generated workshop path avoids those calls. Optional remote stores can
-add infrastructure charges.
+`generate_semantic_dictionary`, which the pipeline runs before A-Box
+generation and again after inference, also calls Bedrock when any class has a
+Korean description (`description_ko`) but no English description
+(`description_en`). That call sends those class names and descriptions to the
+model for translation. The pre-generated package lets the query and
+validation labs skip the collaborative T-Box step, but it does not remove every
+model call. Most classes in the bundled T-Box have only Korean descriptions, so
+regenerating the semantic dictionary from it, as workbook step 6-2a does, sends
+those classes to Bedrock for translation. The workshop steps that generate
+competency questions, add tacit knowledge from natural language, or update the
+T-Box incrementally also call Bedrock. Optional remote stores can add
+infrastructure charges.
 
 ## Quick start
 

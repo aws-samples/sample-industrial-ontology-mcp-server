@@ -48,14 +48,20 @@ OWL 과 대조하고 (``comparable_*``), 메타 shape 은 ``meta_shapes_skipped`
 from __future__ import annotations
 
 import logging
+import os
 
 from rdflib import BNode, Graph, Namespace, URIRef
 
-from config import TBOX_PATH
+from config import GENERATED_TBOX_DIR, TBOX_PATH
 from domain.namespaces import DOMAIN_NS
-from domain.rules_paths import rules_path
+from domain.rules_paths import RULES_ROOT, rules_path
 from domain.tbox_utils import _new_graph
-from tools.common import error_response, success_response
+from tools.common import (
+    error_response,
+    resolve_child_path,
+    resolve_path_within,
+    success_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -265,12 +271,34 @@ def check_shacl_owl_cardinality_sync(
     3. 둘 다 있는데 값이 다른 → inconsistent (수정 필요)
 
     Args:
-        tbox_path: T-Box TTL 경로. 비어있으면 기본.
-        shapes_path: SHACL shapes TTL 경로. 비어있으면 rules/policy/tbox_shapes.ttl.
+        tbox_path: data/generated/tbox 아래 T-Box TTL 파일명. 비어 있으면 기본 T-Box.
+        shapes_path: rules/ 아래 SHACL shapes TTL 경로 (절대경로 또는 작업 디렉터리
+            기준 상대경로). symlink 해석 후에도 rules/ 안이어야 한다. 비어 있으면
+            rules/policy/tbox_shapes.ttl.
 
-    파일을 변경하거나 network operation을 수행하지 않는다.
+    파일을 변경하거나 network operation을 수행하지 않는다. 두 경로는 위 디렉터리
+    밖이나 URL 을 가리키면 읽기 전에 거부한다.
     """
     try:
+        if tbox_path:
+            tbox_path = resolve_child_path(
+                GENERATED_TBOX_DIR,
+                tbox_path,
+                allowed_suffixes=(".ttl",),
+            )
+        if shapes_path:
+            shapes_path = resolve_path_within(
+                RULES_ROOT,
+                shapes_path,
+                allowed_suffixes=(".ttl",),
+            )
+        # rdflib 는 없는 경로 문자열을 URL 로 해석하려 하므로 파싱 전에 확인한다.
+        for label, path in (
+            ("T-Box", tbox_path or TBOX_PATH),
+            ("SHACL shapes", shapes_path or _DEFAULT_SHAPES),
+        ):
+            if not os.path.isfile(path):
+                return error_response(f"{label} 파일이 없습니다: {path}", logger=logger)
         report = check_cardinality_sync(tbox_path, shapes_path)
         # ``comparison_possible=False`` 를 ``ok`` 로 보고하면 안 된다.
         #

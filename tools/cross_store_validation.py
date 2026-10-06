@@ -23,7 +23,7 @@ import logging
 import os
 
 from config import GENERATED_REPORTS_DIR, NEO4J_PASSWORD, NEO4J_URI, NEO4J_USER
-from domain.namespaces import prepend_prefixes
+from domain.namespaces import DOMAIN_INST_NS, prepend_prefixes
 from tools.common import success_response
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ _QUERIES: list[dict] = [
             "SELECT (COUNT(DISTINCT ?i) AS ?n) WHERE { "
             "  ?i a ?c . "
             "  FILTER(isIRI(?i)) "
-            "  FILTER(STRSTARTS(STR(?i), \"" + os.environ.get("DOMAIN_INST_NS_OBJ", "") + "\")) "
+            f"  FILTER(STRSTARTS(STR(?i), \"{DOMAIN_INST_NS}\")) "
             "}"
         ),
         "cypher": "MATCH (n) WHERE n.uri STARTS WITH $prefix RETURN count(DISTINCT n) AS n",
@@ -133,7 +133,6 @@ def _compare_row(query: dict) -> dict:
         results["sparql_inferred"] = None
 
     if query.get("cypher"):
-        from domain.namespaces import DOMAIN_INST_NS
         params = {"prefix": DOMAIN_INST_NS}
         results["neo4j"] = _run_cypher_count(query["cypher"], params)
     else:

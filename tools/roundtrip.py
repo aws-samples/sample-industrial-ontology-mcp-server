@@ -7,7 +7,7 @@
 실제로 원본과 재구성본을 cell 단위 비교한 적은 없음. 여기서 그걸 한다.
 
 방법:
-1. rules/domain/table_class_mapping.json으로 CSV 테이블 ↔ steel 클래스 매핑
+1. rules/domain/table_class_mapping.json으로 CSV 테이블 ↔ 도메인 클래스 매핑
 2. 각 클래스마다 A-Box에서 SPARQL로 인스턴스+DP 값 조회 → row dict
 3. 원본 CSV row와 cell-by-cell diff (row key는 PK 컬럼 추정)
 4. metric:
@@ -25,9 +25,11 @@ import logging
 import os
 
 from config import GENERATED_REPORTS_DIR, SOURCE_RAWDATA_DIR
-from domain.namespaces import prepend_prefixes
+from domain.namespaces import NS_PREFIX, prepend_prefixes
 from domain.rules_paths import RULES_ROOT, rules_path
+from domain.sparql_templates import reject_sparql_egress
 from tools.common import error_response, success_response
+from tools.query_test import _is_local_name
 
 logger = logging.getLogger(__name__)
 
@@ -71,14 +73,28 @@ def _read_csv(path: str, limit: int | None = None) -> tuple[list[str], list[dict
 
 
 def _reconstruct_class_rows(graph, class_name: str, limit: int = 1000) -> list[dict]:
-    """A-Box에서 해당 클래스 인스턴스 + 모든 DP 값을 dict로 복원."""
+    """A-Box에서 해당 클래스 인스턴스 + 모든 DP 값을 dict로 복원.
+
+    클래스는 설정된 도메인 prefix (``NS_PREFIX``) 로 질의한다. ``class_name`` 은
+    로컬 이름 형식일 때만 보간하고, PREFIX 를 붙인 최종 문자열을 egress 가드에 넣은
+    뒤 실행한다.
+
+    Raises:
+        ValueError: ``class_name`` 이 로컬 이름 형식이 아니거나 최종 질의가 가드에
+            거부될 때. 질의는 실행하지 않는다.
+    """
+    if not _is_local_name(class_name):
+        raise ValueError(
+            f"SPARQL 로컬 이름 형식이 아닌 클래스 이름: {str(class_name)[:80]!r}"
+        )
     query = prepend_prefixes(
         "SELECT ?s ?p ?o WHERE { "
-        f"  ?s a steel:{class_name} . "
+        f"  ?s a {NS_PREFIX}:{class_name} . "
         "  ?s ?p ?o . "
         "  FILTER(isLiteral(?o)) "
         "}"
     )
+    reject_sparql_egress(query)
     rows_by_s: dict[str, dict[str, str]] = {}
     try:
         for s, p, o in graph.query(query):
@@ -161,6 +177,9 @@ def _cell_diff(orig: list[dict], recon: list[dict], pk: str) -> dict:
 def roundtrip_class(
     graph, csv_path: str, class_name: str, limit: int = 1000,
 ) -> dict:
+    if not _is_local_name(class_name):
+        return {"class": class_name,
+                "skipped": "class name is not a SPARQL local name"}
     headers, orig_rows = _read_csv(csv_path, limit=limit)
     if not orig_rows:
         return {"class": class_name, "skipped": "empty CSV"}

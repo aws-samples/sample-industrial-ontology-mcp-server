@@ -145,24 +145,11 @@ def _cypher_blocked_clause(query: str) -> str | None:
     return None
 
 
-def _run_cypher(query: str, params: dict | None = None, timeout: float = _QUERY_TIMEOUT) -> list[dict]:
-    """Cypher 쿼리 실행 후 레코드 리스트 반환."""
-    driver = _get_driver()
-    with driver.session() as session:
-        result = session.run(query, parameters=params or {}, timeout=timeout)
-        return [record.data() for record in result]
-
-
 def _first_value(records: list[dict]):
     """첫 레코드의 첫 컬럼 값. 레코드가 없거나 비어 있으면 None."""
     if records and records[0]:
         return list(records[0].values())[0]
     return None
-
-
-def _run_cypher_single(query: str, params: dict | None = None):
-    """단일 값 반환 쿼리."""
-    return _first_value(_run_cypher(query, params))
 
 
 def _run_cypher_read_single(query: str, params: dict | None = None):
@@ -183,7 +170,7 @@ def _run_cypher_read_single(query: str, params: dict | None = None):
 _DEPLOY_BATCH_SIZE = 5000  # Neo4j UNWIND 배치 크기
 
 
-# ── Structural Parity Diff + EXPLAIN Validation ─────────────────────────────
+# ── Structural Parity Diff ──────────────────────────────────────────────────
 
 
 def _compute_parity_diff(cls_name: str, sparql_uris: set, cypher_uris: set) -> dict | None:
@@ -199,16 +186,6 @@ def _compute_parity_diff(cls_name: str, sparql_uris: set, cypher_uris: set) -> d
         "only_in_rdf": only_rdf[:10],
         "only_in_lpg": only_lpg[:10],
     }
-
-
-def _validate_cypher_explain(cypher: str, driver) -> dict:
-    """EXPLAIN으로 Cypher 구문+스키마 유효성 검증 (실행 없이)."""
-    try:
-        with driver.session() as session:
-            session.run("EXPLAIN " + cypher).consume()
-        return {"valid": True}
-    except Exception as e:
-        return {"valid": False, "error": str(e)}
 
 
 # ── MCP 도구 ────────────────────────────────────────────────────────────────
@@ -351,9 +328,15 @@ def _neo4j_deploy_lpg(nodes_csv: str, relationships_csv: str, replace: bool) -> 
             """, batch=params)
             rels_created += len(batch)
 
-    # [C4] 적재 후 검증 — 실제 수량과 비교
-    total_nodes = _run_cypher_single("MATCH (n) RETURN count(n) AS cnt") or 0
-    total_rels = _run_cypher_single("MATCH ()-[r]->() RETURN count(r) AS cnt") or 0
+        # [C4] 적재 후 검증은 실제 수량과 비교한다. 보간 없는 고정 집계를 적재와 같은
+        # 세션에서 실행한다. 별도 READ 세션은 클러스터에서 아직 반영되지 않은 reader 로
+        # 라우팅돼 적재 누락을 잘못 경고할 수 있다.
+        total_nodes = _first_value(
+            session.run("MATCH (n) RETURN count(n) AS cnt").data()
+        ) or 0
+        total_rels = _first_value(
+            session.run("MATCH ()-[r]->() RETURN count(r) AS cnt").data()
+        ) or 0
 
     if total_rels < rels_created:
         warnings.append(
@@ -416,7 +399,8 @@ def neo4j_stats() -> str:
 
     try:
         driver = _get_driver()
-        with driver.session() as session:
+        # 고정 집계 쿼리만 실행하므로 neo4j_query 와 같은 READ 세션을 쓴다.
+        with driver.session(default_access_mode="READ") as session:
             nodes = session.run("MATCH (n) RETURN count(n) AS cnt").single()["cnt"]
             rels = session.run("MATCH ()-[r]->() RETURN count(r) AS cnt").single()["cnt"]
 
@@ -520,6 +504,19 @@ def _sanitize_neo4j_ident(raw: str) -> str:
     return cleaned
 
 
+def _cypher_hint_ident(name: str) -> str | None:
+    """Cypher 힌트에 넣을 수 있는 라벨·관계 이름이면 그대로, 아니면 None 을 돌려준다.
+
+    LPG 변환은 라벨과 관계 타입을 _sanitize_neo4j_ident 로 만든다. 그 결과와 같은
+    이름은 [A-Za-z0-9_] 로만 이뤄지고 숫자로 시작하지 않으며 예약어가 아니므로
+    따옴표 없이도 식별자 자리를 벗어나지 못한다. 그 밖의 이름(사용자 CSV 의 임의
+    타입, T-Box local name 의 괄호·대괄호 등)은 힌트에 넣지 않는다.
+    """
+    if isinstance(name, str) and name and _sanitize_neo4j_ident(name) == name:
+        return name
+    return None
+
+
 def _load_canonical_inverses() -> dict[str, str]:
     """domain_config.json 의 lpg.canonical_inverses 를 {drop: keep} 맵으로 로드.
 
@@ -561,9 +558,14 @@ def _track_exclusion(tracker: dict, predicate_str: str, subject=None, obj=None) 
 
 
 def _generate_cypher_compensation(predicate_str: str, rel_name: str = "") -> str:
-    """제외된 OWL axiom에 대한 Cypher 우회 패턴을 생성한다."""
+    """제외된 OWL axiom에 대한 Cypher 우회 패턴을 생성한다.
+
+    rel_name 이 _cypher_hint_ident 를 통과할 때만 {rel} 자리에 넣고, 아니면
+    {rel} placeholder 를 그대로 둔다.
+    """
     template = _CYPHER_COMPENSATION.get(predicate_str, "LPG에서 직접 표현 불가")
-    return template.replace("{rel}", rel_name) if rel_name else template
+    rel = _cypher_hint_ident(rel_name) if rel_name else None
+    return template.replace("{rel}", rel) if rel else template
 
 
 def _build_lpg_loss_manifest(
@@ -2104,7 +2106,9 @@ def _extract_owl_semantics(rel_names: set[str], dp_names: set[str]) -> dict:
         dp_names: LPG 노드 프로퍼티 이름 집합 (DatatypeProperty 대상).
 
     Returns:
-        {rel_or_prop_name: {transitive?, symmetric?, functional?, inverse_of?, cypher_hint}}
+        {rel_or_prop_name: {transitive?, symmetric?, functional?, inverse_of?, cypher_hint?}}
+        관계 이름이 _cypher_hint_ident 를 통과하지 못하면 특성 플래그만 두고
+        관계 패턴 cypher_hint 는 만들지 않는다.
     """
     if not os.path.exists(TBOX_PATH):
         return {}
@@ -2121,16 +2125,22 @@ def _extract_owl_semantics(rel_names: set[str], dp_names: set[str]) -> dict:
         if name not in rel_names:
             continue
 
+        hint_name = _cypher_hint_ident(name)
         entry: dict = {}
         if (s, RDF.type, OWL.TransitiveProperty) in tbox:
             entry["transitive"] = True
-            entry["cypher_hint"] = f"MATCH path=(a)-[:{name}*]->(b)"
+            if hint_name:
+                entry["cypher_hint"] = f"MATCH path=(a)-[:{hint_name}*]->(b)"
         if (s, RDF.type, OWL.SymmetricProperty) in tbox:
             entry["symmetric"] = True
-            entry["cypher_hint"] = f"MATCH (a)-[:{name}]-(b) // undirected"
+            if hint_name:
+                entry["cypher_hint"] = f"MATCH (a)-[:{hint_name}]-(b) // undirected"
         if (s, RDF.type, OWL.FunctionalProperty) in tbox:
             entry["functional"] = True
-            entry.setdefault("cypher_hint", f"MATCH (a)-[:{name}]->(b) // always 0 or 1")
+            if hint_name:
+                entry.setdefault(
+                    "cypher_hint", f"MATCH (a)-[:{hint_name}]->(b) // always 0 or 1",
+                )
         for _, _, inv in tbox.triples((s, OWL.inverseOf, None)):
             if isinstance(inv, URIRef):
                 entry["inverse_of"] = _local_name(str(inv))
@@ -2347,6 +2357,10 @@ def _build_lpg_semantic_dict(nodes_path: str, rels_path: str) -> dict:
                 src = rel_source[r1].most_common(1)[0][0]
                 mid = max(bridge, key=lambda lb: rel_target[r1][lb])
                 tgt = rel_target[r2].most_common(1)[0][0]
+                # 경로 문자열은 Cypher 패턴 힌트다. 식별자로 그대로 쓸 수 없는 이름이
+                # 하나라도 있으면 패턴을 만들지 않는다.
+                if not all(_cypher_hint_ident(n) for n in (src, r1, mid, r2, tgt)):
+                    continue
                 if src != tgt:
                     score = rel_counts[r1] + rel_counts[r2]
                     path = f"(:{src})-[:{r1}]->(:{mid})-[:{r2}]->(:{tgt})"

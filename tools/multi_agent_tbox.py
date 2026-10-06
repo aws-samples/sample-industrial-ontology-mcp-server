@@ -25,7 +25,8 @@ Jury (독립 심판, temperature=0.4):
 흐름:
   Round 1: Architect → T-Box 초안 (CQ 반영)
   Round 2+: Validator 순차 → SME (Validator 이슈 주입) → Architect 수정
-  합의 후보: Validator/SME 모두 approved + CQ 답변 가능 + MIN_ROUNDS 충족
+  합의 후보: Validator/SME 실질 승인 + 고칠 수 있는 CQ 갭 0건 + veto lock 해제 상태
+  + MIN_ROUNDS 충족 (CSV FK 부재로 고칠 수 없는 CQ 갭은 막지 않는다)
   → Jury 최종 판정 (production_ready 여부 + required_fixes)
   최대 라운드 후 미합의: Jury 최종 → 실패 시 Architect compromise 폴백
 
@@ -1531,8 +1532,9 @@ def _apply_dsl_instructions(ttl: str, instructions: list[dict]) -> dict:
                 g.add((dp_uri, _RDFS.range, rng_uri))
                 _add_dsl_labels(dp_uri, name, instr.get("label_ko"))
                 # 출처 CSV 컬럼 — A-Box 가 컬럼↔DP 를 잇는 확정 근거
-                # (04-property-rules.md 원칙 4-1). 라운드 수정으로 추가되는 DP 도
-                # 초안 DP 와 동일하게 표기해야 Step 12e 게이트를 통과한다.
+                # (04-property-rules.md 의 "DatatypeProperty source column" 절).
+                # 라운드 수정으로 추가되는 DP 도 초안 DP 와 동일하게 표기해야
+                # Step 12e 게이트를 통과한다.
                 # LLM 은 이 필드에 Turtle 표기를 담아 보낸다 ("\"X\"^^xsd:string").
                 # A-Box 는 값을 CSV 헤더와 직접 비교하므로 그대로 쓰면 매칭이
                 # 영구히 실패하고 컬럼이 조용히 폴백으로 떨어진다 (실측 34건).
@@ -6055,7 +6057,7 @@ def generate_tbox_collaborative(
     tables: str = "",
     max_rounds: int = 4,
 ) -> str:
-    """3 에이전트 협업으로 T-Box를 **백그라운드로** 생성한다. (Architect + Validator + SME)
+    """Architect·Validator·SME 토론과 Jury 판정으로 T-Box 를 **백그라운드로** 생성한다.
 
     ⚠️ 비동기 잡 패턴: 이 도구는 생성을 끝까지 돌리지 않고 daemon 워커를 띄운 뒤
     **즉시 job_id 를 반환**한다(수십 ms). 실제 협업은 15~40분(Bedrock LLM 8~12회)
@@ -6069,7 +6071,21 @@ def generate_tbox_collaborative(
     라운드 규약:
       - Round 1 (초안): Architect 가 generate_tbox 로 T-Box 초안 생성
       - Round 2..max_rounds+1 (토론): Validator + SME 리뷰 → Architect 수정
-      - 합의 조건: 두 비평가 approved=true + CQ 전부 답변 가능 + Jury production_ready=true
+      - 예비 합의 조건 (토론 2라운드부터): 두 리뷰어의 실질 승인 + T-Box 로 고칠 수
+        있는 CQ 갭 0건 + veto lock 해제 상태. veto lock 은 같은 critical/high
+        이슈가 2라운드 연속 남으면 걸리고 매 라운드 다시 판정한다.
+      - 실질 승인: 리뷰어가 approved=false 를 내도 차단 이슈가 없으면 승인으로
+        본다. 차단 이슈는 critical/high 중 S3 담당 (deferred_to_s3) 표시나
+        metric·data_gap·deferred 범주가 아닌 이슈다.
+      - 합의: 예비 합의 뒤 Jury 가 production_ready=true 로 판정한 경우뿐이다.
+      - CSV FK 가 없어 T-Box 로 해소할 수 없는 CQ 갭은 합의를 막지 않고
+        ``debate.rounds[*].cq_block_data_gap`` 에 보고된다. 따라서 합의가 모든 CQ 의
+        답변 가능성을 보장하지 않는다.
+      - 남은 차단 이슈 중 실행 가능한 수정이 0건이면 합의 없이 조기 종료한다
+        (``S2_EARLY_STOP=off`` 로 끈다).
+      - 마지막 라운드까지 합의하지 못하면 Jury 최종 판정의 required_fixes 를
+        적용하고 합의 없이 끝낸다. Jury 판정이 실패하면 Architect 절충 사유를
+        감사 기록으로 남긴다.
 
     Args:
         tables: 생성할 테이블명 (쉼표 구분). 비어있으면 전체.

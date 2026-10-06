@@ -23,10 +23,16 @@ from collections import defaultdict
 from rdflib import Graph, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
-from config import GENERATED_REPORTS_DIR, TBOX_PATH
+from config import GENERATED_REPORTS_DIR, GENERATED_TBOX_DIR, TBOX_PATH
 from domain.namespaces import DOMAIN_NS
 from domain.tbox_utils import _new_graph
-from tools.common import error_response, is_deployed_input, success_response, write_deployed_sidecar
+from tools.common import (
+    error_response,
+    is_deployed_input,
+    resolve_child_path,
+    success_response,
+    write_deployed_sidecar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +162,12 @@ def analyze_ontoclean(tbox_path: str | None = None) -> dict:
     if not os.path.exists(path):
         return {"error": f"T-Box not found: {path}"}
     tbox = _new_graph()
-    tbox.parse(path, format="turtle")
+    try:
+        tbox.parse(path, format="turtle")
+    except Exception as exc:
+        # rdflib 파서 예외는 입력 원문 일부를 담으므로 결과에는 파일명만 싣는다.
+        logger.warning("ontoclean T-Box 파싱 실패 (%s): %s", path, exc)
+        return {"error": f"T-Box TTL 파싱 실패: {os.path.basename(path)}"}
 
     meta = _load_meta_annotations(tbox)
     pairs = _collect_subclass_pairs(tbox)
@@ -219,9 +230,16 @@ def validate_ontoclean(tbox_path: str = "") -> str:
     선언이 없으면 "unlabeled"로 분류하고 coverage 보고.
 
     Args:
-        tbox_path: T-Box TTL 경로. 비어있으면 config의 TBOX_PATH 사용.
+        tbox_path: data/generated/tbox 아래 T-Box TTL 파일명. 비어 있으면 config 의
+            TBOX_PATH. 디렉터리 구분자나 밖을 가리키는 symlink 는 거부한다.
     """
     try:
+        if tbox_path:
+            tbox_path = resolve_child_path(
+                GENERATED_TBOX_DIR,
+                tbox_path,
+                allowed_suffixes=(".ttl",),
+            )
         report = analyze_ontoclean(tbox_path or None)
         # analyze_ontoclean 은 실패를 `{"error": ...}` 로 돌려주는데 그것을
         # success_response 로 감싸면 호출자가 성공으로 읽는다 (foops_fair 는

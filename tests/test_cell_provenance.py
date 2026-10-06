@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from unittest.mock import patch
 
+import pytest
 from rdflib import URIRef
 
 from domain.tbox_utils import _new_graph
@@ -60,18 +61,33 @@ def test_trace_missing_provenance():
     assert result["csv_table"] is None
 
 
-def test_mcp_tool_missing_file(tmp_path):
+@pytest.fixture
+def prov_dir(tmp_path, monkeypatch):
+    """도구의 data/generated 경계를 tmp_path 로 옮긴다.
+
+    ``trace_provenance`` 는 prov_path 를 GENERATED_DIR 아래 경로로만 받으므로
+    provenance TTL 을 이 디렉터리 안에 쓴다.
+    """
+    import tools.provenance as provenance
+
+    monkeypatch.setattr(provenance, "GENERATED_DIR", str(tmp_path))
+    return tmp_path
+
+
+def test_mcp_tool_missing_file(prov_dir):
+    # 경계 안의 없는 파일이어야 경계 거부가 아니라 '찾지 못함' 분기를 탄다.
     with patch("tools.provenance.ABOX_PATH",
-               str(tmp_path / "nope.ttl")):
+               str(prov_dir / "nope.ttl")):
         raw = trace_provenance(
             "http://ex.org/i/X",
-            prov_path=str(tmp_path / "nope2.ttl"),
+            prov_path=str(prov_dir / "nope2.ttl"),
         )
         data = json.loads(raw)
         assert data["success"] is False
+        assert "찾지 못했습니다" in data["error"]
 
 
-def test_mcp_tool_full_flow(tmp_path):
+def test_mcp_tool_full_flow(prov_dir):
     # Provenance TTL 생성
     g = _new_graph()
     iuri = URIRef("http://ex.org/i/Y")
@@ -79,7 +95,7 @@ def test_mcp_tool_full_flow(tmp_path):
         g, iuri, "Equipment", 3,
         cell_map={"eqID": "EQ_ID"},
     )
-    prov_ttl = tmp_path / "prov.ttl"
+    prov_ttl = prov_dir / "prov.ttl"
     g.serialize(destination=str(prov_ttl), format="turtle")
 
     raw = trace_provenance(str(iuri), prov_path=str(prov_ttl))

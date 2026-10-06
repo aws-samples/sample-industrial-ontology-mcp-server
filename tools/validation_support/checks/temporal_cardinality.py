@@ -19,7 +19,7 @@ from rdflib import OWL, RDF, RDFS, Graph, Namespace, URIRef
 from rdflib.collection import Collection
 
 from config import INFERRED_PATH, SOURCE_RAWDATA_DIR
-from domain.namespaces import DOMAIN_NS
+from domain.namespaces import DOMAIN_NS, sparql_iri
 from domain.rules_paths import RULES_ROOT, rules_path
 from tools.validation_support.common import (
     SharedCheckContext,
@@ -741,7 +741,7 @@ def check_functional_violations(g: Graph, tbox: Graph) -> dict[str, object]:
 
     violations = []
     checked = len(functional_prop_uris)
-    values_block = " ".join(f"<{u}>" for u in functional_prop_uris)
+    values_block = " ".join(sparql_iri(u) for u in functional_prop_uris)
     q = (
         "SELECT ?p ?s (COUNT(?o) AS ?cnt) WHERE { "
         f"  VALUES ?p {{ {values_block} }} "

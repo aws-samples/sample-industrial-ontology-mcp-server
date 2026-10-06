@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
-from rdflib import Graph, Namespace
+from rdflib import Graph, Namespace, URIRef
+from rdflib.term import Identifier
 
 from domain.rules_paths import RULES_ROOT, rules_path
 
@@ -31,6 +33,47 @@ _ns_cfg = DOMAIN_CONFIG.get("namespace", {})
 if not _ns_cfg:
     raise RuntimeError(f"도메인 설정에 'namespace' 키가 없습니다: {_DOMAIN_CONFIG_PATH}")
 
+#: SPARQL ``IRIREF`` 본문과 큰따옴표 문자열 리터럴 어느 쪽에 넣어도 경계를 바꾸지 못하는
+#: IRI 문자. ``<`` ``>`` ``"`` ``{`` ``}`` ``|`` ``^`` 백틱, 역슬래시, 공백과 C0·C1 제어
+#: 문자를 뺀다. 역슬래시를 막으므로 코드포인트 이스케이프로 경계를 만들 수도 없다.
+_SPARQL_IRI_RE = re.compile(r'[^<>"{}|^`\\\x00-\x20\x7f-\x9f]+')
+#: 절대 IRI 의 스킴 (RFC 3987 ``scheme ":"``).
+_IRI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*:")
+#: SPARQL·Turtle ``PN_PREFIX``. 첫 글자는 문자, 마지막 글자는 ``.`` 이 아니다.
+#: 빈 값은 기본 prefix (``PREFIX : <...>``) 로 문법상 허용된다.
+_PN_PREFIX_RE = re.compile(r"(?:[^\W\d_](?:[\w.\-\u00b7]*[\w\-\u00b7])?)?")
+
+
+def _require_config_iri(key: str, value: object) -> str:
+    """``namespace.<key>`` 값이 SPARQL 질의에 그대로 넣을 수 있는 절대 IRI 인지 확인한다.
+
+    이 값은 ``PREFIX`` 블록의 ``<...>`` 와 ``STRSTARTS(STR(?p), "...")`` 같은 문자열
+    리터럴에 이스케이프 없이 들어가므로, 두 문맥의 경계 문자를 모두 거부한다.
+    """
+    if (
+        not isinstance(value, str)
+        or not _SPARQL_IRI_RE.fullmatch(value)
+        or not _IRI_SCHEME_RE.match(value)
+    ):
+        raise RuntimeError(
+            f"도메인 설정 namespace.{key} 값은 SPARQL 질의에 넣을 수 있는 절대 IRI 여야 "
+            f"합니다: {value!r} ({_DOMAIN_CONFIG_PATH}). 스킴(예: https:)으로 시작해야 하고 "
+            '공백, 제어 문자, < > " { } | ^ ` \\ 를 쓸 수 없습니다.'
+        )
+    return value
+
+
+def _require_config_prefix(key: str, value: object) -> str:
+    """``namespace.<key>`` 값이 SPARQL ``PREFIX`` 선언에 쓸 수 있는 이름인지 확인한다."""
+    if not isinstance(value, str) or not _PN_PREFIX_RE.fullmatch(value):
+        raise RuntimeError(
+            f"도메인 설정 namespace.{key} 값은 SPARQL prefix 이름이어야 합니다: {value!r} "
+            f"({_DOMAIN_CONFIG_PATH}). 문자로 시작하고 문자, 숫자, '_', '-', '.' 만 쓸 수 "
+            "있으며 '.' 으로 끝날 수 없습니다."
+        )
+    return value
+
+
 # ── URI 문자열 상수 (domain_config.json 기반) ─────
 # 도메인-중립 이름이 정식 이름. 신규 코드는 DOMAIN_NS / DOMAIN_INST_NS /
 # DOMAIN_NS_OBJ / DOMAIN_INST_NS_OBJ 를 사용할 것.
@@ -40,9 +83,15 @@ DOMAIN_NS = _ns_cfg.get("class_ns", "")
 DOMAIN_INST_NS = _ns_cfg.get("instance_ns", "")
 if not DOMAIN_NS or not DOMAIN_INST_NS:
     raise RuntimeError(f"도메인 설정에 class_ns/instance_ns가 필요합니다: {_DOMAIN_CONFIG_PATH}")
-ONTOLOGY_URI = _ns_cfg.get("ontology_uri", DOMAIN_NS.rstrip("#"))
-NS_PREFIX = _ns_cfg.get("prefix", "ex")
-NS_INST_PREFIX = _ns_cfg.get("instance_prefix", "ex-inst")
+_require_config_iri("class_ns", DOMAIN_NS)
+_require_config_iri("instance_ns", DOMAIN_INST_NS)
+ONTOLOGY_URI = _require_config_iri(
+    "ontology_uri", _ns_cfg.get("ontology_uri", DOMAIN_NS.rstrip("#")),
+)
+NS_PREFIX = _require_config_prefix("prefix", _ns_cfg.get("prefix", "ex"))
+NS_INST_PREFIX = _require_config_prefix(
+    "instance_prefix", _ns_cfg.get("instance_prefix", "ex-inst"),
+)
 
 # Deprecated alias — 외부 호출자 호환 목적. 새 코드는 DOMAIN_NS / DOMAIN_INST_NS 사용.
 STEEL = DOMAIN_NS
@@ -187,6 +236,26 @@ def sanitize_sparql_value(value: str) -> str:
     value = value.replace("\f", "\\f")
     value = value.replace("\x00", "")
     return value
+
+
+def sparql_iri(value: object) -> str:
+    """그래프에서 읽은 IRI 를 SPARQL 질의에 넣을 ``<...>`` 항으로 만든다.
+
+    ``VALUES`` 블록이나 트리플 패턴에 IRI 를 문자열로 이어 붙이는 자리에 쓴다. 값이
+    ``>`` 로 IRI 를 닫고 질의 구조를 바꾸지 못하도록, 설정 네임스페이스와 같은 문자
+    규칙 (``< > " { } | ^`` 백틱, 역슬래시, 공백, C0·C1 제어 문자 금지) 을 확인한다.
+    문자열 리터럴 안에 넣을 값은 :func:`sanitize_sparql_value` 를 쓴다.
+
+    Raises:
+        ValueError: 값이 IRI 문자열이 아니거나 (blank node, literal 포함) 금지 문자를
+            포함할 때.
+    """
+    is_iri_text = isinstance(value, str) and (
+        isinstance(value, URIRef) or not isinstance(value, Identifier)
+    )
+    if not is_iri_text or not _SPARQL_IRI_RE.fullmatch(value):
+        raise ValueError(f"SPARQL IRI 로 쓸 수 없는 값입니다: {str(value)[:120]!r}")
+    return f"<{value}>"
 
 
 def bind_namespaces(graph: Graph) -> None:

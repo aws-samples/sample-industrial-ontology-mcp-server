@@ -13,7 +13,7 @@ import logging
 import time
 
 from tools.common import error_response, success_response
-from tools.drift_monitor import monitor_all_csvs
+from tools.drift_monitor import monitor_all_csvs, resolve_rawdata_dir
 from tools.tbox_generation import update_tbox_incremental
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,8 @@ def run_partial_pipeline_on_drift(
     """CSV drift 감지 → 변경 테이블만 T-Box 증분 업데이트.
 
     Args:
-        rawdata_dir: CSV 디렉터리 (비어있으면 SOURCE_RAWDATA_DIR).
+        rawdata_dir: CSV 디렉터리 (비어있으면 SOURCE_RAWDATA_DIR). SOURCE_RAWDATA_DIR
+            자신이나 그 하위 디렉터리만 받으며, symlink 해석 후 밖이면 거부한다.
         added_value_threshold: 이 개수 이상 신규 값이 추가된 테이블만 대상.
         dry_run: True 면 대상 테이블 리스트만 반환, T-Box 수정 없음.
             **drift baseline 스냅샷도 전진시키지 않는다** (2026-08-30). 예전에는
@@ -66,6 +67,8 @@ def run_partial_pipeline_on_drift(
     """
     try:
         start = time.monotonic()
+        if rawdata_dir:
+            rawdata_dir = resolve_rawdata_dir(rawdata_dir)
         # ``dry_run`` 은 **읽기 전용** 이어야 한다 — baseline 을 전진시키면 프리뷰가
         # 실제 실행의 근거를 소모한다 (docstring 의 dry_run 항목 참조).
         report = monitor_all_csvs(rawdata_dir or None, save=not dry_run)

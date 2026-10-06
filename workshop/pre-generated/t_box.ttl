@@ -31,7 +31,6 @@
     owl:imports <https://spec.industrialontologies.org/ontology/core/Core/>,
         <https://spec.industrialontologies.org/ontology/maintenance/Maintenance/>,
         <https://spec.industrialontologies.org/ontology/supplychain/SupplyChain/> ;
-    owl:sameAs <https://w3id.org/steel-ontology-sample> ;
     owl:versionIRI <http://example.com/steel-ontology/2.1.0> ;
     owl:versionInfo "2.1.0"^^xsd:string .
 

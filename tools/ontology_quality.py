@@ -1789,7 +1789,8 @@ def _apply_odp_abstract_groups(g: Graph, steel_str: str) -> dict:
 
 # ── 기능 단계: class-specific DP enforcement (Path B sanity validator) ──
 
-# generic DP 이름 패턴 — 04-property-rules.md 의 "절대 금지" 목록과 동기화.
+# generic DP 이름 패턴. 04-property-rules.md 의 "Path B naming" 절에 있는
+# "Never create these generic names" 목록과 동기화한다.
 # 이 목록은 "class prefix 없이 단일 개념만 담은 has* / 또는 완전 generic" 이름.
 _R1A_GENERIC_DP_NAMES: frozenset[str] = frozenset({
     "hasValue", "hasTemperature", "hasPressure", "hasFlow", "hasQuantity",

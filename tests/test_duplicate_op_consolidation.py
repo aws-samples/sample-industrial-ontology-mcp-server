@@ -376,9 +376,10 @@ def test_partial_inverse_group_consolidates_the_safe_members():
 
 # ── Step 22d 게이트 — 프롬프트 회귀를 결정적으로 드러낸다 ────────────────
 #
-# 프롬프트(원칙 6)는 LLM 에 대한 "요청" 이므로 지켜지지 않을 수 있고, 실제로
-# 지켜지지 않았다 (실측: 중복 그룹 35개 / 초과 OP 66개). 게이트가 없으면 다음
-# 재생성에서 같은 일이 반복돼도 아무도 모른다.
+# 프롬프트(``04-property-rules.md`` 의 "One ObjectProperty per domain and range" 절)는
+# LLM 에 대한 "요청" 이므로 지켜지지 않을 수 있고, 실제로 지켜지지 않았다
+# (실측: 중복 그룹 35개 / 초과 OP 66개). 게이트가 없으면 다음 재생성에서 같은
+# 일이 반복돼도 아무도 모른다.
 
 
 import pytest  # noqa: E402

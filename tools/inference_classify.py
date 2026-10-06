@@ -20,9 +20,9 @@ from collections import Counter
 from rdflib import BNode, Graph, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
-from config import INFERRED_PATH
+from config import GENERATED_INFERRED_DIR, INFERRED_PATH
 from domain.namespaces import DOMAIN_NS
-from tools.common import error_response, success_response
+from tools.common import error_response, resolve_child_path, success_response
 
 logger = logging.getLogger(__name__)
 
@@ -141,7 +141,8 @@ def classify_inference_triples(inferred_path: str = "") -> str:
     """Classify inferred triples (all_inferred.ttl) into meaningful / trivial / suspicious.
 
     Args:
-        inferred_path: Optional TTL path. Defaults to INFERRED_PATH.
+        inferred_path: data/generated/inferred 아래 TTL 파일명. 비어 있으면
+            INFERRED_PATH. 디렉터리 구분자나 밖을 가리키는 symlink 는 거부한다.
 
     Returns:
         JSON string with:
@@ -157,7 +158,13 @@ def classify_inference_triples(inferred_path: str = "") -> str:
     Graceful: missing file → all zeros + note.
     """
     try:
-        path = inferred_path or INFERRED_PATH
+        path = INFERRED_PATH
+        if inferred_path:
+            path = resolve_child_path(
+                GENERATED_INFERRED_DIR,
+                inferred_path,
+                allowed_suffixes=(".ttl",),
+            )
         if not os.path.exists(path):
             return success_response({
                 "total_inferred": 0,
@@ -169,7 +176,14 @@ def classify_inference_triples(inferred_path: str = "") -> str:
                 "note": f"파일 없음: {path}",
             })
         g = Graph()
-        g.parse(path, format="turtle")
+        try:
+            g.parse(path, format="turtle")
+        except Exception as exc:
+            # rdflib 파서 예외는 입력 원문 일부를 담으므로 응답에는 파일명만 싣는다.
+            logger.warning("추론 TTL 파싱 실패 (%s): %s", path, exc)
+            return error_response(
+                f"TTL 파싱 실패: {os.path.basename(path)}", logger=logger,
+            )
         counts: Counter = Counter()
         samples: dict[str, list] = {
             "meaningful": [],

@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 
+import pytest
 from rdflib import URIRef
 from rdflib.namespace import RDF
 
@@ -99,62 +100,65 @@ def test_reification_roundtrip_via_ttl_file():
         os.unlink(ttl_path)
 
 
-def test_query_inference_justification_found():
+@pytest.fixture
+def prov_dir(tmp_path, monkeypatch):
+    """도구의 data/generated 경계를 tmp_path 로 옮긴다.
+
+    ``query_inference_justification`` 은 prov_path 를 GENERATED_DIR 아래 경로로만
+    받으므로 provenance TTL 을 이 디렉터리 안에 쓴다.
+    """
+    import tools.provenance as provenance
+
+    monkeypatch.setattr(provenance, "GENERATED_DIR", str(tmp_path))
+    return tmp_path
+
+
+def _write_sample_provenance(prov_dir) -> str:
+    activity = URIRef("urn:activity:test")
+    g = build_per_triple_reification(_sample_justifications(), None, None, activity)
+    ttl_path = prov_dir / "inference_provenance.ttl"
+    g.serialize(destination=str(ttl_path), format="turtle")
+    return str(ttl_path)
+
+
+def test_query_inference_justification_found(prov_dir):
     """query_inference_justification MCP 도구 — reified triple 조회."""
-    activity = URIRef("urn:activity:test")
-    js = _sample_justifications()
-    g = build_per_triple_reification(js, None, None, activity)
+    ttl_path = _write_sample_provenance(prov_dir)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".ttl", delete=False, mode="w",
-    ) as tf:
-        ttl_path = tf.name
-    try:
-        g.serialize(destination=ttl_path, format="turtle")
-
-        result = query_inference_justification(
-            "http://e/EQ001", "http://e/isTagOf", "http://e/BF1",
-            prov_path=ttl_path,
-        )
-        data = json.loads(result)
-        assert data.get("success") is True, f"unexpected result: {data}"
-        assert data["found"] is True
-        assert data["rule"] == "inverse_of"
-        assert data["confidence"] == "high"
-        assert len(data["prerequisites"]) == 2
-    finally:
-        os.unlink(ttl_path)
+    result = query_inference_justification(
+        "http://e/EQ001", "http://e/isTagOf", "http://e/BF1",
+        prov_path=ttl_path,
+    )
+    data = json.loads(result)
+    assert data.get("success") is True, f"unexpected result: {data}"
+    assert data["found"] is True
+    assert data["rule"] == "inverse_of"
+    assert data["confidence"] == "high"
+    assert len(data["prerequisites"]) == 2
 
 
-def test_query_inference_justification_not_found():
+def test_query_inference_justification_not_found(prov_dir):
     """조회 대상이 reification 되지 않은 triple — found=false."""
-    activity = URIRef("urn:activity:test")
-    js = _sample_justifications()
-    g = build_per_triple_reification(js, None, None, activity)
+    ttl_path = _write_sample_provenance(prov_dir)
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".ttl", delete=False, mode="w",
-    ) as tf:
-        ttl_path = tf.name
-    try:
-        g.serialize(destination=ttl_path, format="turtle")
-        result = query_inference_justification(
-            "http://e/DOES_NOT_EXIST", "http://e/p", "http://e/o",
-            prov_path=ttl_path,
-        )
-        data = json.loads(result)
-        assert data.get("success") is True
-        assert data["found"] is False
-        assert "message" in data
-    finally:
-        os.unlink(ttl_path)
+    result = query_inference_justification(
+        "http://e/DOES_NOT_EXIST", "http://e/p", "http://e/o",
+        prov_path=ttl_path,
+    )
+    data = json.loads(result)
+    assert data.get("success") is True
+    assert data["found"] is False
+    assert "message" in data
 
 
-def test_query_inference_justification_missing_file():
-    """prov_path 파일 없음 → error_response."""
+def test_query_inference_justification_missing_file(prov_dir):
+    """prov_path 파일 없음 → error_response.
+
+    경계 안의 없는 파일이어야 경계 거부가 아니라 '없음' 분기를 탄다.
+    """
     result = query_inference_justification(
         "http://e/s", "http://e/p", "http://e/o",
-        prov_path="/nonexistent/path/inference_provenance.ttl",
+        prov_path=str(prov_dir / "missing" / "inference_provenance.ttl"),
     )
     data = json.loads(result)
     assert data.get("success") is False

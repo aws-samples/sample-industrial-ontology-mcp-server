@@ -7,7 +7,7 @@
 
 | 설치 항목 | 무엇에 쓰나 | 필수/권장 | 예상 시간 |
 |-----------|-------------|:--:|:--------:|
-| Amazon Bedrock 접근 | T-Box 를 만들 AI(Claude Sonnet) 호출 | 필수¹ | **개인 1\~2h, 회사 1\~3일** ← 가장 먼저 |
+| Amazon Bedrock 접근 | T-Box·CQ·암묵지를 만들 AI(기본 Claude Sonnet 4.6) 호출 | 필수¹ | **조직의 권한 승인 절차에 따라 다름** ← 가장 먼저 |
 | Python 3.11+ | 서버 런타임 | 필수 | 10분 |
 | Java 25+ (HermiT 단독은 11+, Pellet 은 25+) | OWL 추론기(HermiT/Pellet) | 권장² | 10분 |
 | Claude Code | MCP 클라이언트 | 필수 | 5분 |
@@ -30,11 +30,11 @@
 
 | 항목 | 본 워크샵 사용처 | 미달 시 사전 학습 |
 |------|---------------|----------------|
-| **SQL JOIN / GROUP BY 작성** | Ch1-2 4-table JOIN 비교, Ch5 SPARQL ↔ SQL 매핑 | https://www.w3schools.com/sql/sql_join.asp (~30분). **페르소나 B (도메인 SME) 는 면제** — Ch5 의 SPARQL 5단어 표만 외워도 진행 가능. 5-2/5-4a 슬롯에서 페르소나 A/C/D 와 페어링 |
+| **SQL JOIN / GROUP BY 작성** | 기초 강의의 4-table JOIN 비교 (워크북 "왜 KG 인가" 복습 카드), Ch5 SPARQL ↔ SQL 매핑 | https://www.w3schools.com/sql/sql_join.asp (~30분). **페르소나 B (도메인 SME) 는 면제**: Ch5 의 SPARQL 5단어 표만 외워도 진행 가능. 5-2/5-4a 슬롯에서 페르소나 A/C/D 와 페어링 |
 | **Python venv 사용** | setup-guide §3 가상환경 활성화 | `python3 -m venv venv` + `source venv/bin/activate` (~10분 학습) |
 | **JSON 편집** | post-workshop "D+1 첫 숙제" `domain_config.json` / `fk_patterns.json` | 텍스트 에디터로 JSON 편집 (~10분) |
 | **CLI 기본** | setup-guide 모든 단계 | `cd`, `ls`, `cat`, `cp`, `mkdir` 명령 (~30분) |
-| **OWL/RDF** | (없어도 됨) | Ch1-2 에서 5단어로 처음 배움 |
+| **OWL/RDF** | (없어도 됨) | 기초 강의와 워크북 "핵심 5단어" 표에서 처음 배움 |
 
 **먼저 읽기 — 이 파일이 가정하는 것:**
 - 위 prerequisite 4항목 충족 (SQL JOIN / Python venv / JSON 편집 / CLI 기본)
@@ -45,41 +45,169 @@
 
 ## 0. Amazon Bedrock 모델 접근 (가장 오래 걸림, 먼저 하세요)
 
-T-Box 생성 단계(S2)는 Bedrock Claude Sonnet 을 ~10회 호출합니다. 이 단계 없이는
-워크샵이 의미가 없으므로, **가장 먼저** 다음을 확인하세요.
+이 서버는 S0 CQ 자동 생성, Ch3-3 자연어 암묵지 입력, Ch6 시맨틱 딕셔너리 생성과 T-Box 수정
+체험에서 Bedrock 을 호출하고, S2 T-Box 생성 (강사 D-1 실행) 에서는 Multi-Agent 토론으로
+8~12회 호출합니다. 호출 모델은 `.env` 의 `BEDROCK_MODEL_ID` 이고, 기본값은 Claude Sonnet 4.6 의
+미국 geographic cross-Region inference profile `us.anthropic.claude-sonnet-4-6` 입니다
+(`.env.example`, `config.py`). 권한 준비에 조직 승인이 끼면 시간이 걸리므로 **가장 먼저**
+다음을 확인하세요.
 
 ### 0.1 AWS 계정 + IAM 권한
 
 회사 IT 담당자/AWS admin 에게 다음을 요청:
-- IAM 사용자 또는 SSO 프로파일 (본인 이름으로)
-- 정책: `bedrock:InvokeModel` (최소) 또는 `AmazonBedrockFullAccess` (편의)
-- 리전 접근: **us-east-1** (Claude Sonnet 이 여기만 있는 경우가 많음)
+- **자격 증명**: 본인 이름의 IAM Identity Center (SSO) 사용자와 권한 세트. 장기 IAM access key 는
+  조직 정책상 SSO 를 쓸 수 없을 때만 쓴다 (§2).
+- **권한**: `bedrock:InvokeModel` 만 허용하는 최소 권한 정책 (아래 예시). 이 서버가 호출하는
+  Bedrock API 는 `bedrock-runtime` 의 `InvokeModel` 하나다 (`tools/bedrock.py`).
+  `AmazonBedrockFullAccess` 같은 광범위한 관리형 정책은 쓰지 않는다.
+- **리전**: **us-east-1** (`.env.example` 의 `BEDROCK_REGION`). `us.` inference profile 은 요청을
+  미국 내 여러 리전으로 라우팅하므로, 조직 SCP 가 리전을 제한한다면 그 대상 리전들에서도
+  Bedrock 호출이 허용돼야 한다 ([AWS re:Post](https://repost.aws/knowledge-center/bedrock-access-denied-exception)).
+- **계정 활성화 (§0.2)**: 이 계정에서 Claude Sonnet 4.6 을 처음 쓴다면 관리자가 계정마다 한 번
+  활성화해야 한다 (Anthropic 양식만은 조직 관리 계정에서 한 번 내면 조직 전체가 상속). 아래 최소
+  권한 정책에는 활성화에 필요한 권한이 없다.
 
-### 0.2 Bedrock 모델 활성화 (승인 필요)
+**예시 정책**: [AWS 문서의 Geographic cross-Region inference IAM 요구사항](https://docs.aws.amazon.com/bedrock/latest/userguide/geographic-cross-region-inference.html)
+과 같은 구조다. `<ACCOUNT_ID>` 를 본인 계정 ID 로 바꾼다. 첫 문은 inference profile 호출을,
+둘째 문은 그 profile 을 거칠 때만 대상 리전의 foundation model 호출을 허용한다.
 
-https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "InvokeWorkshopInferenceProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:inference-profile/us.anthropic.claude-sonnet-4-6"
+    },
+    {
+      "Sid": "InvokeFoundationModelOnlyThroughProfile",
+      "Effect": "Allow",
+      "Action": "bedrock:InvokeModel",
+      "Resource": "arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-6",
+      "Condition": {
+        "StringEquals": {
+          "bedrock:InferenceProfileArn": "arn:aws:bedrock:us-east-1:<ACCOUNT_ID>:inference-profile/us.anthropic.claude-sonnet-4-6"
+        }
+      }
+    }
+  ]
+}
+```
 
-1. "Request model access" 클릭
-2. **Anthropic Claude Sonnet 4.5** 체크 + 용도 기재 (예: "Internal training workshop")
-3. **승인 대기 시간**:
-   - **개인 AWS 계정**: 1~2시간
-   - **회사 AWS 계정**: **1~3일 영업일** (회사 정책/IT 승인 라우팅에 따라 달라짐)
-4. 상태가 **"Access granted"** 가 되면 완료
+둘째 문의 리전을 와일드카드 대신 명시하려면 관리자가 아래 명령 출력의 ARN 목록을 `Resource` 에
+넣는다. `.env` 에서 `BEDROCK_MODEL_ID` 나 `MULTI_AGENT_MODEL_*` 를 다른 모델로 바꾸면 그 모델의
+inference profile ARN 과 foundation model ARN 도 같은 형식으로 추가해야 한다.
 
-> **권장**: 회사 계정 사용자는 **워크샵 1주 전 신청** 필수. "1~2시간" 가이드는
-> 개인 계정 케이스이며, 회사 계정에서 3일 전 신청은 위험.
+```bash
+aws bedrock get-inference-profile --region us-east-1 \
+  --inference-profile-identifier us.anthropic.claude-sonnet-4-6 \
+  --query 'models[].modelArn' --output text
+```
+
+### 0.2 계정당 1회 모델 활성화 (관리자가 수행)
+
+Claude Sonnet 4.6 은 AWS Marketplace 로 판매되는 서드파티 모델이다 (Marketplace product ID
+`prod-ffvjxvh4ltq64`, [모델 카드](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-4-6.html)).
+이런 모델을 계정에서 처음 호출하면 Bedrock 이 AWS Marketplace 구독을 백그라운드에서 자동으로
+만든다. 이 자동 구독이 성공하려면 계정마다 한 번 다음 세 가지가 갖춰져야 한다
+([AWS 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html)).
+
+1. **Marketplace 권한**: 첫 호출 주체에 `aws-marketplace:Subscribe` 와
+   `aws-marketplace:ViewSubscriptions` 권한이 있어야 한다 (AWS 문서의 전제조건 목록은
+   `aws-marketplace:Unsubscribe` 까지 든다). 이 권한 없이 첫 호출을 하면 자동 구독이 실패하고,
+   그 뒤의 호출도 `AccessDeniedException` 을 반환한다
+   ([AWS re:Post](https://repost.aws/knowledge-center/bedrock-resolve-marketplace-permission)).
+2. **Anthropic 첫 사용(FTU) 양식**: 계정당 한 번, 또는 AWS Organizations 관리 계정에서 한 번
+   제출한다. 관리 계정에서 제출하면 같은 조직의 다른 계정이 이를 상속한다. Bedrock 콘솔의
+   Model catalog 에서 Anthropic 모델을 고르거나 `PutUseCaseForModelAccess` API 로 제출한다.
+3. **결제 수단**: 계정에 AWS Marketplace 구매에 쓸 유효한 결제 수단이 있어야 한다.
+
+활성화가 끝난 뒤에는 계정의 IAM 신원이 Marketplace 권한 없이 모델을 호출할 수 있다
+([AWS 문서](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html#model-access-permissions)).
+그래서 활성화는 관리자가 한 번 끝내고, 참가자는 §0.1 최소 권한 정책만으로 호출한다.
+
+**관리자 절차** (이 계정이 이미 이 모델을 호출하고 있다면 생략. 조직 관리 계정에서 양식을 이미
+냈다면 1 의 양식 제출은 생략):
+
+1. Bedrock 콘솔 (https://console.aws.amazon.com/bedrock/home?region=us-east-1) 의 **Model catalog**
+   에서 **Anthropic Claude Sonnet 4.6** 을 골라 playground 로 연다. 사용 사례 양식이 나타나면
+   용도를 적어 제출한다 (예: "Internal training workshop"). 콘솔 카탈로그 조회와 양식 제출은
+   §0.1 최소 권한 정책에 없는 권한이라 참가자 신원으로는 할 수 없다.
+2. Marketplace 권한이 있는 관리자 신원으로 §0.3 의 3) 과 같은 `converse` 호출을 한 번 실행해
+   자동 구독을 끝낸다. 호출 없이 `list-foundation-model-agreement-offers` 와
+   `create-foundation-model-agreement` 로 활성화하는 방법도 있다 (위 re:Post). 자동 구독 설정은
+   최대 15분이 걸릴 수 있고, 누락된 권한을 부여한 뒤에도 구독 완료까지 최대 2분이 걸릴 수 있다.
+   그동안은 `AccessDeniedException` 이 날 수 있다 (AWS 문서).
+3. 참가자가 §0.1 정책만 가진 신원으로 §0.3 의 3) 을 실행해 성공을 확인한다.
+
+**참가자 본인이 첫 호출자가 될 수밖에 없을 때** (예: 관리자가 미리 활성화할 수 없는 개인 계정):
+§0.1 정책의 `Statement` 배열에 아래 문을 추가한다. Marketplace 작업을 이 모델의 product ID 로,
+그리고 Bedrock 이 대신 호출하는 경우로만 한정한다
+([AWS re:Post](https://repost.aws/knowledge-center/bedrock-serverless-models-access-denied) 의 예시 형식).
+활성화된 뒤에는 Marketplace 권한이 필요 없으므로 이 문을 지워도 된다. FTU 양식과 결제 수단은
+이 경우에도 계정 소유자가 갖춰야 한다.
+
+```json
+{
+  "Sid": "AllowFirstCallMarketplaceSubscription",
+  "Effect": "Allow",
+  "Action": [
+    "aws-marketplace:Subscribe",
+    "aws-marketplace:ViewSubscriptions",
+    "aws-marketplace:Unsubscribe"
+  ],
+  "Resource": "*",
+  "Condition": {
+    "ForAllValues:StringEquals": {
+      "aws-marketplace:ProductId": ["prod-ffvjxvh4ltq64"]
+    },
+    "StringEquals": {
+      "aws:CalledViaLast": "bedrock.amazonaws.com"
+    }
+  }
+}
+```
+
+> **권장**: 회사 계정 사용자는 IAM 권한 발급 (§0.1) 과 계정 활성화 (§0.2) 에 조직 내부 승인이
+> 끼므로 **워크샵 1주 전**에 요청하세요. 이 계정이 이미 이 모델을 쓰고 있다면 활성화가 끝나 있고,
+> 조직 관리 계정에서 양식을 냈다면 양식은 다시 낼 필요가 없으니 관리자에게 먼저 확인하세요.
+> Marketplace 구독은 계정마다 따로 이뤄지므로 같은 조직의 다른 계정에서 쓰고 있다는 사실만으로는
+> 이 계정의 활성화를 판단할 수 없습니다.
 
 ### 0.3 접근 확인
 
+§2 의 프로파일 설정을 마친 뒤 실행한다. 3) 이 실제 호출이라 최종 판정이고, 1)·2) 는 조회 권한
+(`bedrock:ListFoundationModels`, `bedrock:GetInferenceProfile`) 이 있을 때만 동작하는 선택 확인이다.
+§0.1 의 최소 권한 정책만 받았다면 1)·2) 는 `AccessDeniedException` 이 정상이다.
+
 ```bash
-# AWS CLI 로 Bedrock 모델 목록 조회 — Claude Sonnet 이 보여야 정상
-aws bedrock list-foundation-models --region us-east-1 \
-  --query 'modelSummaries[?contains(modelId, `claude-sonnet`)].modelId' \
+# 1) (선택) foundation model 목록에 Sonnet 4.6 이 있는지
+aws bedrock list-foundation-models --region us-east-1 --profile ontology-workshop \
+  --query 'modelSummaries[?contains(modelId, `claude-sonnet-4-6`)].modelId' \
   --output table
+
+# 2) (선택) .env 의 BEDROCK_MODEL_ID 가 가리키는 inference profile 의 대상 모델 ARN
+aws bedrock get-inference-profile --region us-east-1 --profile ontology-workshop \
+  --inference-profile-identifier us.anthropic.claude-sonnet-4-6 \
+  --query 'models[].modelArn' --output table
+
+# 3) 실제 호출 1회 (§0.2 활성화가 끝난 계정에서는 bedrock:InvokeModel 만 필요. 입력·출력 토큰 소량 과금)
+aws bedrock-runtime converse --region us-east-1 --profile ontology-workshop \
+  --model-id us.anthropic.claude-sonnet-4-6 \
+  --messages '[{"role":"user","content":[{"text":"ping"}]}]' \
+  --query 'output.message.content[0].text' --output text
 ```
 
-**기대 결과:** `anthropic.claude-sonnet-4-6...` / `us.anthropic.claude-sonnet-4-6` 같은 항목이 나옴
-**실패 시:** 0.2 의 승인이 아직 안 났거나, 리전이 맞지 않음
+**기대 결과:** 1) 에 foundation model ID `anthropic.claude-sonnet-4-6` 이, 2) 에 미국 리전들의
+`foundation-model/anthropic.claude-sonnet-4-6` ARN 이, 3) 에 모델의 짧은 응답 텍스트가 나온다.
+`us.` 로 시작하는 inference profile ID 는 foundation model 목록 (1) 에는 나오지 않는다.
+**실패 시:** 3) 이 `AccessDeniedException` 이면 §0.1 정책과 §0.2 의 계정 활성화 (Marketplace
+구독, Anthropic 양식, 결제 수단) 를 확인한다. 오류 메시지에 `aws-marketplace` 작업이 나오면
+Marketplace 구독이 끝나지 않은 것이다 (첫 호출 주체에 `aws-marketplace` 권한이 없었음). 관리자가
+§0.2 절차로 활성화한 뒤 다시 실행한다. 모델 ID 나 리전 오류 메시지면 명령과 `.env` 의
+`BEDROCK_MODEL_ID`·`BEDROCK_REGION` 을 맞춘다.
 
 ---
 
@@ -221,27 +349,44 @@ https://docs.anthropic.com/en/docs/claude-code (CLI 설치 가이드)
 
 ## 2. AWS 자격증명 설정
 
+**기본 경로: IAM Identity Center (SSO).** 임시 자격 증명을 쓰므로 장기 키를 PC 에 저장하지
+않는다. 서버는 `.env` 의 `AWS_PROFILE` 로 이 프로파일을 읽는다 (§3.3).
+
 ```bash
-aws configure --profile ontology-workshop
-# AWS Access Key ID: <본인 IAM>
-# AWS Secret Access Key: <본인 IAM>
-# Region: us-east-1          ← Bedrock 리전과 맞춤
-# Output: json
+# SSO 프로파일 생성. start URL, SSO 리전, 계정, 권한 세트는 관리자가 안내한 값을 입력하고
+# 기본 리전(default client Region)은 us-east-1, 출력 형식은 json 으로 둔다
+aws configure sso --profile ontology-workshop
+
+# 브라우저로 로그인한다. 세션이 만료되면 이 명령을 다시 실행한다
+aws sso login --profile ontology-workshop
 
 # 연결 확인
 aws sts get-caller-identity --profile ontology-workshop
 ```
 
-**기대 결과:**
+**기대 결과 (SSO):**
 ```json
 {
-    "UserId": "AIDA...",
+    "UserId": "AROA...:your-name",
     "Account": "<AWS_ACCOUNT_ID>",
-    "Arn": "arn:aws:iam::...:user/your-name"
+    "Arn": "arn:aws:sts::<AWS_ACCOUNT_ID>:assumed-role/AWSReservedSSO_<permission-set>_<id>/your-name"
 }
 ```
 
-**실패 시:** 0단계의 Bedrock 승인과 별개 — AWS 자격증명 자체의 문제. 회사 IT/admin 문의.
+**대안 (조직 정책상 SSO 를 쓸 수 없을 때만): IAM 사용자 access key.**
+
+```bash
+aws configure --profile ontology-workshop
+# AWS Access Key ID / Secret Access Key: 관리자가 발급한 값 (§0.1 최소 권한 정책만 붙은 사용자)
+# Region: us-east-1, Output: json
+```
+
+장기 키는 `~/.aws/credentials` 에 평문으로 저장된다. 리포나 `.env` 에 옮겨 적지 말고, 조직의
+키 rotation 주기를 따르며, 워크샵이 끝나면 IAM 콘솔에서 그 키를 비활성화하거나 삭제한다. 이
+경로의 `get-caller-identity` 결과는 `"Arn": "arn:aws:iam::<AWS_ACCOUNT_ID>:user/your-name"` 형태다.
+
+**실패 시:** 0단계의 Bedrock 접근과 별개로 AWS 자격증명 자체의 문제다. SSO 는 `aws sso login`
+을 다시 실행하고, 그래도 안 되면 회사 IT/admin 에 문의.
 
 ---
 
@@ -299,7 +444,7 @@ cp .env.example .env
 AWS_PROFILE=ontology-workshop
 AWS_REGION=us-east-1
 
-# Bedrock — 0단계에서 승인받은 모델 ID
+# Bedrock: §0.1 정책이 허용한 inference profile ID (.env.example 기본값)
 BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-6
 BEDROCK_REGION=us-east-1
 
@@ -460,16 +605,16 @@ Copy-Item .mcp.json.example .mcp.json
 
 다음 두 케이스 중 하나라도 해당되면 본인 PC 에서 T-Box/A-Box 생성을 직접 실행할 수 없습니다:
 
-- **Bedrock 모델 접근이 워크샵 당일까지 미승인** — Claude Sonnet 호출 불가
+- **Bedrock 권한 (§0.1) 이나 계정 활성화 (§0.2: Marketplace 구독, Anthropic 양식, 결제 수단) 가 워크샵 당일까지 미완료**: Bedrock 호출 불가
 - **RAM 8GB Mac** — A-Box 로드 + 추론 시 6GB+ 필요해 OOM 위험 (하드웨어 사전 점검 §RAM 행 참조)
 
 이 경우 강사가 미리 만들어둔 산출물 (`workshop/pre-generated/`) 을 본인 환경
 `data/generated/` 에 복사해 SPARQL/시각화/검증 실습은 정상 진행 가능합니다.
 
-> **⚠️ D-1 까지 사전 적재 필수**: 워크샵 당일 Ch1-1 슬롯 (10m) 안에 fallback 적재 +
+> **⚠️ D-1 까지 사전 적재 필수**: 워크샵 당일 세션 0 슬롯 (10m) 안에 fallback 적재 +
 > verify 스크립트까지 끝내는 것은 사내망/처음 만난 환경에서 거의 불가능합니다.
 > **D-1 까지** 본인 PC 에서 아래 명령을 실행해 `verify` exit 0 결과를 강사에게
-> 회신하세요 (Slack DM 또는 이메일). D-1 회신 안 한 미승인자는 워크샵 첫 인상이
+> 회신하세요 (주최 측이 안내한 채널). D-1 회신 안 한 미승인자는 워크샵 첫 인상이
 > 심하게 망가집니다.
 
 **fallback 산출물 적재 (D-1 까지, 5~10분):**
@@ -546,10 +691,10 @@ FAIL 결과 해석:
 - `zero_rows` (zero-rows-ok 주석 없음) → 본인 환경의 OP 이름이 워크북과 어긋남. `read_semantic_dictionary` 로 확인.
 - `parse_error` → JSON syntax 오류. verify 스크립트가 자동 감지.
 
-> **워크샵 당일 강사 안내 시점**: **Ch1-1 10분 슬롯** (workbook timeline 참조) 에
-> 강사가 D-1 회신 명단 대비 **누락자 점검**. D-1 사전 적재한 사용자는 `list_csv_tables`
+> **워크샵 당일 강사 안내 시점**: **세션 0 10분 슬롯** (workbook timeline 참조) 에
+> 강사가 D-1 회신이 없는 참가자를 **점검**. D-1 사전 적재한 사용자는 `list_csv_tables`
 > 즉시 실행 가능하며, 사전 적재 안 한 사용자는 강사 1:1 (5분 안에 안 끝나면 강사
-> 노트북 화면 공유로 fallback). Ch1-2 시작 시점에 **모두 본인 PC 에서 SPARQL 가능**
+> 노트북 화면 공유로 fallback). Ch1 시작 시점에 **모두 본인 PC 에서 SPARQL 가능**
 > 상태여야 함.
 
 ---
@@ -626,14 +771,14 @@ NEO4J_PASSWORD=<위 NEO4J_PASSWORD 환경변수에 넣은 값>
 ## 8. 최종 체크리스트
 
 **필수**
-- [ ] 0단계 Bedrock 모델 접근 승인 확인 (`aws bedrock list-foundation-models` 에 Claude Sonnet)
+- [ ] 0단계 Bedrock 접근 확인 (§0.3 의 세 번째 명령 `aws bedrock-runtime converse` 1회 성공)
 - [ ] Python 3.11+ 설치
 - [ ] AWS CLI 설정 완료 (`aws sts get-caller-identity` 성공)
 - [ ] ontology-agent 클론 + venv 의존성 설치 완료
 - [ ] `.env` 파일에 AWS_PROFILE / BEDROCK_MODEL_ID 설정
 - [ ] 로컬 데이터 40개 CSV 확인
 - [ ] Claude Code 재시작 후 `list_csv_tables` 테스트 성공
-- [ ] **(D-1 까지)** Bedrock 미승인 또는 8GB RAM 사용자는 §5.4 fallback 산출물 사전 적재 + `python scripts/verify_workshop_sparql.py --ignore-placeholders` exit 0 회신 (강사 회수)
+- [ ] **(D-1 까지)** Bedrock 미승인 또는 8GB RAM 사용자는 §5.4 fallback 산출물 사전 적재 + `python scripts/verify_workshop_sparql.py --ignore-placeholders` exit 0 을 주최 측이 안내한 채널로 회신
 
 **권장**
 - [ ] Java 25+ 설치 (HermiT 단독은 11+, Pellet 은 25+) + `"$JAVA_EXE" -version` 동작 (없으면 5단계 검증 중 2개 스킵. 워크샵 본 챕터 진행에 지장 없음)
@@ -652,8 +797,8 @@ NEO4J_PASSWORD=<위 NEO4J_PASSWORD 환경변수에 넣은 값>
 | 증상 | 원인 | 해결 |
 |------|------|------|
 | `list_csv_tables` 가 보이지 않음 | MCP 등록 실패 (경로 오류 또는 venv 문제) | 5.3 절 순서대로 점검 |
-| `aws sts get-caller-identity` 실패 | AWS credentials 미설정 | 회사 IT/admin 에 IAM 요청 |
-| Bedrock 호출 시 AccessDeniedException | 모델 접근 미승인 | 0.2 절 — Bedrock console 에서 "Request access" |
+| `aws sts get-caller-identity` 실패 | AWS credentials 미설정 또는 SSO 세션 만료 | SSO 는 `aws sso login --profile ontology-workshop` 재실행. 프로파일 자체가 없으면 §2 절차, 권한 세트가 없으면 회사 IT/admin 에 요청 |
+| Bedrock 호출 시 AccessDeniedException | IAM 정책에 inference profile 또는 대상 리전 foundation model ARN 누락, Marketplace 구독 미완료 (첫 호출 주체에 `aws-marketplace` 권한 없음. 오류 메시지에 `aws-marketplace` 작업이 나옴), Anthropic 양식 미제출, 계정 결제 수단 없음, 또는 조직 SCP 의 리전 제한 | §0.1 예시 정책을 확인하고, 계정이 아직 활성화되지 않았다면 관리자가 §0.2 절차로 활성화한다 ([AWS re:Post](https://repost.aws/knowledge-center/bedrock-resolve-marketplace-permission)). 권한을 고친 뒤 구독 완료까지 최대 2분이 걸릴 수 있다. §0.3 의 세 번째 명령 (`converse`) 으로 재확인 |
 | `JAVA_EXE` 경로가 없다고 에러 | 경로가 잘못됨 | `which java` (mac/Linux) 또는 `where.exe java` (Win) 로 재확인 |
 | Pellet 호출 시 `UnsupportedClassVersionError (class file version 69.0)` | Java 25 미만 (HermiT 은 11+ 로 동작해 S4 는 통과할 수 있음) | §1.3 의 버전 25 설치 명령으로 설치 후 `.env` 의 `JAVA_EXE` 를 새 경로로 갱신 + Claude Code 재시작 |
 | Windows 에서 venv activate 시 실행 정책 오류 | PowerShell 실행 정책 | `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned` |
@@ -661,4 +806,4 @@ NEO4J_PASSWORD=<위 NEO4J_PASSWORD 환경변수에 넣은 값>
 | vis.js 시각화가 빈 화면 | CDN 차단 (사내 네트워크) | 워크샵 당일 강사 노트북 화면 공유로 대체 |
 | `.env` 변경했는데 적용 안 됨 | MCP 서버는 첫 기동 시 `.env` 만 읽음 | **Claude Code 재시작 필수** — 데스크톱 앱 완전 종료(Quit) 후 재시작. CLI 는 새 셸 세션 |
 | A-Box 생성/추론 후 메모리 부족 (8GB Mac) | 37MB a_box.ttl 로드 + 추론 시 6GB+ 사용 | RAM 16GB 이상 권장. 부족 시 `RDFLIB_STORE=oxigraph` (기본값) 유지 + 다른 앱 종료. 그래도 OOM 이면 `run_owl_rl_inference(fast_mode=True)` 로 마스터 테이블만 추론 |
-| 한국어 질의가 엉뚱한 클래스로 매핑됨 | `ask_ontology` 가 한국어 약어 인식 못함 | `rules/domain/korean_synonyms.json` 추가 — 자세한 형식은 `sparql-cheatsheet.md` 의 "한국어 용어 정확도 팁" 박스 참조. opt-in 이라 파일 없으면 동작 변화 없음 |
+| `ask_ontology` 가 한국어 질의를 엉뚱한 클래스로 매핑함 | `ask_ontology` 가 한국어 도메인 약어를 클래스명과 연결하지 못함 | `rules/domain/korean_synonyms.json` 을 직접 만든다 (`.gitignore` 대상이라 리포에 예시 파일은 없다). 형식과 동작은 [sparql-cheatsheet "한국어 용어 정확도 팁"](sparql-cheatsheet.md#한국어-용어-정확도-팁-ask_ontology-동의어-사전) 과 `tools/korean_synonyms.py` 모듈 docstring 참조. opt-in 이라 파일이 없으면 동작 변화 없음. Claude Code 가 직접 SPARQL 을 짜는 Ch5 흐름에는 적용되지 않으며, 그때는 시맨틱 딕셔너리로 클래스명을 확인한다 |

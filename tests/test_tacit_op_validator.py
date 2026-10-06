@@ -167,9 +167,12 @@ def test_integration_reversed_op_auto_corrected_in_generation(tmp_path, monkeypa
     rawdata = tmp_path / "rawdata"
     tacit = tmp_path / "tacit"
     tbox_path = tmp_path / "t_box.ttl"
-    rules_path = tmp_path / "tacit_rules.json"
+    # generate_tacit_from_rules 는 RULES_ROOT 아래 규칙 파일만 받는다.
+    rules_dir = tmp_path / "rules"
+    rules_path = rules_dir / "tacit_rules.json"
     rawdata.mkdir()
     tacit.mkdir()
+    rules_dir.mkdir()
 
     # T-Box 작성
     tbox_path.write_text(_TBOX_TTL, encoding="utf-8")
@@ -204,6 +207,7 @@ def test_integration_reversed_op_auto_corrected_in_generation(tmp_path, monkeypa
     monkeypatch.setattr(config, "TBOX_PATH", str(tbox_path))
     monkeypatch.setattr(tr, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(tr, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(tr, "RULES_ROOT", str(rules_dir))
 
     from tools.tacit_rules import generate_tacit_from_rules
     result = json.loads(generate_tacit_from_rules(str(rules_path)))
@@ -295,9 +299,12 @@ def test_integration_valid_op_not_corrected(tmp_path, monkeypatch):
     rawdata = tmp_path / "rawdata"
     tacit = tmp_path / "tacit"
     tbox_path = tmp_path / "t_box.ttl"
-    rules_path = tmp_path / "tacit_rules.json"
+    # generate_tacit_from_rules 는 RULES_ROOT 아래 규칙 파일만 받는다.
+    rules_dir = tmp_path / "rules"
+    rules_path = rules_dir / "tacit_rules.json"
     rawdata.mkdir()
     tacit.mkdir()
+    rules_dir.mkdir()
     tbox_path.write_text(_TBOX_TTL, encoding="utf-8")
 
     with open(rawdata / "Tag_Master.csv", "w", encoding="utf-8", newline="") as f:
@@ -327,6 +334,7 @@ def test_integration_valid_op_not_corrected(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "TBOX_PATH", str(tbox_path))
     monkeypatch.setattr(tr, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(tr, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(tr, "RULES_ROOT", str(rules_dir))
 
     from tools.tacit_rules import generate_tacit_from_rules
     result = json.loads(generate_tacit_from_rules(str(rules_path)))

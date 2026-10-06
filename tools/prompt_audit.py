@@ -18,10 +18,11 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime
 
 from config import GENERATED_REPORTS_DIR
-from tools.common import error_response
+from tools.common import error_response, resolve_child_path
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +42,19 @@ def _key_for(model_id: str, temperature: float | None, prompt: str) -> str:
     return h.hexdigest()
 
 
+#: ``_key_for`` 가 만드는 캐시 키 형식 (SHA-256 소문자 hex).
+_CACHE_KEY_RE = re.compile(r"[0-9a-f]{64}")
+
+
 def _cache_path(key: str) -> str:
-    return os.path.join(CACHE_DIR, f"{key}.json")
+    """캐시 키를 CACHE_DIR 바로 아래 JSON 경로로 해석한다.
+
+    키는 SHA-256 hex 여야 하고, 해석 결과가 CACHE_DIR 밖을 가리키는 symlink 면
+    거부한다 (ValueError).
+    """
+    if not isinstance(key, str) or not _CACHE_KEY_RE.fullmatch(key):
+        raise ValueError("cache_key 는 64자리 소문자 SHA-256 hex 여야 합니다.")
+    return resolve_child_path(CACHE_DIR, f"{key}.json", allowed_suffixes=(".json",))
 
 
 def _read_cache(key: str) -> dict | None:
@@ -156,6 +168,10 @@ def verify_reproducibility(
     invoker=None,
 ) -> dict:
     """캐시된 프롬프트를 현재 설정으로 재실행해 diff 측정."""
+    try:
+        _cache_path(cache_key)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
     entry = _read_cache(cache_key)
     if entry is None:
         return {"success": False, "error": f"cache miss: {cache_key}"}
@@ -200,7 +216,12 @@ def list_prompt_cache(limit: int = 50) -> str:
 
 
 def verify_prompt_reproducibility(cache_key: str) -> str:
-    """캐시 엔트리의 재현 검증용 메타데이터 반환 (Q5)."""
+    """캐시 엔트리의 재현 검증용 메타데이터 반환 (Q5).
+
+    Args:
+        cache_key: ``list_prompt_cache`` 가 돌려주는 64자리 SHA-256 hex 키.
+            다른 형식이나 캐시 디렉터리 밖을 가리키는 symlink 는 거부한다.
+    """
     r = verify_reproducibility(cache_key)
     if not r.get("success"):
         return error_response(r.get("error", "unknown"), logger=logger)

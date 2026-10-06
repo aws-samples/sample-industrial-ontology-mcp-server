@@ -438,7 +438,6 @@ def test_deployed_run_reports_schema_only_connections(tmp_path, monkeypatch):
     """
     import json
 
-    import tools.query_test as qt
     from config import SEMANTIC_DICT_PATH
     from tools.query_test import test_domain_queries
 
@@ -449,9 +448,12 @@ def test_deployed_run_reports_schema_only_connections(tmp_path, monkeypatch):
     if not any(v.get("is_populated") is False for v in ops.values()):
         pytest.skip("0행 OP 가 없어 이 축이 발동하지 않는다")
 
-    monkeypatch.setattr(qt, "GENERATED_REPORTS_DIR", str(tmp_path), raising=False)
+    # 보고서는 ``resolve_generated_path`` 가 호출 시점의 ``config.GENERATED_DIR`` 로
+    # 해석한다. 딕셔너리 경로는 import 시점 상수라 이 patch 와 무관하게 배포본을 읽는다.
+    monkeypatch.setattr("config.GENERATED_DIR", str(tmp_path))
     data = json.loads(test_domain_queries(verify_joins=False, open_report=False))
     summary = data["summary"]
+    assert data["report_path"].startswith(str(tmp_path)), data["report_path"]
     assert "schema_only_connections" in summary, (
         "선언 축 카운터가 없다 — 통과율 상승이 데이터인지 선언인지 구분 불가"
     )
@@ -473,15 +475,17 @@ def test_pass_rate_is_not_lowered_by_the_new_axis(tmp_path, monkeypatch):
     """
     import json
 
-    import tools.query_test as qt
     from config import SEMANTIC_DICT_PATH
     from tools.query_test import test_domain_queries
 
     if not os.path.exists(SEMANTIC_DICT_PATH):
         pytest.skip("배포 딕셔너리 없음")
-    monkeypatch.setattr(qt, "GENERATED_REPORTS_DIR", str(tmp_path), raising=False)
+    # 보고서는 ``resolve_generated_path`` 가 호출 시점의 ``config.GENERATED_DIR`` 로
+    # 해석한다. 딕셔너리 경로는 import 시점 상수라 이 patch 와 무관하게 배포본을 읽는다.
+    monkeypatch.setattr("config.GENERATED_DIR", str(tmp_path))
     data = json.loads(test_domain_queries(verify_joins=False, open_report=False))
     summary = data["summary"]
+    assert data["report_path"].startswith(str(tmp_path)), data["report_path"]
     # 유령에 기대 통과한 CQ 가 있어도 그 CQ 는 여전히 PASS 다.
     ghost_pass = [
         r for r in data["results"]

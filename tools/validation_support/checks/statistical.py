@@ -19,7 +19,7 @@ from collections import defaultdict
 
 from rdflib import XSD, Graph, URIRef
 
-from domain.namespaces import DOMAIN_NS, NS_PREFIX
+from domain.namespaces import DOMAIN_NS, NS_PREFIX, sparql_iri
 from domain.rules_paths import rules_path
 from tools.validation_support.common import (
     local,
@@ -333,7 +333,7 @@ def check_numeric_outliers(g: Graph) -> dict[str, object]:
         # 큰 값은 대부분 한 prop 뿐이므로 전체 리터럴 전송보다 훨씬 저렴.
         iqr_q = f"""
             SELECT ?val WHERE {{
-                ?s <{DOMAIN_NS}{prop_name}> ?val .
+                ?s {sparql_iri(DOMAIN_NS + prop_name)} ?val .
                 FILTER(isLiteral(?val))
                 FILTER({numeric_filter.replace('?o', '?val')})
             }} ORDER BY ASC(xsd:double(?val))
@@ -546,7 +546,7 @@ def check_string_patterns(
         if total >= 5:
             dom_q = f"""
                 SELECT ?o (COUNT(?s) AS ?c) WHERE {{
-                    ?s <{DOMAIN_NS}{prop_name}> ?o .
+                    ?s {sparql_iri(DOMAIN_NS + prop_name)} ?o .
                     FILTER({string_filter})
                 }} GROUP BY ?o ORDER BY DESC(?c) LIMIT 1
             """

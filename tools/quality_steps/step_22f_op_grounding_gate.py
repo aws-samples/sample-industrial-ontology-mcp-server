@@ -17,9 +17,19 @@ DP 는 "CSV 컬럼과 연결됐는가" 를 강제·역기록·게이팅·딕셔�
 OP 를 **229개** 선언하고 A-Box 가 쓰는 것은 **14개** 였다. S2 작성 160개 중 4개(2%)
 만 쓰이는데 DP 는 같은 산출물에서 68% 가 쓰인다 — OP 축만 무너져 있었다.
 
-원인은 프롬프트 구조다: ``04-property-rules.md`` 의 원칙 2("도메인 관계 추론")가
-CSV FK 없이 24개 관계 쌍을 열거하고, 원칙 5가 **모든** OP 에 역방향을 요구해 개수를
-2배로 만든다 (준수율 89%).
+현재 S2 프롬프트 (``prompts/tbox-prompt-modules/04-property-rules.md``) 는
+"ObjectProperty evidence" 절에서 CSV FK, 검토된 tacit 규칙, 제공된 CQ 중 하나가
+뒷받침할 때만 OP 를 만들라고 하고, "ObjectProperty declaration" 절에서 역방향 OP 는
+CQ 나 필요한 탐색이 요구할 때만 두라고 지시한다. 프롬프트는 LLM 에 대한 요청이라
+출력이 이를 어길 수 있다. 또 CQ 만 근거인 OP 는 채울 데이터가 없으면 값 0건으로
+남는다. 이 게이트는 S3 에서 이런 OP 를 센다.
+
+다만 S3 는 S7 **앞** 이라 아래 G1 근거를 이전 세대 A-Box 파일로 판정한다. 그래서
+무근거 수치에는 세 번째 경우가 섞인다. A-Box 가 아직 없거나 사용 판정이 불가하면
+CSV FK 로 곧 채워질 OP 도 근거 없음으로 세고, 이번 S2 가 새로 만든 OP 이름도 이전
+세대 A-Box 에는 없다. 경고 메시지는 ``op_grounding_abox_file_present`` 와
+``op_grounding_abox_signal_unavailable`` 로 원인 진단을 가른다. A-Box 파일이 없거나
+판정이 불가할 때는 S2 출력을 탓하지 않고 S7 이후 다시 확인하라고 안내한다.
 
 ## 이 스텝은 삭제하지 않는다 — 표시하고 센다
 
@@ -59,9 +69,9 @@ CSV FK 없이 24개 관계 쌍을 열거하고, 원칙 5가 **모든** OP 에 �
 환경변수:
   - ``TBOX_OP_GROUNDING_GATE``: ``warn`` (default) | ``fail``
   - ``TBOX_OP_GROUNDING_MAX``: 허용 무근거 OP 수 (default 40 — 현 실측 39 를
-    기준선으로 두어 **악화만** 잡는다. 줄이려면 프롬프트를 고쳐야 한다)
+    기준선으로 두어 **악화만** 잡는다. 줄이려면 S2 출력에서 무근거 OP 를 없애야 한다)
 
-기본이 ``warn`` 이고 임계치가 현 수준인 이유: 무근거 OP 는 프롬프트가 만든 것이라
+기본이 ``warn`` 이고 임계치가 현 수준인 이유: 무근거 OP 는 S2 가 만든 것이라
 S3 가 고칠 수 없다. 게이트의 목적은 **지금보다 나빠지는 것을 막고 수치를 드러내는
 것** 이다. 임계치를 0 으로 두면 매 실행 FAIL 이라 아무도 보지 않게 된다.
 """
@@ -246,6 +256,22 @@ def apply(g: Graph, ctx: StepContext) -> StepResult:
         )
 
     if not passed:
+        if signal_unavailable or not abox_file_present:
+            # A-Box 근거(G1)가 비었거나 tacit 만 반영됐다. 이때 수치는 S2 출력의
+            # 결함이 아니라 신호 부재를 반영할 수 있으므로 S2 진단을 내지 않는다.
+            diagnosis = (
+                "A-Box 파일이 아직 없거나 A-Box 사용 판정이 불가해 "
+                f"(op_grounding_abox_file_present={abox_file_present}, "
+                f"op_grounding_abox_signal_unavailable={signal_unavailable}) "
+                "CSV FK 로 채워질 OP 도 근거 없음으로 셌을 수 있다. 이 수치로 S2 "
+                "출력을 판정하지 말고 A-Box 생성(S7) 이후 다시 확인하라."
+            )
+        else:
+            diagnosis = (
+                "이 OP 들은 S2 출력이 그 절을 어겼거나, CQ 만 근거이고 채울 데이터가 "
+                "없거나, 이전 세대 A-Box 에 아직 없는 새 이름이라 S7 이 CSV FK 로 "
+                "채울 수 있는 경우다."
+            )
         message = (
             f"근거 없는 ObjectProperty {len(ungrounded)}개 (허용 {max_ungrounded}) — "
             f"A-Box·tacit 사용 {len(grounded_by['abox_or_tacit'])} / Restriction "
@@ -253,8 +279,9 @@ def apply(g: Graph, ctx: StepContext) -> StepResult:
             f"{len(grounded_by['config_declared'])} 중 어느 근거도 없다. "
             f"예: {ungrounded[:5]}. "
             "CSV FK 로 채울 경로가 없는 관계는 값 0건으로 남아 질의가 0행을 "
-            "정답처럼 반환한다 — prompts/tbox-prompt-modules/04-property-rules.md "
-            "원칙 2·5 가 CSV FK 대조 없이 관계를 요구하는 것이 근본 원인이다."
+            "정답처럼 반환한다. prompts/tbox-prompt-modules/04-property-rules.md 의 "
+            "\"ObjectProperty evidence\" 절은 CSV FK, 검토된 tacit 규칙, 제공된 CQ "
+            f"중 하나의 근거를 요구한다. {diagnosis}"
         )
         if mode == "fail":
             logger.error("Step 22f OP grounding gate FAIL: %s", message)

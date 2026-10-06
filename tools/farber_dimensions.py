@@ -5,7 +5,7 @@
 Semantic Web Journal 9(1):77-129. DOI: 10.3233/SW-170275.
 
 우리 프로젝트가 이미 인용/구현한 dimension:
-- Consistency (validate_kg 23 check)
+- Consistency (validate_kg 25 check)
 - Completeness (property_coverage, instance_quality)
 - Accuracy (domain_range_conformance)
 
@@ -30,6 +30,7 @@ from rdflib.namespace import RDF
 
 from config import (
     ABOX_PATH,
+    GENERATED_DIR,
     GENERATED_REPORTS_DIR,
     INFERRED_PATH,
     SOURCE_RAWDATA_DIR,
@@ -37,7 +38,12 @@ from config import (
 )
 from domain.namespaces import PROV
 from domain.tbox_utils import _new_graph
-from tools.common import error_response, success_response, write_deployed_sidecar
+from tools.common import (
+    error_response,
+    resolve_path_within,
+    success_response,
+    write_deployed_sidecar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -396,10 +402,27 @@ def evaluate_farber_dimensions(
     Representational consistency.
 
     Args:
-        confidence_sidecar_path: per-triple confidence TTL 경로 (Q2 산출물).
-        provenance_sidecar_path: inference_provenance.ttl 경로 (P2 산출물).
+        confidence_sidecar_path: data/generated 아래 per-triple confidence TTL 경로
+            (Q2 산출물).
+        provenance_sidecar_path: data/generated 아래 inference_provenance.ttl 경로
+            (P2 산출물).
+
+    두 경로는 절대경로 또는 작업 디렉터리 기준 상대경로이며, symlink 해석 후에도
+    data/generated 안이어야 한다. 밖이나 URL 이면 읽기 전에 거부한다.
     """
     try:
+        if confidence_sidecar_path:
+            confidence_sidecar_path = resolve_path_within(
+                GENERATED_DIR,
+                confidence_sidecar_path,
+                allowed_suffixes=(".ttl",),
+            )
+        if provenance_sidecar_path:
+            provenance_sidecar_path = resolve_path_within(
+                GENERATED_DIR,
+                provenance_sidecar_path,
+                allowed_suffixes=(".ttl",),
+            )
         report = evaluate_farber(
             confidence_sidecar_path=confidence_sidecar_path or None,
             provenance_sidecar_path=provenance_sidecar_path or None,

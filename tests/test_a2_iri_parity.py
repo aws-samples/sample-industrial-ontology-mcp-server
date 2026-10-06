@@ -113,12 +113,16 @@ def test_simple_join_strategy_end_to_end_skips_ts_on_unique_pk(tmp_path, monkeyp
 
     rawdata = tmp_path / "rawdata"
     tacit = tmp_path / "tacit"
+    # generate_tacit_from_rules 는 RULES_ROOT 아래 규칙 파일만 받는다.
+    rules_dir = tmp_path / "rules"
     rawdata.mkdir()
     tacit.mkdir()
+    rules_dir.mkdir()
     monkeypatch.setattr(config, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(config, "SOURCE_TACIT_DIR", str(tacit))
     monkeypatch.setattr(tr, "SOURCE_RAWDATA_DIR", str(rawdata))
     monkeypatch.setattr(tr, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(tr, "RULES_ROOT", str(rules_dir))
 
     # Unique Event_ID + Timestamp — mirrors real Alarm_Events.csv shape.
     with open(rawdata / "Alarm_Events.csv", "w", encoding="utf-8") as f:
@@ -127,7 +131,7 @@ def test_simple_join_strategy_end_to_end_skips_ts_on_unique_pk(tmp_path, monkeyp
         w.writerow(["EVT00001", "TAG008", "2025-09-01 13:55:08", "Critical"])
         w.writerow(["EVT00002", "TAG008", "2025-09-02 10:12:34", "Warning"])
 
-    rules_path = tmp_path / "rules.json"
+    rules_path = rules_dir / "rules.json"
     rules_path.write_text(json.dumps({"mappings": [{
         "name": "alarm_to_tag",
         "strategy": "simple_join",

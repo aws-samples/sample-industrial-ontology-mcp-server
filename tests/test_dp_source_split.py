@@ -1,8 +1,8 @@
 """한 DP 가 여러 CSV 컬럼을 주장하는 것 방지 (Step 12e 감시 + 12g 정리).
 
 배경 (2026-07-27 실측): ``dcterms:source`` 는 "이 DP 가 어느 컬럼에서 왔는가" 를
-단일하게 지목해야 한다 (원칙 4-1). 그런데 ``orderStdNoBOld`` 가 두 컬럼을
-함께 주장했다:
+단일하게 지목해야 한다 (``04-property-rules.md`` 의 "DatatypeProperty source column"
+절). 그런데 ``orderStdNoBOld`` 가 두 컬럼을 함께 주장했다:
 
     STD_NO_B_OLD    7,272행 채움  값 예: GRADE002     (구 체계)
     STD_NO_B_NEW  7,272행 채움  값 예: GRADE001   (신 체계)

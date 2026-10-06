@@ -17,7 +17,10 @@ OWL 추론, SPARQL 질의와 리포트를 하나의 워크플로로 제공합니
 
 ## 동봉 워크샵 (가이드 예시)
 
-다음 문서를 순서대로 사용해 서버 워크플로를 실습합니다.
+다음 문서를 순서대로 사용해 서버 워크플로를 실습합니다. 강의 슬라이드는 동봉되지
+않습니다. 30분 온톨로지 기초 세션의 자료는 참가자 워크북의
+[온톨로지 기초 강의](workshop/participant-workbook.md#온톨로지-기초-강의-30분) 절이며,
+강사가 이 절로 진행하거나 참가자가 혼자 읽을 수 있습니다.
 
 1. [설치 가이드](workshop/setup-guide.md)
 2. [참가자 워크북](workshop/participant-workbook.md)
@@ -49,6 +52,20 @@ OWL 추론, SPARQL 질의와 리포트를 하나의 워크플로로 제공합니
 ```bash
 python scripts/verify_workshop_sparql.py --ignore-placeholders
 ```
+
+## 비용 고려사항
+
+프로파일링, 변환, 검증, 추론, 질의 작업은 대부분 로컬에서 실행됩니다. Amazon
+Bedrock 모델 요금은 모델을 사용하는 도구, 특히 competency question 생성과 협업
+T-Box 설계에서 발생합니다. 파이프라인이 A-Box 생성 전과 추론 후에 실행하는
+`generate_semantic_dictionary`도 `description_ko`만 있고 `description_en`이 없는
+클래스가 있으면 Bedrock을 호출합니다. 이 호출은 해당 클래스 이름과 설명을 번역
+요청으로 모델에 보냅니다. 동봉 pre-generated 패키지는 질의·검증 실습에서 협업 T-Box
+단계를 건너뛰게 해 줄 뿐, 모든 모델 호출을 없애지는 않습니다. 동봉 T-Box 는 대부분의
+클래스에 한국어 설명만 있어서, 워크북 6-2a 처럼 이 T-Box 로 시맨틱 딕셔너리를 다시
+생성하면 해당 클래스가 번역 요청으로 Bedrock 에 전송됩니다. CQ 생성, 자연어 암묵지
+추가, T-Box 증분 수정 실습 단계도 Bedrock 을 호출합니다. 선택 원격 저장소는 별도
+인프라 요금이 발생할 수 있습니다.
 
 ## 빠른 시작
 

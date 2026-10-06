@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from domain.namespaces import DOMAIN_NS
 from domain.tbox_utils import _new_graph
 from tools.cardinality_sync import (
@@ -66,6 +68,32 @@ SHAPES_SHACL_ONLY = f"""@prefix sh: <http://www.w3.org/ns/shacl#> .
 """
 
 
+@pytest.fixture
+def mcp_sandbox(tmp_path, monkeypatch):
+    """MCP 도구의 경로 경계를 tmp_path 아래로 옮기고 픽스처를 그 안에 쓴다.
+
+    ``check_shacl_owl_cardinality_sync`` 는 tbox_path 를 data/generated/tbox 아래
+    파일명으로, shapes_path 를 rules/ 아래 경로로만 받는다. 경계 상수를 tmp_path
+    로 바꾸면 배포 트리를 건드리지 않고 같은 경계 규칙 안에서 도구를 호출한다.
+    """
+    import tools.cardinality_sync as cardinality_sync
+
+    tbox_dir = tmp_path / "tbox"
+    rules_dir = tmp_path / "rules"
+    tbox_dir.mkdir()
+    rules_dir.mkdir()
+    monkeypatch.setattr(cardinality_sync, "GENERATED_TBOX_DIR", str(tbox_dir))
+    monkeypatch.setattr(cardinality_sync, "RULES_ROOT", str(rules_dir))
+
+    def _write(tbox_ttl: str, shapes_ttl: str) -> tuple[str, str]:
+        (tbox_dir / "t.ttl").write_text(tbox_ttl, encoding="utf-8")
+        shapes = rules_dir / "s.ttl"
+        shapes.write_text(shapes_ttl, encoding="utf-8")
+        return "t.ttl", str(shapes)
+
+    return _write
+
+
 def test_extract_owl_cardinality():
     g = _new_graph()
     g.parse(data=TBOX, format="turtle")
@@ -116,14 +144,11 @@ def test_check_sync_shacl_only(tmp_path):
     assert report["owl_only"]
 
 
-def test_mcp_tool_runs(tmp_path):
+def test_mcp_tool_runs(mcp_sandbox):
     from tools.cardinality_sync import check_shacl_owl_cardinality_sync
 
-    tbox = tmp_path / "t.ttl"
-    shapes = tmp_path / "s.ttl"
-    tbox.write_text(TBOX, encoding="utf-8")
-    shapes.write_text(SHAPES_MATCHING, encoding="utf-8")
-    raw = check_shacl_owl_cardinality_sync(str(tbox), str(shapes))
+    tbox, shapes = mcp_sandbox(TBOX, SHAPES_MATCHING)
+    raw = check_shacl_owl_cardinality_sync(tbox, shapes)
     data = json.loads(raw)
     assert data["success"] is True
     assert data["severity"] == "ok"
@@ -277,7 +302,7 @@ def test_deployed_tbox_extracts_axioms_and_reports_no_false_positives():
     )
 
 
-def test_severity_is_not_ok_when_comparison_impossible(tmp_path):
+def test_severity_is_not_ok_when_comparison_impossible(mcp_sandbox):
     """대조 불가를 ``ok`` 로 보고하지 않는다.
 
     2026-08-30: 오발화를 막으려고 "대조 가능한 shape 이 0개면 비교를 건너뛴다" 로
@@ -288,11 +313,8 @@ def test_severity_is_not_ok_when_comparison_impossible(tmp_path):
     """
     from tools.cardinality_sync import check_shacl_owl_cardinality_sync
 
-    tbox = tmp_path / "t.ttl"
-    shapes = tmp_path / "s.ttl"
-    tbox.write_text(TBOX_SKOLEMIZED, encoding="utf-8")
-    shapes.write_text(SHAPES_META_ONLY, encoding="utf-8")
-    data = json.loads(check_shacl_owl_cardinality_sync(str(tbox), str(shapes)))
+    tbox, shapes = mcp_sandbox(TBOX_SKOLEMIZED, SHAPES_META_ONLY)
+    data = json.loads(check_shacl_owl_cardinality_sync(tbox, shapes))
     assert data["comparison_possible"] is False
     assert data["severity"] != "ok", (
         "대조하지 못했는데 ok 로 보고했다 — 침묵이 PASS 로 읽힌다"
@@ -301,29 +323,23 @@ def test_severity_is_not_ok_when_comparison_impossible(tmp_path):
     assert data["note"]
 
 
-def test_severity_ok_only_when_actually_compared(tmp_path):
+def test_severity_ok_only_when_actually_compared(mcp_sandbox):
     """PRESERVATION: 실제로 대조해 일치하면 ``ok`` 다.
 
     ``info`` 를 무조건 쓰면 "일치했다" 신호를 잃는다.
     """
     from tools.cardinality_sync import check_shacl_owl_cardinality_sync
 
-    tbox = tmp_path / "t.ttl"
-    shapes = tmp_path / "s.ttl"
-    tbox.write_text(TBOX_SKOLEMIZED, encoding="utf-8")
-    shapes.write_text(SHAPES_MATCHING, encoding="utf-8")
-    data = json.loads(check_shacl_owl_cardinality_sync(str(tbox), str(shapes)))
+    tbox, shapes = mcp_sandbox(TBOX_SKOLEMIZED, SHAPES_MATCHING)
+    data = json.loads(check_shacl_owl_cardinality_sync(tbox, shapes))
     assert data["comparison_possible"] is True
     assert data["severity"] == "ok", data
 
 
-def test_severity_critical_survives_the_new_branch(tmp_path):
+def test_severity_critical_survives_the_new_branch(mcp_sandbox):
     """PRESERVATION: 불일치는 여전히 critical 이다."""
     from tools.cardinality_sync import check_shacl_owl_cardinality_sync
 
-    tbox = tmp_path / "t.ttl"
-    shapes = tmp_path / "s.ttl"
-    tbox.write_text(TBOX_SKOLEMIZED, encoding="utf-8")
-    shapes.write_text(SHAPES_MISMATCH, encoding="utf-8")
-    data = json.loads(check_shacl_owl_cardinality_sync(str(tbox), str(shapes)))
+    tbox, shapes = mcp_sandbox(TBOX_SKOLEMIZED, SHAPES_MISMATCH)
+    data = json.loads(check_shacl_owl_cardinality_sync(tbox, shapes))
     assert data["severity"] == "critical", data

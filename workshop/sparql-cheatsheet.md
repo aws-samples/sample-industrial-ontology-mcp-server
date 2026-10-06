@@ -132,7 +132,7 @@ SELECT ?eq ?profile WHERE {
 자연어로 쿼리 요청했는데 0건 리턴되면 **이 순서로 점검** (3분 안에 80% 해결):
 
 1. **값 범위 확인** (아래 §"프로퍼티명 확인하는 법" 방법 F) — `FILTER(?t >= 2000)` 인데 실제 값 max 가 1680?
-2. **OP 이름 확인** (방법 A) — `?eq hasAlarm ?a` 인데 실제는 `?alarm hasAlarmTag ?tag . ?tag isTagOf ?eq` (Tag hub) 2-hop?
+2. **OP 이름 확인** (방법 A): `?eq steel:hasAlarm ?a` 인데 동봉 T-Box 의 실제 경로는 `?tag steel:tagEquipment ?eq . ?alarm steel:hasAlarmTag ?tag` (Tag hub 2-hop)?
 3. **FILTER 제거 후 결과 수** — 한 조건씩 다시 추가
 
 > **팁**: SPARQL 을 직접 작성하지 않아도 됩니다. Claude Code 에 자연어로 물어보면 SPARQL 자동 생성·실행. 0건 리턴 시 "방금 실행한 SPARQL 보여줘" 로 검증.
@@ -171,7 +171,7 @@ GROUP BY ?p ORDER BY DESC(?c) LIMIT 30
 
 <!-- zero-rows-ok: clean-pre-generated -->
 ```sparql
-# 예: isTagOf 가 참조하는 EquipmentMaster 인스턴스가 없으면 dangling
+# 예: tagEquipment 가 참조하는 EquipmentMaster 인스턴스가 없으면 dangling
 # pre-generated 는 정상 데이터라 0 행이 정상 — 자사 도메인 첫 실행 시 종종 발견
 SELECT ?subject ?missing WHERE {
   ?subject steel:tagEquipment ?missing .
@@ -245,9 +245,12 @@ SELECT ?i WHERE {
 SELECT ?p ?o WHERE { steel-inst:EquipmentMaster_EQ001 ?p ?o }
 ```
 
-> **디버깅 팁**: 추론 전 / 추론 후 결과를 비교해 "OWL 추론이 실제로 뭘 추가했는가"
-> 확인 가능. 예: 추론 전엔 `hasEquipment` 만 있다가 추론 후엔 `isEquipmentOf`
-> (inverseOf) + 상위 클래스 `rdf:type` 트리플이 생김.
+> **디버깅 팁**: `source="merge"` (추론 전) 와 `source="inferred"` (추론 후) 결과를 비교해
+> "OWL 추론이 실제로 뭘 추가했는가" 확인 가능. 예: 원본 A-Box 파일에는
+> `?tag steel:tagEquipment steel-inst:EquipmentMaster_EQ001` 방향만 있지만, 역방향
+> `steel:equipmentHasTag` (inverseOf 짝) 는 `sparql_local` 이 그래프를 로드할 때 채우므로 두 모드
+> 모두에서 보인다. 추론 후에 주로 더해지는 것은 상위 클래스 `rdf:type` (예: `steel:EquipmentAsset`)
+> 과 IOF 상위 술어 트리플이다.
 
 ---
 
@@ -270,7 +273,7 @@ T-Box 는 LLM 이 매번 다르게 생성하므로, 이 치트시트의 `steel:t
 | DP (값 2) | | `steel:alarmEventsAlarmType` |
 
 이 표를 한 번 작성하면 cheatsheet 의 `steel:` SPARQL 을 본인 환경 prefix + 이름으로
-변환할 때 (post-workshop §"D+1 첫 숙제" 의 sed 치환) 빠르게 매핑됩니다.
+변환할 때 (post-workshop §"D+1 첫 숙제" 에서 바꾼 `prefix` 기준) 빠르게 매핑됩니다.
 
 ### 그룹 1 — 이름 확인 (방법 A~D, 4가지 경로)
 
@@ -309,7 +312,7 @@ SELECT ?p WHERE { ?p a owl:DatatypeProperty } ORDER BY ?p
 
 ### 그룹 2 — 2-hop 경로 (방법 E)
 
-직접 관계 (`?eq hasAlarm ?a`) 가 0건 나올 때 — Tag 같은 **공유 노드를 거치는 경로** 로 우회.
+직접 관계 (`?eq steel:hasAlarm ?a`, 동봉 T-Box 에 없는 OP) 가 0건 나올 때는 Tag 같은 **공유 노드를 거치는 경로** 로 우회.
 
 #### 방법 E — 2-hop 경로로 우회
 
@@ -394,8 +397,8 @@ SELECT ?cls (COUNT(?i) AS ?cnt) WHERE { ?i a ?cls } GROUP BY ?cls ORDER BY DESC(
 ### 설비 + 알람 + 고장 원인 (3-도메인 JOIN, pre-generated 실제 OP 사용)
 ```sparql
 # 설비별 알람 건수 + 고장 건수 — 고장 잦은 설비 식별
-# Alarm 은 Tag 를 통해 설비와 간접 연결 (Tag→isTagOf→EQ + Alarm→hasAlarmTag→Tag),
-# FailureCause 는 isFailureRecordOf 로 EQ 에 직접
+# Alarm 은 Tag 를 통해 설비와 간접 연결 (Tag→tagEquipment→EQ + Alarm→hasAlarmTag→Tag),
+# FailureCause 는 failureCauseRefersToEquipment 로 EQ 에 직접
 SELECT ?eqName (COUNT(DISTINCT ?alarm) AS ?alarmCnt) (COUNT(DISTINCT ?failure) AS ?failureCnt)
 WHERE {
   ?eq a steel:EquipmentMaster ;
@@ -515,7 +518,7 @@ SELECT ?next WHERE {
 
 ### 고장 원인 (실제 데이터: FailureCause)
 ```sparql
-# 설비별 고장 원인 + 다운타임 (pre-generated 실제 데이터, OP 는 isFailureRecordOf)
+# 설비별 고장 원인 + 다운타임 (pre-generated 실제 데이터, OP 는 failureCauseRefersToEquipment)
 SELECT ?eqName ?causeCode ?downtimeHours ?occurrenceDateTime WHERE {
   ?fc a steel:FailureCause ;
       steel:failureCauseRefersToEquipment ?eq ;
@@ -533,6 +536,36 @@ LIMIT 20
 > tacit_rules.json 또는 add_tacit_from_natural_language 로 추가하는 항목).
 > 실제 KG 에 OP 가 존재하는지 먼저 확인:
 > `SELECT ?p (COUNT(*) AS ?c) WHERE { ?s ?p ?o } GROUP BY ?p ORDER BY DESC(?c)`
+
+---
+
+## 한국어 용어 정확도 팁 (ask_ontology 동의어 사전)
+
+`ask_ontology` 도구에 한국어로 물었는데 엉뚱한 클래스로 답한다면, 한국어 도메인 용어와
+클래스 이름을 잇는 동의어 사전을 만든다. `ask_ontology` 는 질문에 사전의 키가 들어 있으면
+대응 클래스 이름을 프롬프트에 힌트로 붙인다 (`tools/korean_synonyms.py`).
+
+- **파일 위치**: `rules/domain/korean_synonyms.json`. 리포에는 없고 `.gitignore` 대상이라 직접 만든다.
+- **opt-in**: 파일이 없거나 비었거나 JSON 형식이 틀리면 힌트 없이 기존 동작 그대로다.
+- **매칭**: 질문 문자열에 키가 부분 문자열로 들어 있으면 매칭하고, 긴 키를 먼저 본다.
+  파일은 호출할 때마다 다시 읽으므로 수정 후 서버를 재시작하지 않아도 된다.
+- **적용 범위**: `ask_ontology` 에만 쓰인다. Ch5 처럼 Claude Code 가 직접 SPARQL 을 짜는 흐름에는
+  적용되지 않으므로, 그때는 위 "프로퍼티명 확인하는 법" 의 방법 A (시맨틱 딕셔너리) 로 클래스명을 확인한다.
+
+형식 (`synonyms` 의 값은 동봉 T-Box 에 있는 클래스 이름의 목록):
+
+```json
+{
+  "description": "철강 샘플 한국어 동의어",
+  "synonyms": {
+    "고로": ["ProcessBlastFurnace"],
+    "용광로": ["ProcessBlastFurnace"],
+    "설비": ["EquipmentMaster"],
+    "센서": ["TagMaster"],
+    "알람": ["AlarmEvents"]
+  }
+}
+```
 
 ---
 

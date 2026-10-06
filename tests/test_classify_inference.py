@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from rdflib import BNode, Graph, Literal, Namespace, URIRef
 from rdflib.namespace import OWL, RDF, RDFS
 
@@ -19,6 +20,19 @@ def _cls(local: str) -> URIRef:
 
 def _inst(local: str) -> URIRef:
     return URIRef(DOMAIN + local)
+
+
+@pytest.fixture
+def inferred_dir(tmp_path, monkeypatch):
+    """도구의 inferred 경계 디렉터리를 tmp_path 로 옮긴다.
+
+    ``classify_inference_triples`` 는 inferred_path 를 GENERATED_INFERRED_DIR 바로
+    아래 파일명으로만 받으므로, 픽스처를 이 디렉터리에 쓰고 파일명만 넘긴다.
+    """
+    import tools.inference_classify as inference_classify
+
+    monkeypatch.setattr(inference_classify, "GENERATED_INFERRED_DIR", str(tmp_path))
+    return tmp_path
 
 
 def test_named_individual_is_trivial():
@@ -47,7 +61,7 @@ def test_cross_namespace_is_suspicious():
     assert cat == "suspicious"
 
 
-def test_classify_inference_triples_totals(tmp_path):
+def test_classify_inference_triples_totals(inferred_dir):
     # Build a graph with 3 meaningful, 2 trivial, 1 suspicious
     g = Graph()
 
@@ -64,10 +78,10 @@ def test_classify_inference_triples_totals(tmp_path):
     # suspicious: domain subject + foreign predicate
     g.add((_inst("EQ001"), FOAF.name, Literal("BlastFurnace")))
 
-    tmp = tmp_path / "inferred.ttl"
+    tmp = inferred_dir / "inferred.ttl"
     tmp.write_text(g.serialize(format="turtle"), encoding="utf-8")
 
-    resp = classify_inference_triples(inferred_path=str(tmp))
+    resp = classify_inference_triples(inferred_path=tmp.name)
     data = json.loads(resp)
 
     assert data["success"] is True
@@ -77,11 +91,11 @@ def test_classify_inference_triples_totals(tmp_path):
     assert data["suspicious_count"] == 1
 
 
-def test_empty_graph_returns_zero(tmp_path):
-    tmp = tmp_path / "empty.ttl"
+def test_empty_graph_returns_zero(inferred_dir):
+    tmp = inferred_dir / "empty.ttl"
     tmp.write_text("", encoding="utf-8")
 
-    resp = classify_inference_triples(inferred_path=str(tmp))
+    resp = classify_inference_triples(inferred_path=tmp.name)
     data = json.loads(resp)
 
     assert data["success"] is True
@@ -104,10 +118,10 @@ def test_subclassof_owl_thing_is_trivial():
     assert cat3 == "meaningful"
 
 
-def test_mcp_tool_returns_success_json(tmp_path):
+def test_mcp_tool_returns_success_json(inferred_dir):
     """Missing-file invocation returns a success=true JSON with zero counts."""
-    missing = tmp_path / "does_not_exist.ttl"
-    resp = classify_inference_triples(inferred_path=str(missing))
+    missing = inferred_dir / "does_not_exist.ttl"
+    resp = classify_inference_triples(inferred_path=missing.name)
     data = json.loads(resp)
     assert data["success"] is True
     assert data["total_inferred"] == 0
@@ -191,7 +205,7 @@ def test_truly_foreign_predicate_still_suspicious():
     assert _classify_triple(s, p, Literal("EQ001")) == "suspicious"
 
 
-def test_bnode_does_not_leak_into_suspicious_or_meaningful(tmp_path):
+def test_bnode_does_not_leak_into_suspicious_or_meaningful(inferred_dir):
     """그래프에 BNode subject 가 있어도 suspicious/meaningful 집계에 포함 안 됨."""
     g = Graph()
     # Meaningful domain triple
@@ -202,10 +216,10 @@ def test_bnode_does_not_leak_into_suspicious_or_meaningful(tmp_path):
     g.add((restriction, OWL.onProperty, _cls("hasAlarm")))
     g.add((restriction, OWL.someValuesFrom, _cls("Alarm")))
 
-    tmp = tmp_path / "inferred.ttl"
+    tmp = inferred_dir / "inferred.ttl"
     tmp.write_text(g.serialize(format="turtle"), encoding="utf-8")
 
-    resp = classify_inference_triples(inferred_path=str(tmp))
+    resp = classify_inference_triples(inferred_path=tmp.name)
     data = json.loads(resp)
     # 3개의 BNode triple 이 모두 trivial 에 집계
     assert data["trivial_count"] == 3

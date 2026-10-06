@@ -36,15 +36,24 @@ import os
 import re
 from typing import Any
 
+from rdflib import Graph
+
 from config import PROJECT_ROOT, SOURCE_RAWDATA_DIR, SOURCE_TACIT_DIR
 from domain.namespaces import DOMAIN_INST_NS, DOMAIN_NS, NS_INST_PREFIX, NS_PREFIX
-from domain.rules_paths import rules_path
-from tools.common import atomic_write, error_response, resolve_child_path
+from domain.rules_paths import RULES_ROOT, rules_path
+from tools.abox_generation import _pk_safe_local
+from tools.common import atomic_write, error_response, resolve_child_path, resolve_path_within
 
 logger = logging.getLogger(__name__)
 
 _RULES_PATH = rules_path("tacit_rules.json")
 _SUGGESTED_RULES_PATH = rules_path("tacit_rules.suggested.json")
+_EXAMPLE_RULES_PATH = rules_path("tacit_rules.example.steel.json")
+
+
+def _project_relpath(path: str) -> str:
+    """사용자 안내 문구에 쓸 프로젝트 기준 상대경로."""
+    return os.path.relpath(path, PROJECT_ROOT)
 
 
 # A2: 시계열 컬럼 감지 — abox_generation._TIMESTAMP_COLUMNS 와 동일 패턴.
@@ -242,9 +251,50 @@ def _format_pk(template: str, n: int) -> str:
         return template
 
 
+#: Turtle prefixed name 의 local 부분으로 그대로 쓸 수 있는 ASCII 이름.
+_PN_LOCAL_ASCII = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_-]*")
+#: Turtle IRIREF 안에 그대로 둘 수 없는 문자 (공백·제어 문자 포함).
+_IRIREF_FORBIDDEN = re.compile(r'[\x00-\x20<>"{}|^`\\\x7f-\x9f]')
+
+
+def _iri_local_part(value: object) -> str:
+    """CSV 값을 A-Box 생성기와 같은 규칙으로 IRI local name 조각으로 바꾼다.
+
+    구두점과 공백은 ``_`` 가 되므로 값이 Turtle 문장을 끝내거나 트리플을 덧붙일 수
+    없고, 결과 IRI 는 같은 행의 A-Box 인스턴스 IRI 와 같다.
+    """
+    return _pk_safe_local(str(value).strip())
+
+
+def _turtle_term(prefix: str, namespace: str, local_name: object) -> str:
+    """네임스페이스 아래 이름을 Turtle 항으로 만든다.
+
+    ASCII 이름은 prefixed name 으로, 그 밖의 문자가 섞이면 전체 IRI 로 쓴다. IRI 에
+    둘 수 없는 문자가 있으면 ValueError 다. 규칙 필드의 클래스·프로퍼티 이름이
+    문장을 끝내고 트리플을 덧붙이지 못하게 하는 마지막 관문이다.
+    """
+    if not isinstance(local_name, str) or not local_name:
+        raise ValueError(f"IRI local name 이 비어 있거나 문자열이 아닙니다: {local_name!r}")
+    if _PN_LOCAL_ASCII.fullmatch(local_name):
+        return f"{prefix}:{local_name}"
+    if _IRIREF_FORBIDDEN.search(local_name):
+        raise ValueError(f"IRI local name 에 쓸 수 없는 문자가 있습니다: {local_name!r}")
+    return f"<{namespace}{local_name}>"
+
+
 def _ns_inst_iri(local_name: str) -> str:
-    """Render a steel-inst:LocalName in TTL form."""
-    return f"{NS_INST_PREFIX}:{local_name}"
+    """steel-inst 인스턴스 IRI 를 Turtle 항으로 만든다 (:func:`_turtle_term`)."""
+    return _turtle_term(NS_INST_PREFIX, DOMAIN_INST_NS, local_name)
+
+
+def _ns_term(name: object) -> str:
+    """도메인 어휘 프로퍼티를 Turtle 항으로 만든다 (:func:`_turtle_term`)."""
+    return _turtle_term(NS_PREFIX, DOMAIN_NS, name)
+
+
+def _comment_text(value: object) -> str:
+    """Turtle 주석 한 줄에 넣을 값. 줄바꿈을 공백으로 바꿔 주석 밖으로 새지 않게 한다."""
+    return " ".join(str(value).splitlines())
 
 
 def _abox_pk_iri(
@@ -272,9 +322,7 @@ def _abox_pk_iri(
             Pass False for strict single-PK behaviour (legacy).
     """
     row_lower = {k.lower(): str(v).strip() for k, v in row.items() if v and str(v).strip()}
-
-    def _norm(v: str) -> str:
-        return re.sub(r"[^a-zA-Z0-9_-]", "_", v)
+    _norm = _iri_local_part
 
     def _ts(row_lower: dict) -> str | None:
         for key in ("timestamp", "datetime", "measurementdatetime", "testdatetime",
@@ -322,32 +370,6 @@ def _abox_pk_iri(
                     return f"{base}_{ts}"
             return base
     return None
-
-
-def _build_pk_to_iri(
-    class_name: str, csv_filename: str, pk_column: str, composite_pk: list[str] | None,
-) -> dict[str, str]:
-    """Return dict mapping PK (or composite key) → IRI local name.
-
-    For composite PKs, the key is the values joined with '_' matching
-    abox_generation's URI convention.
-    """
-    _, rows = _read_csv_rows(csv_filename)
-    out: dict[str, str] = {}
-    for row in rows:
-        if composite_pk:
-            parts = [row.get(c, "") for c in composite_pk]
-            if not all(parts):
-                continue
-            key = "_".join(parts)
-            iri_local = f"{class_name}_{key}"
-        else:
-            key = row.get(pk_column, "")
-            if not key:
-                continue
-            iri_local = f"{class_name}_{key}"
-        out[key] = iri_local
-    return out
 
 
 def _is_pk_unique_in_csv(csv_filename: str, pk_column: str) -> bool:
@@ -516,9 +538,9 @@ def _generate_rotation(rule: dict, cache: dict) -> list[str]:
             continue
         src_key = src_iri_local[len(src_class) + 1:]  # strip "{class}_" prefix
         tgt_pk_val = target_pks[i % len(target_pks)]
-        tgt_iri_local = f"{tgt_class}_{tgt_pk_val}"
+        tgt_iri_local = f"{tgt_class}_{_iri_local_part(tgt_pk_val)}"
         lines.append(
-            f"{_ns_inst_iri(src_iri_local)} {NS_PREFIX}:{op} {_ns_inst_iri(tgt_iri_local)} ."
+            f"{_ns_inst_iri(src_iri_local)} {_ns_term(op)} {_ns_inst_iri(tgt_iri_local)} ."
         )
         src_iris[src_key] = src_iri_local
     cache[rule["name"]] = {"src_iris": src_iris, "tgt_pool": target_pks}
@@ -549,11 +571,11 @@ def _generate_number_match(rule: dict, cache: dict) -> list[str]:
         if n is None:
             continue
         tgt_val = _format_pk(tgt_pk_template, n)
-        src_iri = f"{src_class}_{src_val}"
-        tgt_iri = f"{tgt_class}_{tgt_val}"
+        src_iri = f"{src_class}_{_iri_local_part(src_val)}"
+        tgt_iri = f"{tgt_class}_{_iri_local_part(tgt_val)}"
         for op in ops:
             lines.append(
-                f"{_ns_inst_iri(src_iri)} {NS_PREFIX}:{op} {_ns_inst_iri(tgt_iri)} ."
+                f"{_ns_inst_iri(src_iri)} {_ns_term(op)} {_ns_inst_iri(tgt_iri)} ."
             )
         mapping[src_val] = tgt_val
     cache[rule["name"]] = {"mapping": mapping, "src_class": src_class, "tgt_class": tgt_class}
@@ -587,9 +609,9 @@ def _generate_simple_join(rule: dict, cache: dict) -> list[str]:
         )
         if not src_iri_local:
             continue
-        tgt_iri_local = f"{tgt_class}_{fk_val}"
+        tgt_iri_local = f"{tgt_class}_{_iri_local_part(fk_val)}"
         lines.append(
-            f"{_ns_inst_iri(src_iri_local)} {NS_PREFIX}:{op} {_ns_inst_iri(tgt_iri_local)} ."
+            f"{_ns_inst_iri(src_iri_local)} {_ns_term(op)} {_ns_inst_iri(tgt_iri_local)} ."
         )
     return lines
 
@@ -660,9 +682,9 @@ def _generate_via_mapping_chain(rule: dict, cache: dict) -> list[str]:
         )
         if not src_iri_local:
             continue
-        tgt_iri_local = f"{tgt_class}_{tgt_pk}"
+        tgt_iri_local = f"{tgt_class}_{_iri_local_part(tgt_pk)}"
         lines.append(
-            f"{_ns_inst_iri(src_iri_local)} {NS_PREFIX}:{op} {_ns_inst_iri(tgt_iri_local)} ."
+            f"{_ns_inst_iri(src_iri_local)} {_ns_term(op)} {_ns_inst_iri(tgt_iri_local)} ."
         )
     return lines
 
@@ -719,9 +741,9 @@ def _generate_fk_lookup_table(rule: dict, cache: dict) -> list[str]:
         )
         if not src_iri_local:
             continue
-        tgt_iri_local = f"{tgt_class}_{tgt_pk}"
+        tgt_iri_local = f"{tgt_class}_{_iri_local_part(tgt_pk)}"
         lines.append(
-            f"{_ns_inst_iri(src_iri_local)} {NS_PREFIX}:{op} {_ns_inst_iri(tgt_iri_local)} ."
+            f"{_ns_inst_iri(src_iri_local)} {_ns_term(op)} {_ns_inst_iri(tgt_iri_local)} ."
         )
     return lines
 
@@ -828,7 +850,7 @@ def _generate_shared_column_join(rule: dict, cache: dict) -> list[str]:
         for s in src_iris:
             for t in tgt_iris:
                 lines.append(
-                    f"{_ns_inst_iri(s)} {NS_PREFIX}:{op} {_ns_inst_iri(t)} ."
+                    f"{_ns_inst_iri(s)} {_ns_term(op)} {_ns_inst_iri(t)} ."
                 )
     return lines
 
@@ -876,7 +898,7 @@ def _confidence_provenance(rule: dict, strategy: str) -> list[str]:
     if not estimated and confidence not in _CAVEAT_CONFIDENCE:
         return []
 
-    out = [f"#   confidence: {confidence}"]
+    out = [f"#   confidence: {_comment_text(confidence)}"]
     if estimated:
         out.append(
             "#   ESTIMATED: bucket join, not a recorded FK — every source row "
@@ -889,10 +911,10 @@ def _confidence_provenance(rule: dict, strategy: str) -> list[str]:
             or rule.get("target_bucket_column")
             or "?"
         )
-        out.append(f"#   bucket column: {bucket}")
+        out.append(f"#   bucket column: {_comment_text(bucket)}")
     reasoning = str(rule.get("_reasoning") or "").strip()
     if reasoning:
-        out.append(f"#   reasoning: {reasoning[:300]}")
+        out.append(f"#   reasoning: {_comment_text(reasoning[:300])}")
     return out
 
 
@@ -949,18 +971,25 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
     composed shortcuts.
 
     Args:
-        rules_path: Optional override path to the rules JSON. Defaults to
-            rules/domain/tacit_rules.json at project root.
+        rules_path: rules/ 아래 규칙 JSON 경로 (절대경로 또는 작업 디렉터리
+            기준 상대경로). symlink 해석 후에도 rules/ 안이어야 하며 확장자는
+            ``.json`` 이어야 한다. 비어 있으면 프로젝트 루트의
+            rules/domain/tacit_rules.json.
 
     Returns:
-        JSON with per-rule triples_written and per-file summary.
+        규칙별 triples_written 과 파일별 요약을 담은 JSON. 렌더링한 TTL 이
+        파싱되지 않으면 그 파일은 쓰지 않고 ``files_rejected`` 에 올린다.
     """
     try:
-        path = rules_path or _RULES_PATH
+        path = _RULES_PATH
+        if rules_path:
+            path = resolve_path_within(
+                RULES_ROOT, rules_path, allowed_suffixes=(".json",),
+            )
         if not os.path.exists(path):
             return error_response(
                 f"rules file not found: {path}",
-                hint="Create rules/domain/tacit_rules.json (see docstring).",
+                hint=f"Create {_project_relpath(_RULES_PATH)} (see docstring).",
                 logger=logger,
             )
         with open(path, encoding="utf-8") as f:
@@ -975,9 +1004,9 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
                 "files_written": [],
                 "per_rule": [],
                 "note": (
-                    "rules/domain/tacit_rules.json 의 mappings 가 비어 있습니다. "
-                    "신규 도메인 적용 시: (A) rules/tacit_rules.example.steel.json 참고해 "
-                    "직접 작성, (B) suggest_tacit_rules 도구로 LLM 초안 받기, "
+                    f"{_project_relpath(path)} 의 mappings 가 비어 있습니다. "
+                    f"신규 도메인 적용 시: (A) {_project_relpath(_EXAMPLE_RULES_PATH)} "
+                    "참고해 직접 작성, (B) suggest_tacit_rules 도구로 LLM 초안 받기, "
                     "(C) skip 후 (a) 자연어 경로만 사용."
                 ),
             }, ensure_ascii=False, indent=2)
@@ -1105,7 +1134,8 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
             header = per_file.setdefault(out_file, [])
             if lines:
                 header.append(
-                    f"# --- rule: {rule.get('name', '?')} (strategy={strat_name}) ---"
+                    f"# --- rule: {_comment_text(rule.get('name', '?'))} "
+                    f"(strategy={strat_name}) ---"
                 )
                 header.extend(_confidence_provenance(rule, strat_name))
                 header.extend(lines)
@@ -1119,6 +1149,7 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
             })
 
         files_written: list[dict] = []
+        files_rejected: list[dict] = []
         for out_file, content_lines in per_file.items():
             ttl = _render_ttl_file([
                 "# Auto-generated by generate_tacit_from_rules (deterministic).",
@@ -1133,6 +1164,13 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
                 out_file,
                 allowed_suffixes=(".ttl",),
             )
+            # 쓰기 전에 결과 TTL 을 파싱한다. 실패한 파일은 기존 파일을 덮어쓰지 않는다.
+            try:
+                Graph().parse(data=ttl, format="turtle")
+            except Exception as exc:
+                logger.warning("tacit TTL 구문 오류로 쓰지 않음 (%s): %s", out_file, exc)
+                files_rejected.append({"filename": out_file, "error": str(exc)[:300]})
+                continue
             atomic_write(dest, ttl)
             files_written.append({
                 "path": dest,
@@ -1145,6 +1183,7 @@ def generate_tacit_from_rules(rules_path: str = "") -> str:
             "rules_applied": len(mappings),
             "rules_with_output": sum(1 for r in per_rule_counts if r.get("triples", 0) > 0),
             "files_written": files_written,
+            "files_rejected": files_rejected,
             "per_rule": per_rule_counts,
             "op_corrections": op_corrections,
             "op_corrections_count": len(op_corrections),
@@ -1404,7 +1443,7 @@ def suggest_tacit_rules(max_rules: int = 8, save_to_suggested: bool = True) -> s
       - (d) skip
 
     ## 사용 흐름
-    1. 이 도구 호출 → `rules/tacit_rules.suggested.json` 생성 + preview 반환
+    1. 이 도구 호출 → `rules/domain/tacit_rules.suggested.json` 생성 + preview 반환
     2. 사용자가 파일 열어 SME 관점에서 검토 → 각 mapping 의 _confidence, _reasoning 확인
     3. 검증 완료한 규칙만 `rules/domain/tacit_rules.json` 의 mappings 배열로 복사
     4. `generate_tacit_from_rules()` 호출해 실제 TTL 생성
@@ -1416,7 +1455,7 @@ def suggest_tacit_rules(max_rules: int = 8, save_to_suggested: bool = True) -> s
 
     Args:
         max_rules: 초안 최대 규칙 수 (기본 8).
-        save_to_suggested: True (기본) 면 rules/tacit_rules.suggested.json 에 저장.
+        save_to_suggested: True (기본) 면 rules/domain/tacit_rules.suggested.json 에 저장.
                             False 면 preview 만 반환.
 
     Returns:
@@ -1521,7 +1560,7 @@ def suggest_tacit_rules(max_rules: int = 8, save_to_suggested: bool = True) -> s
             if parsed is None:
                 return error_response(
                     f"LLM 응답 JSON 파싱 실패: {je}. max_rules 를 줄여 재시도하거나 "
-                    "rules/tacit_rules.example.steel.json 을 참고해 직접 작성하세요.",
+                    f"{_project_relpath(_EXAMPLE_RULES_PATH)} 을 참고해 직접 작성하세요.",
                     hint=f"응답 앞부분: {raw[:200]!r}",
                     logger=logger,
                 )
