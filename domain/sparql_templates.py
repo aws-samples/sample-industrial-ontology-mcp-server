@@ -141,11 +141,14 @@ _EGRESS_KEYWORD_START = re.compile(rf"{_GLUED_LITERAL}?(SERVICE|LOAD)", re.IGNOR
 _DOTTED_SERVICE_START = re.compile(rf"{_GLUED_LITERAL}\.(SERVICE)", re.IGNORECASE)
 #: 원문에 이 글자열이 없으면 어떤 해석에서도 키워드가 생기지 않는다 (빠른 경로).
 _EGRESS_KEYWORD_HINT = re.compile(r"SERVICE|LOAD", re.IGNORECASE)
+#: 공백 한 글자 또는 줄 끝까지의 주석 하나. 주석은 반드시 줄 끝(또는 텍스트 끝)까지
+#: 읽으므로 같은 입력을 여러 방식으로 나눌 수 없고, 반복해도 선형 시간에 끝난다.
+_TRIVIA_UNIT = r"(?:[ \t\r\n]|#[^\r\n]*(?=[\r\n]|\Z))"
 #: 다음 토큰 앞의 공백과 주석.
-_TRIVIA = re.compile(r"(?:[ \t\r\n]+|#[^\r\n]*)*")
+_TRIVIA = re.compile(rf"{_TRIVIA_UNIT}*")
 #: ``LOAD iri`` 뒤에 올 수 있는 것 (끝, 다음 연산의 ``;``, ``INTO GRAPH``). Oxigraph 는
 #: ``INTO`` 와 ``GRAPH`` 사이에도 공백을 요구하지 않으므로 ``INTOGRAPH`` 도 받는다.
-_AFTER_LOAD_IRI = re.compile(r"\Z|;|INTO(?:[ \t\r\n]|#[^\r\n]*)*GRAPH", re.IGNORECASE)
+_AFTER_LOAD_IRI = re.compile(rf"\Z|;|INTO{_TRIVIA_UNIT}*GRAPH", re.IGNORECASE)
 #: 뒤의 prefixed name 을 그래프 이름으로 받는 키워드.
 _GRAPH_NAME_KEYWORDS = frozenset({"GRAPH", "FROM", "NAMED"})
 

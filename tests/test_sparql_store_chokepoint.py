@@ -770,3 +770,36 @@ def test_workshop_verifier_reads_docs_as_utf8_under_legacy_locale(tmp_path, monk
 
     assert workshop.main() == 0
     assert "PASS 1" in capsys.readouterr().out
+
+
+def test_after_load_iri_is_linear_on_hash_runs():
+    """``INTO`` 뒤의 ``#`` 연속은 주석 하나로만 읽혀 되짚기가 생기지 않는다.
+
+    주석이 줄 끝까지 읽히지 않으면 ``#`` 마다 분할 방식이 갈려 ``GRAPH`` 가 없을 때
+    지수 시간이 걸린다. 26자 입력은 그 구현에서 상한을 넘고 현재 구현에서는 즉시 끝난다.
+    """
+    from domain.sparql_templates import _AFTER_LOAD_IRI, _find_egress_keyword
+
+    text = "into" + "#" * 26 + "x"
+    assert _cpu_seconds(lambda: _AFTER_LOAD_IRI.match(text)) < _TIME_LIMIT_SECONDS
+    query = "PREFIX x: <urn:a#> LOAD x:y " + text
+    assert _cpu_seconds(lambda: _find_egress_keyword(query)) < _TIME_LIMIT_SECONDS
+
+
+@pytest.mark.parametrize(
+    ("text", "matches"),
+    [
+        ("INTO GRAPH", True),
+        ("INTOGRAPH", True),
+        ("into # c\nGRAPH", True),
+        ("into#c\r\n graph", True),
+        (";", True),
+        ("", True),
+        ("INTO #x GRAPH", False),
+    ],
+)
+def test_after_load_iri_reads_comments_to_line_end(text, matches):
+    """주석은 줄 끝까지이므로 같은 줄의 ``GRAPH`` 는 주석 안의 글자다."""
+    from domain.sparql_templates import _AFTER_LOAD_IRI
+
+    assert (_AFTER_LOAD_IRI.match(text) is not None) is matches
