@@ -3715,10 +3715,13 @@ def _compute_metrics_feedback(current_ttl: str, round_num: int) -> str:
 
         grounded = sum(1 for p in ops if _has_real_source(p))
         ground_pct = round(grounded / max(len(ops), 1) * 100, 1)
+        ground_status = (
+            "✅" if ground_pct >= 60 else
+            "⚠️ 목표: ≥60% — CSV FK 컬럼을 dcterms:source 로 명시하라"
+        )
         ground_line = (
             f"- OP 근거율 (dcterms:source 보유): {grounded}/{len(ops)} "
-            f"({ground_pct}%) {'✅' if ground_pct >= 60 else '⚠️ 목표: ≥60% — '
-             'CSV FK 컬럼을 dcterms:source 로 명시하라'}"
+            f"({ground_pct}%) {ground_status}"
         )
 
         op_warn = (

@@ -96,6 +96,16 @@ cp .env.example .env
 이 저장소에는 테스트가 있지만 hosted CI workflow는 게시하지 않습니다. 릴리스 전
 검증 명령은 관리자가 명시적으로 실행합니다.
 
+`python -m pip install -r requirements-dev.txt`로 개발 의존성을 설치합니다.
+소스 호환성 검사는 실제 Python 3.11로 프로젝트를 컴파일합니다. Python 3.11에서
+pytest를 실행하면 현재 인터프리터를 사용합니다. 상위 버전에서는 `python3.11`이
+`PATH`에서 검색되도록 설정하거나 `PYTHON311`에 실행 파일 경로를 지정합니다. 이 컴파일 검사는
+표준 라이브러리만 필요하며, 필요한 인터프리터가 없으면 명시적으로 실패합니다.
+
+```bash
+PYTHON311=/absolute/path/to/python3.11 python -m pytest -q --no-header -rfE
+```
+
 ## 정리
 
 ```bash
