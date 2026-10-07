@@ -82,12 +82,20 @@ def test_module_path_is_redirected():
 # ── 기능: 격리해도 테스트가 정상 동작한다 ───────────────────────────────
 
 
-def test_generated_output_is_readable_from_tmp():
+def test_generated_output_is_readable_from_tmp(sample_tbox_file, monkeypatch):
     """리다이렉트된 경로에 실제로 써지고 다시 읽을 수 있는가.
 
     격리가 "아무 곳에도 안 쓴다" 가 되면 딕셔너리 테스트들이 전부 무의미해진다.
     """
+    import tools.bedrock as bedrock
     import tools.semantic_dictionary as sd
+
+    monkeypatch.setattr(sd, "TBOX_PATH", str(sample_tbox_file))
+
+    def reject_model_call(*args, **kwargs):
+        pytest.fail("영어 설명이 있는 fixture에서 모델을 호출하면 안 됩니다.")
+
+    monkeypatch.setattr(bedrock, "invoke_bedrock_text", reject_model_call)
 
     raw = sd.generate_semantic_dictionary(include_stats=False)
     result = json.loads(raw) if isinstance(raw, str) else raw
@@ -95,9 +103,12 @@ def test_generated_output_is_readable_from_tmp():
 
     written = pathlib.Path(sd.SEMANTIC_DICT_PATH)
     assert written.exists(), "리다이렉트된 경로에 파일이 없다"
-    assert json.loads(written.read_text(encoding="utf-8")).get("classes"), (
+    dictionary = json.loads(written.read_text(encoding="utf-8"))
+    assert dictionary.get("classes"), (
         "써진 딕셔너리에 classes 가 없다"
     )
+    assert {"EquipmentMaster", "EquipmentStatus"} <= dictionary["classes"].keys()
+    assert json.loads(sd.read_semantic_dictionary()) == dictionary
 
 
 # ── 범위: 다른 배포 산출물도 안전한가 ───────────────────────────────────

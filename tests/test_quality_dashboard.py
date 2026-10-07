@@ -27,11 +27,10 @@ def _real_metric_keys() -> set[str]:
     return {k for k in metrics if isinstance(k, str)}
 
 
-def test_every_impact_metric_name_exists():
+def test_every_impact_metric_name_exists(sample_tbox_file):
     """THE REGRESSION: 매핑의 모든 메트릭 이름이 실제 키에 있어야 한다."""
     real = _real_metric_keys()
-    if not real:
-        pytest.skip("T-Box 가 없어 메트릭 키를 확인할 수 없다")
+    assert real, "fixture T-Box의 메트릭 키가 없다"
 
     referenced = {m for metrics in _RULE_METRIC_IMPACT.values() for m in metrics}
     phantom = sorted(referenced - real)
@@ -65,23 +64,20 @@ def test_trace_quality_issues_smoke():
         assert key in result, f"응답에 '{key}' 가 없다"
 
 
-def test_annotation_rules_can_actually_join():
+def test_annotation_rules_can_actually_join(sample_tbox_file):
     """라벨/주석 위반이 annotation 메트릭에 **실제로** 연결되는지.
 
     이름이 맞아도 조인 로직이 바뀌면 다시 끊길 수 있으므로 조인 자체를 재현한다.
     """
-    real = _real_metric_keys()
-    if not real:
-        pytest.skip("T-Box 없음")
+    from domain.namespaces import DOMAIN_NS
+    from tools.quality_dashboard import trace_quality_issues
 
-    annotation_key = next((k for k in real if k.startswith("annotation")), None)
-    assert annotation_key, f"annotation 계열 메트릭이 없다: {sorted(real)}"
-
-    # 도구 내부와 같은 방식으로 조인해 본다.
-    traced = [{"rule": "missing_label",
-               "affects_metrics": _RULE_METRIC_IMPACT["missing_label"]}]
-    causes = [t for t in traced if annotation_key in t["affects_metrics"]]
-    assert causes, (
-        f"'{annotation_key}' 가 missing_label 의 영향 목록과 조인되지 않는다 — "
-        "근본원인이 유실된다"
+    sample_tbox_file.write_text(
+        f"<{DOMAIN_NS}EquipmentMaster> a <http://www.w3.org/2002/07/owl#Class> .\n",
+        encoding="utf-8",
     )
+    result = json.loads(trace_quality_issues())
+    assert result.get("success") is True, result
+    causes = result["warning_metrics_with_causes"]["annotation_completeness"]
+    assert causes["violation_count"] > 0
+    assert "missing_label" in causes["top_violations"]

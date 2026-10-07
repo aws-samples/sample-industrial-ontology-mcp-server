@@ -190,15 +190,29 @@ def test_tmp_path_that_mentions_data_generated_is_allowed(tmp_path):
     assert target.read_text(encoding="utf-8") == "# tmp mirror\n"
 
 
-def test_existing_deployed_dir_with_exist_ok_is_allowed():
+def test_existing_deployed_dir_with_exist_ok_is_allowed(tmp_path, monkeypatch):
     """이미 있는 배포 폴더의 방어적 ``exist_ok=True`` 보장은 막지 않는다.
 
     호출부 46곳이 이 형태다. 여기까지 막으면 배포 산출물을 **읽는** 정당한 테스트가
     깨진다. 오염 축은 **신규** 폴더 생성 하나뿐이다.
     """
-    existing = os.path.join(GENERATED_DIR, "reports")
-    assert os.path.isdir(existing), "픽스처 전제: reports/ 가 존재해야 한다"
+    from tests import conftest
+
+    existing = tmp_path / "generated" / "reports"
+    existing.mkdir(parents=True)
+    is_deployed = conftest._is_deployed_artifact
+    fixture_root = str(existing.parent.resolve())
+
+    def protect_fixture_as_well(path, root):
+        return is_deployed(path, root) or is_deployed(path, fixture_root)
+
+    monkeypatch.setattr(conftest, "_is_deployed_artifact", protect_fixture_as_well)
     os.makedirs(existing, exist_ok=True)  # 예외가 나지 않아야 한다
+
+    new_dir = existing / "new"
+    with pytest.raises(AssertionError, match="신규 디렉터리"):
+        os.makedirs(new_dir, exist_ok=True)
+    assert not new_dir.exists()
 
 
 def test_tmp_path_dir_creation_and_move_are_allowed(tmp_path):

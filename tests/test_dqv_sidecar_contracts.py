@@ -32,9 +32,11 @@ def _call(module_path: str, func_name: str) -> dict:
     return payload
 
 
-def test_tbox_metrics_exposes_metrics_value():
+def test_tbox_metrics_exposes_metrics_value(sample_tbox_file):
     """``_extract_from_tbox_metrics`` 는 ``metrics[k]["value"]`` 를 읽는다."""
-    payload = _call("tools.tbox_metrics", "measure_tbox_metrics")
+    from tools.tbox_metrics import measure_tbox_metrics
+
+    payload = json.loads(measure_tbox_metrics())
     metrics = payload.get("metrics")
     assert isinstance(metrics, dict) and metrics, "metrics 섹션이 없다"
     key = next(iter(metrics))
