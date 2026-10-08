@@ -25,9 +25,21 @@ def _stub_pipeline():
     return onto
 
 
-def test_validate_owl_consistency_cache_hits_second_call():
+@pytest.fixture
+def isolated_hermit_caches(monkeypatch):
+    """테스트가 결과·자기진단 캐시를 물려받거나 다른 테스트에 남기지 않게 한다."""
     from tools import owl_reasoner as r
-    r.clear_hermit_cache()
+
+    monkeypatch.setattr(r, "_HERMIT_RESULT_CACHE", {})
+    monkeypatch.setattr(r, "_BLINDNESS_PROBE_CACHE", {})
+    return r
+
+
+@pytest.mark.parametrize("warm_probe_cache", [False, True], ids=["cold_probe", "warm_probe"])
+def test_validate_owl_consistency_cache_hits_second_call(
+    isolated_hermit_caches, warm_probe_cache,
+):
+    r = isolated_hermit_caches
     stub_onto = _stub_pipeline()
     with patch.object(r, "_cleanup_world"), \
          patch.object(r, "_ttl_to_owlready", return_value=(stub_onto, "/tmp/x.owl")), \
@@ -36,17 +48,23 @@ def test_validate_owl_consistency_cache_hits_second_call():
          patch.object(r, "_collect_inferred_hierarchy", return_value=[]), \
          patch.object(r, "_safe_unlink"), \
          patch.object(r, "_load_ttl_content", return_value="same_ttl"):
+        if warm_probe_cache:
+            r.check_reasoner_blindness()
+            sync.reset_mock()
         out1 = json.loads(r.validate_owl_consistency("same_ttl"))
+        calls_after_first = sync.call_count
         out2 = json.loads(r.validate_owl_consistency("same_ttl"))
+    assert out1["success"] is True
     assert out1["consistent"] is True
     assert out2["consistent"] is True
-    # 두 번째 호출은 캐시 히트 → sync_reasoner_hermit 1회만 호출.
-    assert sync.call_count == 1
+    assert out2 == out1
+    # 첫 호출의 자기진단 횟수와 무관하게 캐시 히트에서는 추가 추론이 없어야 한다.
+    assert calls_after_first > 0
+    assert sync.call_count == calls_after_first
 
 
-def test_classify_tbox_cache_hits_second_call():
-    from tools import owl_reasoner as r
-    r.clear_hermit_cache()
+def test_classify_tbox_cache_hits_second_call(isolated_hermit_caches):
+    r = isolated_hermit_caches
     stub_onto = _stub_pipeline()
     with patch.object(r, "_cleanup_world"), \
          patch.object(r, "_ttl_to_owlready", return_value=(stub_onto, "/tmp/x.owl")), \
@@ -54,14 +72,18 @@ def test_classify_tbox_cache_hits_second_call():
          patch.object(r, "_collect_unsatisfiable", return_value=[]), \
          patch.object(r, "_safe_unlink"), \
          patch.object(r, "_load_ttl_content", return_value="same_ttl_c"):
-        r.classify_tbox("same_ttl_c")
-        r.classify_tbox("same_ttl_c")
-    assert sync.call_count == 1
+        out1 = json.loads(r.classify_tbox("same_ttl_c"))
+        calls_after_first = sync.call_count
+        out2 = json.loads(r.classify_tbox("same_ttl_c"))
+    assert out1["success"] is True
+    assert out2 == out1
+    assert calls_after_first > 0
+    assert sync.call_count == calls_after_first
 
 
-def test_different_ttl_does_not_share_cache():
-    from tools import owl_reasoner as r
-    r.clear_hermit_cache()
+@pytest.mark.parametrize("warm_probe_cache", [False, True], ids=["cold_probe", "warm_probe"])
+def test_different_ttl_does_not_share_cache(isolated_hermit_caches, warm_probe_cache):
+    r = isolated_hermit_caches
     stub_onto = _stub_pipeline()
     # _load_ttl_content는 호출마다 인자를 그대로 돌려주도록.
     with patch.object(r, "_cleanup_world"), \
@@ -71,10 +93,22 @@ def test_different_ttl_does_not_share_cache():
          patch.object(r, "_collect_inferred_hierarchy", return_value=[]), \
          patch.object(r, "_safe_unlink"), \
          patch.object(r, "_load_ttl_content", side_effect=lambda c, p: c):
-        r.validate_owl_consistency("ttl_a")
-        r.validate_owl_consistency("ttl_b")
-    # 다른 TTL 이면 두 번 모두 실제 실행.
-    assert sync.call_count == 2
+        if warm_probe_cache:
+            r.check_reasoner_blindness()
+            sync.reset_mock()
+        out1 = json.loads(r.validate_owl_consistency("ttl_a"))
+        calls_after_first = sync.call_count
+        out2 = json.loads(r.validate_owl_consistency("ttl_b"))
+        calls_after_second = sync.call_count
+        out3 = json.loads(r.validate_owl_consistency("ttl_a"))
+    assert out1["consistent"] is True
+    assert out2["consistent"] is True
+    # 자기진단 캐시는 첫 호출에서 채워지고, 새 TTL에는 본 추론이 다시 필요하다.
+    assert calls_after_first > 0
+    assert calls_after_second == calls_after_first + 1
+    # 다른 TTL을 처리한 뒤에도 이전 TTL의 결과를 재사용한다.
+    assert sync.call_count == calls_after_second
+    assert out3 == out1
 
 
 # ── 검증 범위 각인 (2026-08-30) ───────────────────────────────────────────
