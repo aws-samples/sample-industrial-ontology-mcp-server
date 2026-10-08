@@ -33,7 +33,9 @@ Jury 는 실제로 이 형태를 요청한다 — 2026-08-17 실행에서
 """
 from __future__ import annotations
 
+import pytest
 from rdflib import OWL, RDF, RDFS, Graph, URIRef
+from rdflib.collection import Collection
 
 import tools.multi_agent_tbox as mt
 from tools.jury_fixes import apply_jury_fixes
@@ -70,33 +72,36 @@ def _ranges(ttl: str, prop: str = "existingLink") -> list:
 
 def test_shared_actions_do_not_go_through_the_dsl_engine():
     """양쪽이 아는 action 은 DSL 로 보내지 않는다 (jury_fixes 가 가드를 갖는다)."""
-    dsl_only, jury_bound = mt._route_jury_fixes([
+    fixes = [
         {"action": "remove_triple", "subject": "steel:X",
          "predicate": "rdfs:range", "object": "steel:Y"},
         {"action": "add_triple", "subject": "steel:X",
          "predicate": "owl:inverseOf", "object": "steel:Y"},
         {"action": "add_object_property", "property": "steel:p",
          "domain": "steel:X", "range": "steel:Y"},
-    ])
+        {"action": "add_transitive_property", "name": "existingLink"},
+    ]
+    dsl_only, jury_bound = mt._route_jury_fixes(fixes)
 
     assert dsl_only == [], f"공유 action 이 DSL 로 갔다: {dsl_only}"
-    assert len(jury_bound) == 3
+    assert jury_bound == fixes
 
 
 def test_dsl_only_actions_still_reach_the_dsl_engine():
     """NEGATIVE: DSL 전용 action 은 계속 DSL 로 가야 한다.
 
-    ``jury_fixes`` 는 rename_class / merge_classes / add_transitive_property 등을
+    ``jury_fixes`` 는 rename_class / rename_property / merge_classes 등을
     모른다. 전부 jury_fixes 로 몰면 그 지시들이 통째로 버려진다 — 예전에 반대
     방향으로 겪은 실패(DSL 전용 경로라 jury 전용 action 이 버려짐)를 되풀이하는 것이다.
     """
-    dsl_only, jury_bound = mt._route_jury_fixes([
-        {"action": "rename_class", "old": "steel:A", "new": "steel:B"},
-        {"action": "add_transitive_property", "name": "steel:p"},
-        {"action": "merge_classes", "keep": "steel:A", "drop": "steel:B"},
-    ])
+    fixes = [
+        {"action": "rename_class", "old": "A", "new": "B"},
+        {"action": "rename_property", "old": "p", "new": "q"},
+        {"action": "merge_classes", "into": "A", "from": ["B"]},
+    ]
+    dsl_only, jury_bound = mt._route_jury_fixes(fixes)
 
-    assert len(dsl_only) == 3, f"DSL 전용 action 이 누락됐다: {dsl_only}"
+    assert dsl_only == fixes, f"DSL 전용 action 이 누락됐다: {dsl_only}"
     assert jury_bound == []
 
 
@@ -173,7 +178,7 @@ def test_no_double_application_of_shared_actions():
     """
     fixes = [{
         "action": "add_disjoint_classes",
-        "classes": ["steel:Shipment", "steel:Warehouse"],
+        "members": ["steel:Shipment", "steel:Warehouse"],
     }]
     dsl_only, jury_bound = mt._route_jury_fixes(fixes)
     ttl = TTL
@@ -184,34 +189,80 @@ def test_no_double_application_of_shared_actions():
     g = Graph()
     g.parse(data=result["ttl"], format="turtle")
     nodes = list(g.subjects(RDF.type, OWL.AllDisjointClasses))
-    assert len(nodes) <= 1, f"AllDisjointClasses 노드가 {len(nodes)}개 생겼다"
+    assert len(nodes) == 1, f"AllDisjointClasses 노드가 {len(nodes)}개 생겼다"
+    assert set(Collection(g, g.value(nodes[0], OWL.members))) == {
+        URIRef(STEEL + "Shipment"), URIRef(STEEL + "Warehouse"),
+    }
 
 
 # ── 배선 ──────────────────────────────────────────────────────────────────
 
-def test_both_jury_paths_use_the_router():
-    """중간 라운드와 최종 라운드 **둘 다** 라우터를 쓴다 (소스 레벨 고정).
+@pytest.mark.parametrize("round_kind", ["mid", "final"])
+@pytest.mark.parametrize("scenario", ["last_range", "duplicate_op", "shared_once", "dsl_only"])
+def test_both_jury_paths_use_the_router(monkeypatch, round_kind, scenario):
+    """두 라운드에서 실제 그래프와 요약으로 라우팅·가드·적용을 검증한다."""
+    fixes = {
+        "last_range": [dict(_REMOVE_LAST_RANGE[0])],
+        "duplicate_op": [{
+            "action": "add_object_property", "property": "steel:newDupLink",
+            "domain": "steel:Shipment", "range": "steel:Warehouse",
+        }],
+        "shared_once": [
+            {"action": "add_disjoint_classes",
+             "members": ["steel:Shipment", "steel:Warehouse"]},
+            {"action": "add_transitive_property", "name": "existingLink"},
+        ],
+        "dsl_only": [{"action": "rename_class", "old": "Warehouse", "new": "Depot"}],
+    }[scenario]
+    result = _run_round(monkeypatch, round_kind, TTL, fixes)
+    graph = Graph().parse(data=result["state"]["current_ttl"], format="turtle")
+    summary = result["round_log"]["jury_fixes_summary"]
+    assert summary["requested"] == len(fixes)
 
-    한쪽만 고치면 다른 경로에서 같은 우회가 계속된다 — 실측상 두 지점이
-    같은 코드를 복사한 형태였다.
-    """
-    import inspect
+    if scenario == "dsl_only":
+        assert summary["routed_dsl"] == 1
+        assert summary["routed_jury"] == 0
+        assert summary["dsl"]["applied"] == 1
+        assert (URIRef(STEEL + "Depot"), RDF.type, OWL.Class) in graph
+        assert URIRef(STEEL + "Warehouse") not in set(graph.all_nodes())
+        assert _ranges(result["state"]["current_ttl"]) == [URIRef(STEEL + "Depot")]
+    else:
+        assert summary["routed_dsl"] == 0
+        assert summary["routed_jury"] == len(fixes)
+        if scenario == "last_range":
+            assert _ranges(result["state"]["current_ttl"]) == [URIRef(STEEL + "Warehouse")]
+            assert summary["failed"] == 1
+        elif scenario == "duplicate_op":
+            assert not list(graph.triples((URIRef(STEEL + "newDupLink"), None, None)))
+            assert summary["applied"] == 0
+        else:
+            nodes = list(graph.subjects(RDF.type, OWL.AllDisjointClasses))
+            assert len(nodes) == 1
+            assert set(Collection(graph, graph.value(nodes[0], OWL.members))) == {
+                URIRef(STEEL + "Shipment"), URIRef(STEEL + "Warehouse"),
+            }
+            assert (URIRef(STEEL + "existingLink"), RDF.type, OWL.TransitiveProperty) in graph
+            assert summary["applied"] == 2
+            assert summary["failed"] == 0
 
-    for fn in (mt._handle_potential_consensus, mt._handle_final_round_no_consensus):
-        src = inspect.getsource(fn)
-        assert "_route_jury_fixes" in src, (
-            f"{fn.__name__} 이 라우터를 쓰지 않는다 — DSL 선행 pass 가 남아 있다"
-        )
 
-
-def test_routing_counts_are_reported():
+@pytest.mark.parametrize("round_kind", ["mid", "final"])
+def test_routing_counts_are_reported(monkeypatch, round_kind):
     """라우팅 결과가 응답에 남는다 — 어디로 갔는지 모르면 진단이 불가능하다."""
-    import inspect
-
-    src = inspect.getsource(mt._handle_final_round_no_consensus)
-    assert "routed_dsl" in src or "routed_to_dsl" in src, (
-        "라우팅 카운트를 기록하지 않는다"
-    )
+    result = _run_round(monkeypatch, round_kind, TTL, [
+        {"action": "rename_class", "old": "Warehouse", "new": "Depot"},
+        {"action": "add_transitive_property", "name": "existingLink"},
+    ])
+    graph = Graph().parse(data=result["state"]["current_ttl"], format="turtle")
+    summary = result["round_log"]["jury_fixes_summary"]
+    assert (summary["requested"], summary["routed_dsl"], summary["routed_jury"]) == (2, 1, 1)
+    assert summary["dsl"]["applied"] == 1
+    assert summary["applied"] == 1
+    assert summary["failed"] == 0
+    assert (URIRef(STEEL + "Depot"), RDF.type, OWL.Class) in graph
+    assert URIRef(STEEL + "Warehouse") not in set(graph.all_nodes())
+    assert _ranges(result["state"]["current_ttl"]) == [URIRef(STEEL + "Depot")]
+    assert (URIRef(STEEL + "existingLink"), RDF.type, OWL.TransitiveProperty) in graph
 
 
 def _jury_stub(required_fixes: list[dict]):
@@ -227,10 +278,19 @@ def _jury_stub(required_fixes: list[dict]):
 
 def _run_mid_round(monkeypatch, ttl: str, fixes: list[dict]) -> dict:
     """``_handle_potential_consensus`` 를 태우고 state 를 돌려준다."""
+    return _run_round(monkeypatch, "mid", ttl, fixes)
+
+
+def _run_round(monkeypatch, round_kind: str, ttl: str, fixes: list[dict]) -> dict:
+    """LLM 경계만 대체하고 실제 라운드·라우터·수정 엔진을 실행한다."""
     # ``_jury_decide`` 가 실제 호출 지점이다 (grep 확인). raising 기본값을 유지해
     # 이름이 바뀌면 테스트가 실패하도록 둔다 — raising=False 로 두면 함수가
     # 사라져도 조용히 통과한다.
     monkeypatch.setattr(mt, "_jury_decide", lambda *a, **k: _jury_stub(fixes))
+    monkeypatch.setattr(
+        mt, "_architect_compromise",
+        lambda *a, **k: pytest.fail("라우팅 테스트에서 예상 밖의 Architect 호출"),
+    )
     state = {
         "current_ttl": ttl,
         "debate_log": [],
@@ -240,11 +300,18 @@ def _run_mid_round(monkeypatch, ttl: str, fixes: list[dict]) -> dict:
     }
     round_log: dict = {}
     summary: dict = {}
-    mt._handle_potential_consensus(
-        state, {"issues": []}, {"issues": []}, {},
-        {"coverage_pct": 100.0, "answerable": [], "unanswerable": []},
-        2, round_log, summary, lambda *_a, **_k: None,
-    )
+    cq_runtime = {"coverage_pct": 100.0, "answerable": [], "unanswerable": []}
+    if round_kind == "mid":
+        mt._handle_potential_consensus(
+            state, {"issues": []}, {"issues": []}, {}, cq_runtime,
+            2, round_log, summary, lambda *_a, **_k: None,
+        )
+    else:
+        assert round_kind == "final"
+        mt._handle_final_round_no_consensus(
+            state, {"issues": []}, {"issues": []}, {}, cq_runtime,
+            2, 3, round_log, summary, lambda *_a, **_k: None,
+        )
     return {"state": state, "round_log": round_log}
 
 
@@ -267,13 +334,17 @@ def test_mid_round_path_preserves_the_guard(monkeypatch):
 
 def test_mid_round_still_applies_dsl_only_actions(monkeypatch):
     """NEGATIVE: 중간 라운드에서 DSL 전용 action 은 계속 적용된다."""
-    fixes = [{"action": "add_transitive_property", "name": "existingLink"}]
+    fixes = [{"action": "rename_class", "old": "Warehouse", "new": "Depot"}]
     result = _run_mid_round(monkeypatch, TTL, fixes)
 
     g = Graph()
     g.parse(data=result["state"]["current_ttl"], format="turtle")
-    assert (URIRef(STEEL + "existingLink"), RDF.type, OWL.TransitiveProperty) in g, (
+    assert (URIRef(STEEL + "Depot"), RDF.type, OWL.Class) in g, (
         "DSL 전용 action 이 적용되지 않았다 — 라우팅이 그것을 버렸다"
     )
+    assert URIRef(STEEL + "Warehouse") not in set(g.all_nodes())
+    assert _ranges(result["state"]["current_ttl"]) == [URIRef(STEEL + "Depot")]
     fx = result["round_log"].get("jury_fixes_summary") or {}
     assert fx.get("routed_dsl") == 1
+    assert fx["routed_jury"] == 0
+    assert fx["dsl"]["applied"] == 1
