@@ -3,6 +3,10 @@
 import json
 from unittest.mock import patch
 
+import pytest
+from rdflib import RDF, RDFS, Graph, Literal, URIRef
+from rdflib.namespace import DCTERMS, OWL, XSD
+
 from domain.namespaces import DOMAIN_NS, NS_PREFIX
 
 # ── _extract_ttl_from_markdown ────────────────────
@@ -479,7 +483,7 @@ class TestCorrectionLoopEarlyExit:
 
 
 class TestGenerateChunkDeepOverflow:
-    """2026-05-10 회귀 방어 — depth>=2 단일 테이블 overflow 시 재시도 생략."""
+    """단일 컬럼 재시도와 컬럼 분할의 예산·깊이·산출물을 검증한다."""
 
     _CONFIG = {
         "max_tokens": 24000,
@@ -493,87 +497,146 @@ class TestGenerateChunkDeepOverflow:
         # Bedrock overflow 모사: text + stop_reason=max_tokens
         return {"text": "@prefix : <x#> .\n", "stop_reason": "max_tokens"}
 
-    def test_depth3_single_table_overflow_skips_retry(self):
-        """depth>=3 + 단일 테이블 overflow → 재시도 없이 빈 TTL 반환.
+    def _run_chunk(self, columns, depth, responder=None, max_tokens=24000):
+        """실제 프롬프트 생성을 관찰하고 LLM 응답만 대체한다."""
+        import tools.tbox_generation as tg
 
-        2026-05-12 정책 변경: depth 2 까지는 retry 허용, depth 3 이상만 skip.
-        """
-        from tools.tbox_generation import _generate_chunk
+        calls = []
+        prompt_columns = {}
+        real_build = tg._build_chunk_prompt
 
-        call_count = {"n": 0}
-        def _invoke(*args, **kwargs):
-            call_count["n"] += 1
-            return self._fake_overflow()
+        def build(*args, **kwargs):
+            cached_prefix, prompt = real_build(*args, **kwargs)
+            prompt_columns[prompt] = tuple(args[1][0]["columns"])
+            return cached_prefix, prompt
 
-        tables = [{"name": "BigTable", "columns": ["c1", "c2", "c3"]}]
-        with patch("tools.tbox_generation._invoke_bedrock", side_effect=_invoke):
-            result = _generate_chunk(
+        def invoke(prompt, **kwargs):
+            assert prompt in prompt_columns, "컬럼 입력과 연결되지 않은 프롬프트를 전달했다"
+            current_columns = prompt_columns[prompt]
+            calls.append((current_columns, kwargs["max_tokens"]))
+            if len(calls) > 16:
+                pytest.fail("작은 fixture의 재시도가 종료되지 않는다")
+            if responder is None:
+                return self._fake_overflow()
+            return responder(current_columns, len(calls))
+
+        with patch.object(tg, "_build_chunk_prompt", side_effect=build), \
+             patch.object(tg, "_invoke_bedrock", side_effect=invoke):
+            result = tg._generate_chunk(
                 chunk_idx=0,
-                chunk_tables=tables,
+                chunk_tables=[{"name": "BigTable", "columns": columns}],
                 total_chunks=6,
                 iof_summary="",
                 schema_info="",
                 relationships_info="",
                 table_class_map={"BigTable": "BigTable"},
-                config=self._CONFIG,
-                depth=3,
+                config={**self._CONFIG, "max_tokens": max_tokens},
+                depth=depth,
             )
+        return result, calls
+
+    @staticmethod
+    def _ttl_for_columns(columns):
+        ttl = (
+            "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n"
+            "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .\n"
+            "@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .\n"
+            "@prefix dcterms: <http://purl.org/dc/terms/> .\n"
+            f"<{DOMAIN_NS}BigTable> a owl:Class .\n"
+        )
+        for column in columns:
+            ttl += (
+                f"<{DOMAIN_NS}BigTable_{column}> a owl:DatatypeProperty ; "
+                f"rdfs:domain <{DOMAIN_NS}BigTable> ; rdfs:range xsd:string ; "
+                f'dcterms:source "{column}" .\n'
+            )
+        return ttl
+
+    @staticmethod
+    def _assert_columns(ttl, columns):
+        graph = Graph().parse(data=ttl, format="turtle")
+        table = URIRef(DOMAIN_NS + "BigTable")
+        assert (table, RDF.type, OWL.Class) in graph
+        assert set(graph.subjects(RDF.type, OWL.DatatypeProperty)) == {
+            URIRef(DOMAIN_NS + "BigTable_" + column) for column in columns
+        }
+        for column in columns:
+            prop = URIRef(DOMAIN_NS + "BigTable_" + column)
+            assert (prop, RDFS.domain, table) in graph
+            assert (prop, RDFS.range, XSD.string) in graph
+            assert (prop, DCTERMS.source, Literal(column)) in graph
+
+    def test_depth3_single_table_overflow_skips_retry(self):
+        """깊이 한계에서는 여러 컬럼도 분할·예산 재시도 없이 종료한다."""
+        columns = ["c1", "c2", "c3"]
+        result, calls = self._run_chunk(columns, depth=3)
+
         assert result == ""
-        # depth>=3 에서는 첫 Bedrock 호출 1번만 — retry 생략
-        assert call_count["n"] == 1
+        assert calls == [(tuple(columns), 24000)]
 
     def test_depth2_single_table_overflow_retries_once(self):
-        """depth==2 + 단일 테이블 overflow → max_tokens ×2 재시도 1회 허용.
+        """분할할 수 없는 단일 컬럼은 depth 2에서도 예산을 늘려 한 번 재시도한다."""
+        result, calls = self._run_chunk(["c1"], depth=2)
 
-        2026-05-12 신규 정책: depth 2 에서도 overflow 시 한 번 retry 기회 제공.
-        _merge_chunks prefix 보존 버그 fix 와 함께 적용.
-        """
-        from tools.tbox_generation import _generate_chunk
-
-        call_count = {"n": 0}
-        def _invoke(*args, **kwargs):
-            call_count["n"] += 1
-            return self._fake_overflow()
-
-        tables = [{"name": "BigTable", "columns": ["c1", "c2", "c3"]}]
-        with patch("tools.tbox_generation._invoke_bedrock", side_effect=_invoke):
-            result = _generate_chunk(
-                chunk_idx=0,
-                chunk_tables=tables,
-                total_chunks=6,
-                iof_summary="",
-                schema_info="",
-                relationships_info="",
-                table_class_map={"BigTable": "BigTable"},
-                config=self._CONFIG,
-                depth=2,
-            )
         assert result == ""
-        # depth=2: 1차 overflow + retry 1회 → 총 2회
-        assert call_count["n"] == 2
+        assert calls == [(("c1",), 24000), (("c1",), 48000)]
 
     def test_shallow_single_table_overflow_retries_with_larger_budget(self):
-        """depth<2 + 단일 테이블 overflow → 기존대로 _retry_max 재시도."""
-        from tools.tbox_generation import _generate_chunk
+        """얕은 단일 컬럼 경로도 예산 재시도 후 계속 잘리면 빈 TTL로 종료한다."""
+        result, calls = self._run_chunk(["c1"], depth=0)
 
-        call_count = {"n": 0}
-        def _invoke(*args, **kwargs):
-            call_count["n"] += 1
-            return self._fake_overflow()
-
-        tables = [{"name": "BigTable", "columns": ["c1", "c2", "c3"]}]
-        with patch("tools.tbox_generation._invoke_bedrock", side_effect=_invoke):
-            result = _generate_chunk(
-                chunk_idx=0,
-                chunk_tables=tables,
-                total_chunks=6,
-                iof_summary="",
-                schema_info="",
-                relationships_info="",
-                table_class_map={"BigTable": "BigTable"},
-                config=self._CONFIG,
-                depth=0,
-            )
         assert result == ""
-        # depth=0: 1차 호출 + _retry_max 재시도 1번 → 총 2회
-        assert call_count["n"] == 2
+        assert calls == [(("c1",), 24000), (("c1",), 48000)]
+
+    @pytest.mark.parametrize("depth", [0, 2])
+    @pytest.mark.parametrize("budget,retry_budget", [(24000, 48000), (40000, 64000)])
+    def test_single_column_retry_returns_complete_ttl(self, depth, budget, retry_budget):
+        """재시도 성공 시 토큰 상한을 지키고 실제 컬럼 선언을 반환한다."""
+        def respond(columns, call_number):
+            if call_number == 1:
+                return self._fake_overflow()
+            return {"text": self._ttl_for_columns(columns), "stop_reason": "end_turn"}
+
+        result, calls = self._run_chunk(["c1"], depth, respond, max_tokens=budget)
+
+        assert calls == [(("c1",), budget), (("c1",), retry_budget)]
+        self._assert_columns(result, ["c1"])
+
+    @pytest.mark.parametrize("depth,columns,partition", [
+        (0, ["c1", "c2", "c3"], [("c1", "c2", "c3"), ("c1",), ("c2", "c3"), ("c2",), ("c3",)]),
+        (2, ["c1", "c2"], [("c1", "c2"), ("c1",), ("c2",)]),
+    ], ids=["recursive", "depth-limit"])
+    def test_column_split_preserves_all_columns(self, depth, columns, partition):
+        """컬럼 분할은 예산을 늘리지 않고 두 부분의 TTL과 출처를 보존한다."""
+        def respond(current_columns, _call_number):
+            if len(current_columns) > 1:
+                return self._fake_overflow()
+            return {"text": self._ttl_for_columns(current_columns), "stop_reason": "end_turn"}
+
+        result, calls = self._run_chunk(columns, depth, respond)
+
+        assert calls == [(part, 24000) for part in partition]
+        self._assert_columns(result, columns)
+
+    @pytest.mark.parametrize("depth,expected", [
+        (2, [(("c1", "c2", "c3"), 24000), (("c1",), 24000), (("c2", "c3"), 24000)]),
+        (0, [
+            (("c1", "c2", "c3"), 24000), (("c1",), 24000), (("c1",), 48000),
+            (("c2", "c3"), 24000), (("c2",), 24000), (("c2",), 48000),
+            (("c3",), 24000), (("c3",), 48000),
+        ]),
+    ], ids=["depth-two", "shallow"])
+    def test_original_multicolumn_overflow_input_is_bounded(self, depth, expected):
+        """원래 3컬럼 입력도 유지해 분할·재시도 경로와 고갈 결과를 검증한다."""
+        result, calls = self._run_chunk(["c1", "c2", "c3"], depth)
+
+        assert result == ""
+        assert calls == expected
+
+    def test_depth_beyond_limit_does_not_invoke_model(self):
+        """지원 깊이를 넘으면 모델 호출 전에 거부한다."""
+        def unexpected_call(_columns, _call_number):
+            pytest.fail("깊이 한계를 넘어서 모델을 호출했다")
+
+        with pytest.raises(ValueError, match="depth=4"):
+            self._run_chunk(["c1"], depth=4, responder=unexpected_call)
