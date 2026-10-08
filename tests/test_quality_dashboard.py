@@ -81,3 +81,20 @@ def test_annotation_rules_can_actually_join(sample_tbox_file):
     causes = result["warning_metrics_with_causes"]["annotation_completeness"]
     assert causes["violation_count"] > 0
     assert "missing_label" in causes["top_violations"]
+
+
+@pytest.mark.parametrize("tool_name", ["trace_quality_issues", "generate_quality_dashboard"])
+def test_metrics_read_failure_is_not_a_successful_dashboard(tool_name, sample_tbox_file, monkeypatch):
+    """첫 그래프 읽기 후 메트릭 읽기가 실패해도 빈 점수로 성공 보고하지 않는다."""
+    from tools import local_artifacts, quality_dashboard
+
+    failure = {
+        "success": False,
+        "error": "fixture T-Box became unreadable",
+        "hint": "check fixture access",
+    }
+    monkeypatch.setattr(local_artifacts, "read_tbox", lambda: json.dumps(failure))
+
+    result = json.loads(getattr(quality_dashboard, tool_name)())
+
+    assert result == failure

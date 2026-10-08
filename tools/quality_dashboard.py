@@ -71,7 +71,10 @@ def trace_quality_issues(ttl_path: str = "") -> str:
         g = _new_graph()
         g.parse(data=ttl, format="turtle")
         quality_result = _check_quality_rules_internal(g)
-        metrics_result = json.loads(measure_tbox_metrics())
+        metrics_response = measure_tbox_metrics()
+        metrics_result = json.loads(metrics_response)
+        if not metrics_result.get("success"):
+            return metrics_response
 
         # 규칙 위반 → 메트릭 영향 추적
         traced = []
@@ -135,7 +138,10 @@ def generate_quality_dashboard() -> str:
         g = _new_graph()
         g.parse(data=ttl, format="turtle")
 
-        metrics_result = json.loads(measure_tbox_metrics())
+        metrics_response = measure_tbox_metrics()
+        metrics_result = json.loads(metrics_response)
+        if not metrics_result.get("success"):
+            return metrics_response
         quality_rules = _check_quality_rules_internal(g)
         antipatterns = json.loads(detect_tbox_antipatterns(ttl_content=ttl))
 
