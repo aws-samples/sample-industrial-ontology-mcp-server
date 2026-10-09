@@ -42,10 +42,13 @@ python server.py
 - SPARQL 템플릿 → `domain/sparql_templates.py`
 - 프로젝트 구조 → `ls`, `Glob` 도구 사용
 - 도구 파라미터 → MCP 도구 docstring 자동 제공
-- 환경변수 → `docs/reference/environment-variables.md` / `.env.example` / `config.py`.
-  ⚠️ 세 곳을 합쳐도 **코드가 읽는 것의 절반 남짓**이다 (실측: 코드 74 vs 문서화 39).
-  게이트 스위치 (`TBOX_OP_GROUNDING_GATE`, `S2_CQ_MAX_HOPS`, `CSV_DATE_ORDER` 등) 가 주로
-  빠져 있으니 전수는 `grep -rn 'getenv(' tools/ domain/` 로 확인한다.
+- 환경변수 → [환경변수 참조](docs/reference/environment-variables.md)에 일반 설정과
+  고급 스위치의 기본값·효과·소스 위치를 정리한다. `.env.example`은 시작에 필요한
+  설정 예시이며, `config.py` 밖에서도 환경변수를 읽는다.
+  변수를 추가하거나 기본값·해석을 변경하면 참조 문서를 함께 갱신한다.
+  직접 읽기는 `rg -n 'getenv\(|environ\.get\(' config.py server.py domain/ tools/`로,
+  동적 이름은 `_safe_int`, `_flag_off`, `_AGENT_MODEL_ENV`의 호출·정의와
+  `_ENV_MODE`, `_FK_GROUNDING_ENV` 같은 모듈 상수까지 확인한다.
 
 ### rules/ 경로는 공용 해석기만 사용 (사본 금지)
 
