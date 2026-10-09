@@ -362,7 +362,8 @@ def test_trace_quality_issues_reads_name_inside_tbox_dir(tbox_case, monkeypatch)
 
     monkeypatch.setattr(validation_core, "load_ttl_content", _spy)
     monkeypatch.setattr(
-        "tools.tbox_metrics.measure_tbox_metrics", lambda: json.dumps({"metrics": {}})
+        "tools.tbox_metrics.measure_tbox_metrics",
+        lambda: json.dumps({"success": True, "metrics": {}}),
     )
 
     result = json.loads(quality_dashboard.trace_quality_issues(ttl_path="case.ttl"))
