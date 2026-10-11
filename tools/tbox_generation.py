@@ -562,9 +562,12 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
     근거 없는 선언이 생기고, 그것이 이 리포가 반복 겪은 "유령 OP" 의 생성 경로다.
     청크가 실제로 만드는 클래스와 관련된 CQ 만 준다.
 
-    매칭 실패 시(``domains`` 가 비었거나 클래스명이 안 맞음) **그 CQ 를 포함한다** —
-    판정 불가를 배제로 읽으면 요구사항이 조용히 사라진다.
+    CQ의 원본 테이블명은 공용 도메인 해석기로 클래스명으로 바꾼 뒤 비교한다.
+    청크의 클래스 매핑을 모르면 모든 CQ를, ``domains`` 가 비면 해당 CQ를 포함한다.
+    청크 클래스와 일치하는 도메인이 없는 CQ는 제외한다.
     """
+    from tools.competency_questions import _resolve_domain_to_class
+
     def _norm(name: str) -> str:
         return str(name).split(":")[-1].split("#")[-1].lower().replace("_", "")
 
@@ -582,7 +585,11 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
         if not domains:
             picked.append(cq)     # 판정 근거 없음 → 포함
             continue
-        if any(_norm(d) in chunk_classes for d in domains):
+        if any(
+            isinstance(d, str)
+            and _norm(_resolve_domain_to_class(d, table_class_map)) in chunk_classes
+            for d in domains
+        ):
             picked.append(cq)
     return picked
 
@@ -698,7 +705,7 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
                 cq_lines = []
                 for i, cq in enumerate(cqs):
                     q = cq.get("question_ko") or cq.get("question_en", "")
-                    domains = ", ".join(cq.get("domains", [])[:3])
+                    domains = ", ".join((cq.get("domains") or [])[:3])
                     cq_lines.append(f"- **CQ{i+1}**: {q}\n  - 관련 도메인: {domains}")
                 cq_context = f"""
 

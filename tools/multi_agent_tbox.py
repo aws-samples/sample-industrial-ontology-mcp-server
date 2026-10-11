@@ -315,7 +315,7 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
         cq_id = cq.get("id", "?")
         domains = [
             _resolve_domain_to_class(d, table_class_map)
-            for d in cq.get("domains", [])
+            for d in (cq.get("domains") or [])
         ]
         if len(domains) < 2:
             continue

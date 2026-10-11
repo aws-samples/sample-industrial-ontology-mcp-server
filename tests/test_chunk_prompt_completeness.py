@@ -266,6 +266,46 @@ def test_cq_filter_keeps_all_when_mapping_unknown():
     assert len(got) == 2
 
 
+def test_cq_filter_resolves_noncanonical_table_aliases():
+    """CSV 이름과 클래스 이름이 달라도 관련 CQ만 순서대로 보존한다."""
+    cqs = [
+        {"id": "table", "domains": ["SOURCE_TABLE_007"]},
+        {"id": "class", "domains": ["ProcessResultD"]},
+        {"id": "prefixed", "domains": ["steel:ProcessResultD"]},
+        {"id": "mixed", "domains": ["OrderTicket", "SOURCE_TABLE_007"]},
+        {"id": "other_table", "domains": ["SOURCE_TABLE_009"]},
+        {"id": "other_class", "domains": ["OrderTicket"]},
+        {"id": "unscoped", "domains": []},
+    ]
+    mapping = {
+        "SOURCE_TABLE_007": "ProcessResultD",
+        "SOURCE_TABLE_009": "OrderTicket",
+    }
+
+    picked = tg._cqs_touching_chunk(cqs, [{"name": "SOURCE_TABLE_007"}], mapping)
+
+    assert [cq["id"] for cq in picked] == [
+        "table", "class", "prefixed", "mixed", "unscoped",
+    ]
+
+
+def test_nonstring_domains_do_not_prevent_selecting_valid_cqs():
+    """잘못된 항목 하나가 resolver 예외로 정상 CQ 선택까지 중단하면 실패한다."""
+    cqs = [
+        {"id": "null", "domains": [None]},
+        {"id": "number", "domains": [123]},
+        {"id": "list", "domains": [["SOURCE_TABLE_007"]]},
+        {"id": "object", "domains": [{"class": "ProcessResultD"}]},
+        {"id": "valid", "domains": ["SOURCE_TABLE_007"]},
+    ]
+
+    picked = tg._cqs_touching_chunk(
+        cqs, [{"name": "SOURCE_TABLE_007"}], {"SOURCE_TABLE_007": "ProcessResultD"},
+    )
+
+    assert [cq["id"] for cq in picked] == ["valid"]
+
+
 # ── 캐시: prefix 가 모든 청크에서 같다 ──────────────────────────────────
 
 

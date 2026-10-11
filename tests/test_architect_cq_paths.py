@@ -140,6 +140,42 @@ def test_unknown_chunk_mapping_preserves_cq_requirements(cq_inputs):
     assert all(cq["question_ko"] in variable for cq in cq_inputs["questions"])
 
 
+@pytest.mark.parametrize("chunk_idx", [0, 1, 5])
+def test_noncanonical_class_mapping_preserves_cqs_and_fk_paths(cq_inputs, tmp_path, chunk_idx):
+    """비정규 테이블 매핑에서도 질문 선택과 실제 FK 분석이 같은 클래스를 사용한다."""
+    mapping = {**_TABLE_CLASSES, "Alarm_Events": "ProcessResultD"}
+    (tmp_path / "rules" / "table_class_mapping.json").write_text(
+        json.dumps({"table_class_mapping": mapping}), encoding="utf-8",
+    )
+
+    cached, variable = _build_cq_prompt(chunk_idx, mapping=mapping)
+    direct, shared, unrelated, unscoped = cq_inputs["questions"]
+
+    assert direct["question_ko"] in variable
+    assert shared["question_ko"] in variable
+    assert unscoped["question_ko"] in variable
+    assert unrelated["question_ko"] not in variable
+    assert "ProcessResultD → EquipmentMaster (FK 직접 연결)" in variable
+    assert "ProcessResultD → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    assert direct["question_ko"] not in cached
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
+def test_null_domains_do_not_drop_other_cqs_or_fk_paths(cq_inputs, chunk_idx):
+    """범위 미정 CQ 한 건이 같은 청크의 정상 질문과 경로를 지우면 실패한다."""
+    questions = cq_inputs["questions"]
+    questions[-1]["domains"] = None
+    cq_inputs["path"].write_text(json.dumps(questions, ensure_ascii=False), encoding="utf-8")
+
+    _, variable = _build_cq_prompt(chunk_idx)
+
+    for cq in (questions[0], questions[1], questions[-1]):
+        assert cq["question_ko"] in variable
+    assert questions[2]["question_ko"] not in variable
+    assert "AlarmEvents → EquipmentMaster (FK 직접 연결)" in variable
+    assert "AlarmEvents → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+
+
 @pytest.mark.parametrize("chunk_idx", [0, 1])
 def test_cq_questions_survive_optional_path_analysis_failure(cq_inputs, monkeypatch, chunk_idx):
     from tools import multi_agent_tbox as mat
