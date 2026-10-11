@@ -709,7 +709,16 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
                 cq_lines = []
                 for i, cq in enumerate(cqs):
                     q = cq.get("question_ko") or cq.get("question_en", "")
-                    domains = ", ".join((cq.get("domains") or [])[:3])
+                    raw_domains = cq.get("domains") or []
+                    # 선택·경로 분석이 무시한 비문자열 때문에 CQ 표시 전체가 중단되지 않게 한다.
+                    display_domains = [domain for domain in raw_domains if isinstance(domain, str)]
+                    invalid_domain_count = len(raw_domains) - len(display_domains)
+                    if invalid_domain_count:
+                        logger.warning(
+                            "CQ%d domains: ignored %d non-string entries",
+                            i + 1, invalid_domain_count,
+                        )
+                    domains = ", ".join(display_domains[:3])
                     cq_lines.append(f"- **CQ{i+1}**: {q}\n  - 관련 도메인: {domains}")
                 cq_context = f"""
 

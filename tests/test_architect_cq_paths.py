@@ -268,6 +268,42 @@ def test_null_domains_do_not_drop_other_cqs_or_fk_paths(cq_inputs, chunk_idx):
 
 
 @pytest.mark.parametrize("chunk_idx", [0, 1])
+@pytest.mark.parametrize(
+    "invalid_domain",
+    [None, 17, False, 2.5, ["Equipment_Master"], {"class": "EquipmentMaster"}],
+    ids=["null", "integer", "boolean", "float", "list", "object"],
+)
+def test_mixed_domain_types_preserve_questions_and_fk_paths(
+    cq_inputs, caplog, chunk_idx, invalid_domain,
+):
+    """잘못된 원소의 표시 실패가 정상 CQ와 실제 FK 경로를 지우면 실패한다."""
+    from tools import tbox_generation as tg
+
+    questions = cq_inputs["questions"]
+    questions[0]["domains"].insert(0, invalid_domain)
+    cq_inputs["path"].write_text(json.dumps(questions, ensure_ascii=False), encoding="utf-8")
+
+    with caplog.at_level("WARNING", logger=tg.logger.name):
+        cached, variable = _build_cq_prompt(chunk_idx)
+
+    direct, shared, unrelated, unscoped = questions
+    for cq in (direct, shared, unscoped):
+        assert cq["question_ko"] in variable
+        assert cq["question_ko"] not in cached
+    assert unrelated["question_ko"] not in variable
+    assert "관련 도메인: Alarm_Events, Equipment_Master" in variable
+    assert "관련 도메인: Alarm_Events, Sensor_Readings" in variable
+    assert "AlarmEvents → EquipmentMaster (FK 직접 연결)" in variable
+    assert "AlarmEvents → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    warnings = [
+        record for record in caplog.records
+        if record.name == tg.logger.name and record.levelname == "WARNING"
+    ]
+    assert len(warnings) == 1
+    assert "domains" in warnings[0].getMessage()
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
 def test_cq_questions_survive_optional_path_analysis_failure(cq_inputs, monkeypatch, chunk_idx):
     from tools import multi_agent_tbox as mat
 
