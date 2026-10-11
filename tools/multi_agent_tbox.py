@@ -267,8 +267,13 @@ def _load_competency_questions() -> list[dict]:
 # ── [개선 1] CQ 기반 필수 OP 경로 사전 분석 ──────────────
 
 
-def _analyze_cq_required_ops(cqs: list[dict]) -> str:
+def _analyze_cq_required_ops(
+    cqs: list[dict], table_class_map: dict[str, str] | None = None,
+) -> str:
     """CQ 도메인 클래스 간 필수 OP 경로를 FK 패턴 기반으로 분석한다.
+
+    전달된 매핑은 빈 dict도 그대로 사용한다. 매핑을 생략한 호출만 rules
+    파일을 읽으며, 청크에서 호출할 때는 질문 선택과 같은 매핑을 전달한다.
 
     Returns:
         Architect 프롬프트에 삽입할 '필수 ObjectProperty 목록' 문자열.
@@ -290,13 +295,19 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
     from config import SOURCE_RAWDATA_DIR
     from tools.competency_questions import (
         _load_table_class_map,
-        _resolve_domain_to_class,
+        _resolve_cq_class,
     )
-    table_class_map = _load_table_class_map()
-    table_fks: dict[str, list[tuple[str, str]]] = {}  # TableClass → [(fk_col, TargetClass)]
+    if table_class_map is None:
+        table_class_map = _load_table_class_map()
+    table_fks: dict[str, list[tuple[str, str]]] = {}  # Class IRI → [(fk_col, Target IRI)]
+    class_labels: dict[str, str] = {}
     for csv_file in sorted(glob.glob(os.path.join(SOURCE_RAWDATA_DIR, "*.csv"))):
         table_name = os.path.splitext(os.path.basename(csv_file))[0]
-        cls_name = _resolve_domain_to_class(table_name, table_class_map)
+        resolved_class = _resolve_cq_class(table_name, table_class_map)
+        if resolved_class is None:
+            continue
+        cls_iri, cls_name = resolved_class
+        class_labels[cls_iri] = cls_name
         with open(csv_file, encoding="utf-8") as cf:
             reader = csv_mod.reader(cf)
             headers = next(reader, [])
@@ -304,19 +315,31 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
         for col in headers:
             col_lower = col.lower().replace("_", "")
             target = fk_map.get(col_lower)
-            if target and target != cls_name:
-                fks.append((col, target))
+            # FK 패턴의 target은 테이블 별칭이 아닌 클래스 참조다.
+            resolved_target = (
+                _resolve_cq_class(target, {target: target})
+                if isinstance(target, str) and target else None
+            )
+            if resolved_target is not None and resolved_target[0] != cls_iri:
+                target_iri, target_label = resolved_target
+                class_labels.setdefault(target_iri, target_label)
+                fks.append((col, target_iri))
         if fks:
-            table_fks[cls_name] = fks
+            table_fks.setdefault(cls_iri, []).extend(fks)
 
     # CQ 도메인 간 필요한 연결 경로 분석
     lines = ["## 필수 ObjectProperty (CQ 답변을 위해 반드시 포함)", ""]
     for cq in cqs[:10]:
         cq_id = cq.get("id", "?")
-        domains = [
-            _resolve_domain_to_class(d, table_class_map)
-            for d in (cq.get("domains") or [])
-        ]
+        domains = []
+        for domain in cq.get("domains") or []:
+            resolved = _resolve_cq_class(domain, table_class_map)
+            if resolved is None:
+                continue
+            iri, label = resolved
+            class_labels.setdefault(iri, label)
+            if iri not in domains:
+                domains.append(iri)
         if len(domains) < 2:
             continue
         # 도메인 클래스 간 FK 경로 탐색
@@ -329,13 +352,17 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
                     if cls == a:
                         for _, target in fks:
                             if target == b:
-                                ops_needed.append(f"  - {a} → {b} (FK 직접 연결)")
+                                ops_needed.append(
+                                    f"  - {class_labels[a]} → {class_labels[b]} (FK 직접 연결)",
+                                )
                                 direct = True
                                 break
                     if cls == b and not direct:
                         for _, target in fks:
                             if target == a:
-                                ops_needed.append(f"  - {b} → {a} (FK 직접 연결)")
+                                ops_needed.append(
+                                    f"  - {class_labels[b]} → {class_labels[a]} (FK 직접 연결)",
+                                )
                                 direct = True
                                 break
                 if not direct:
@@ -345,9 +372,11 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
                     shared = a_targets & b_targets
                     if shared:
                         hub = sorted(shared)[0]
-                        ops_needed.append(f"  - {a} → {hub} ← {b} (공유 FK 허브)")
+                        ops_needed.append(
+                            f"  - {class_labels[a]} → {class_labels[hub]} ← {class_labels[b]} (공유 FK 허브)",
+                        )
         if ops_needed:
-            lines.append(f"**{cq_id}** (도메인: {', '.join(domains)}):")
+            lines.append(f"**{cq_id}** (도메인: {', '.join(class_labels[d] for d in domains)}):")
             lines.extend(ops_needed)
             lines.append("")
 

@@ -768,6 +768,32 @@ def _resolve_domain_to_class(domain: str, table_class_map: dict[str, str]) -> st
     return domain.replace("_", "")
 
 
+def _resolve_cq_class(
+    name: str, table_class_map: dict[str, str],
+) -> tuple[str, str] | None:
+    """CQ 프롬프트용 클래스의 IRI 식별자와 표시명을 공통으로 해석한다.
+
+    원본 테이블 별칭을 먼저 적용하고 prefix·IRI는 공용 해석기에 맡긴다.
+    매핑 없는 bare 이름은 기존 밑줄 제거 폴백을 유지한다. 외래 IRI는
+    namespace를 보존해 같은 local name의 도메인 클래스와 구분한다.
+    """
+    from domain.graph_utils import resolve_entity_name
+    from domain.namespaces import DOMAIN_NS
+
+    if not isinstance(name, str) or not name.strip():
+        return None
+    mapped = table_class_map.get(name)
+    reference = mapped or name
+    if not mapped and ":" not in name:
+        reference = _resolve_domain_to_class(name, {})
+    try:
+        iri = str(resolve_entity_name(reference))
+    except ValueError:
+        return None
+    label = iri[len(DOMAIN_NS):] if iri.startswith(DOMAIN_NS) else iri
+    return (iri, label) if label else None
+
+
 def _snake_to_class_name(domain: str) -> str:
     """``snake_case`` 테이블명 → PascalCase 클래스명. 이미 PascalCase 면 그대로.
 

@@ -161,6 +161,97 @@ def test_noncanonical_class_mapping_preserves_cqs_and_fk_paths(cq_inputs, tmp_pa
 
 
 @pytest.mark.parametrize("chunk_idx", [0, 1])
+@pytest.mark.parametrize("rules_mapping", ["different", "absent"])
+def test_chunk_mapping_is_also_used_for_fk_paths(
+    cq_inputs, tmp_path, chunk_idx, rules_mapping,
+):
+    """호출자가 준 별칭을 파일의 오래된 값이나 파일 부재가 덮어쓰면 실패한다."""
+    mapping = {**_TABLE_CLASSES, "Alarm_Events": "ProcessResultD"}
+    if rules_mapping == "absent":
+        (tmp_path / "rules" / "table_class_mapping.json").unlink()
+
+    cached, variable = _build_cq_prompt(chunk_idx, mapping=mapping)
+    direct, shared, unrelated, _ = cq_inputs["questions"]
+
+    assert direct["question_ko"] in variable
+    assert shared["question_ko"] in variable
+    assert unrelated["question_ko"] not in variable
+    assert "ProcessResultD → EquipmentMaster (FK 직접 연결)" in variable
+    assert "ProcessResultD → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    assert "AlarmEvents → EquipmentMaster" not in variable
+    assert direct["question_ko"] not in cached
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
+@pytest.mark.parametrize("notation", ["prefix", "iri", "bracketed_iri"])
+def test_qualified_cq_domains_keep_their_fk_paths(cq_inputs, chunk_idx, notation):
+    """같은 클래스의 namespace 표기 차이가 질문이나 FK 경로를 누락시키면 실패한다."""
+    from domain.namespaces import DOMAIN_NS, NS_PREFIX
+
+    questions = cq_inputs["questions"]
+    for cq, classes in zip(
+        questions[:2],
+        [("AlarmEvents", "EquipmentMaster"), ("AlarmEvents", "SensorReadings")],
+        strict=True,
+    ):
+        if notation == "prefix":
+            cq["domains"] = [f"{NS_PREFIX}:{name}" for name in classes]
+        elif notation == "iri":
+            cq["domains"] = [f"{DOMAIN_NS}{name}" for name in classes]
+        else:
+            cq["domains"] = [f"<{DOMAIN_NS}{name}>" for name in classes]
+    cq_inputs["path"].write_text(json.dumps(questions, ensure_ascii=False), encoding="utf-8")
+
+    cached, variable = _build_cq_prompt(chunk_idx)
+
+    assert questions[0]["question_ko"] in variable
+    assert questions[1]["question_ko"] in variable
+    assert questions[2]["question_ko"] not in variable
+    assert "**DIRECT_ALARM**" in variable
+    assert "**SHARED_SENSOR**" in variable
+    assert "AlarmEvents → EquipmentMaster (FK 직접 연결)" in variable
+    assert "AlarmEvents → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    assert questions[0]["question_ko"] not in cached
+
+
+@pytest.mark.parametrize("qualified_target", [False, True])
+def test_declared_fk_class_name_keeps_underscores(cq_inputs, tmp_path, qualified_target):
+    """FK 패턴에 선언된 클래스명에 bare 테이블명의 폴백을 적용하지 않는다."""
+    from domain.namespaces import NS_PREFIX
+
+    mapping = {**_TABLE_CLASSES, "Equipment_Master": "Equipment_Node"}
+    target = f"{NS_PREFIX}:Equipment_Node" if qualified_target else "Equipment_Node"
+    (tmp_path / "rules" / "fk_patterns.json").write_text(json.dumps({
+        "patterns": {"equipmentid": target, "productid": "ProductMaster"},
+    }), encoding="utf-8")
+
+    _, variable = _build_cq_prompt(1, mapping=mapping)
+
+    assert "AlarmEvents → Equipment_Node (FK 직접 연결)" in variable
+    assert "AlarmEvents → Equipment_Node ← SensorReadings (공유 FK 허브)" in variable
+
+
+def test_equivalent_class_references_keep_fks_from_both_tables(cq_inputs, tmp_path):
+    """같은 클래스의 bare·prefix 표기가 합쳐져도 각 CSV의 FK를 모두 보존한다."""
+    from domain.namespaces import NS_PREFIX
+
+    mapping = {
+        **_TABLE_CLASSES,
+        "Alarm_Events": "EventRecord",
+        "Sensor_Readings": f"{NS_PREFIX}:EventRecord",
+    }
+    _write_csv(tmp_path, "Sensor_Readings", ["Reading_ID", "Product_ID"])
+    questions = cq_inputs["questions"]
+    questions[1]["domains"] = ["Sensor_Readings", "Product_Master"]
+    cq_inputs["path"].write_text(json.dumps(questions, ensure_ascii=False), encoding="utf-8")
+
+    _, variable = _build_cq_prompt(1, mapping=mapping)
+
+    assert "EventRecord → EquipmentMaster (FK 직접 연결)" in variable
+    assert "EventRecord → ProductMaster (FK 직접 연결)" in variable
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
 def test_null_domains_do_not_drop_other_cqs_or_fk_paths(cq_inputs, chunk_idx):
     """범위 미정 CQ 한 건이 같은 청크의 정상 질문과 경로를 지우면 실패한다."""
     questions = cq_inputs["questions"]
@@ -180,13 +271,17 @@ def test_null_domains_do_not_drop_other_cqs_or_fk_paths(cq_inputs, chunk_idx):
 def test_cq_questions_survive_optional_path_analysis_failure(cq_inputs, monkeypatch, chunk_idx):
     from tools import multi_agent_tbox as mat
 
-    def fail_path_analysis(_cqs):
+    calls = []
+
+    def fail_path_analysis(_cqs, table_class_map=None):
+        calls.append(table_class_map)
         raise RuntimeError("fixture path analysis failed")
 
     monkeypatch.setattr(mat, "_analyze_cq_required_ops", fail_path_analysis)
 
     _, variable = _build_cq_prompt(chunk_idx)
 
+    assert calls == [_TABLE_CLASSES]
     assert cq_inputs["questions"][0]["question_ko"] in variable
     assert cq_inputs["questions"][1]["question_ko"] in variable
     assert "AlarmEvents → EquipmentMaster" not in variable

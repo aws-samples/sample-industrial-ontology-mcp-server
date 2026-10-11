@@ -566,16 +566,20 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
     청크의 클래스 매핑을 모르면 모든 CQ를, ``domains`` 가 비면 해당 CQ를 포함한다.
     청크 클래스와 일치하는 도메인이 없는 CQ는 제외한다.
     """
-    from tools.competency_questions import _resolve_domain_to_class
+    from domain.namespaces import DOMAIN_NS
+    from tools.competency_questions import _resolve_cq_class
 
-    def _norm(name: str) -> str:
-        return str(name).split(":")[-1].split("#")[-1].lower().replace("_", "")
+    def _norm(iri: str) -> str:
+        if iri.startswith(DOMAIN_NS):
+            return DOMAIN_NS + iri[len(DOMAIN_NS):].lower().replace("_", "")
+        return iri
 
     chunk_classes = {
-        _norm(table_class_map.get(t["name"], ""))
+        _norm(resolved[0])
         for t in chunk_tables
+        if table_class_map.get(t["name"])
+        and (resolved := _resolve_cq_class(t["name"], table_class_map)) is not None
     }
-    chunk_classes.discard("")
     if not chunk_classes:
         return list(cqs)          # 매핑을 모르면 전부 준다 (보수적)
 
@@ -586,8 +590,8 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
             picked.append(cq)     # 판정 근거 없음 → 포함
             continue
         if any(
-            isinstance(d, str)
-            and _norm(_resolve_domain_to_class(d, table_class_map)) in chunk_classes
+            (resolved := _resolve_cq_class(d, table_class_map)) is not None
+            and _norm(resolved[0]) in chunk_classes
             for d in domains
         ):
             picked.append(cq)
@@ -728,7 +732,7 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
                 # 문제 해결 (2026-04-18 회귀 분석 결과).
                 try:
                     from tools.multi_agent_tbox import _analyze_cq_required_ops
-                    cq_op_block = _analyze_cq_required_ops(cqs)
+                    cq_op_block = _analyze_cq_required_ops(cqs, table_class_map=table_class_map)
                     if cq_op_block:
                         cq_context += "\n\n" + cq_op_block + (
                             "\n\n**중요**: 위 OP 경로를 이번 청크에서 반드시 모두 선언하세요. "
