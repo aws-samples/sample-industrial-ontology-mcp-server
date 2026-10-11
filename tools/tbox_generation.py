@@ -701,9 +701,14 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
         if os.path.exists(cq_path):
             with open(cq_path, encoding="utf-8") as cf:
                 all_cqs = json.load(cf)
+            from tools.competency_questions import _filter_valid_cq_entries
+
+            # 원본 첫 15개 범위를 유지한 채 잘못된 항목만 제외한다.
+            candidates = _filter_valid_cq_entries(
+                all_cqs[:15] if isinstance(all_cqs, list) else all_cqs,
+            )
             cqs = _cqs_touching_chunk(
-                all_cqs[:15] if isinstance(all_cqs, list) else [],
-                chunk_tables, table_class_map,
+                candidates, chunk_tables, table_class_map,
             )
             if cqs:
                 cq_lines = []

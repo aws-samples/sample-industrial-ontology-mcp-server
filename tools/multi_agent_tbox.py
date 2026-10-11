@@ -257,11 +257,13 @@ def _parse_ttl_readonly(ttl: str) -> Graph:
 
 
 def _load_competency_questions() -> list[dict]:
-    """Competency Questions를 로드한다."""
+    """저장 CQ를 로드하고 구조가 잘못된 항목을 공통 검증으로 제외한다."""
     if not os.path.exists(_CQ_PATH):
         return []
+    from tools.competency_questions import _filter_valid_cq_entries
+
     with open(_CQ_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        return _filter_valid_cq_entries(json.load(f))
 
 
 # ── [개선 1] CQ 기반 필수 OP 경로 사전 분석 ──────────────

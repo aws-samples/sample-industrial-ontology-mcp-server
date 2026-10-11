@@ -9,6 +9,62 @@ from rdflib import OWL, RDF, RDFS, Literal, URIRef
 from domain.namespaces import DOMAIN_NS, NS_PREFIX
 from domain.tbox_utils import _new_graph
 
+
+class TestStoredCqStructure:
+    """협업 loader가 저장 CQ의 구조 오류를 항목별로 격리한다."""
+
+    def test_loader_keeps_valid_entries_and_legacy_scopes(self, tmp_path, monkeypatch, caplog):
+        from tools import multi_agent_tbox as mat
+
+        valid = [
+            {"id": "mixed", "domains": ["Alarm_Events", None]},
+            {"id": "empty", "domains": []},
+            {"id": "null", "domains": None},
+            {"id": "missing"},
+        ]
+        stored = [
+            None, valid[0], {"domains": True}, valid[1],
+            {"domains": 0}, valid[2], {"domains": "Alarm_Events"}, valid[3],
+        ]
+        path = tmp_path / "cqs.json"
+        path.write_text(json.dumps(stored), encoding="utf-8")
+        original = path.read_bytes()
+        monkeypatch.setattr(mat, "_CQ_PATH", str(path))
+
+        with caplog.at_level("WARNING"):
+            loaded = mat._load_competency_questions()
+
+        assert loaded == valid
+        assert path.read_bytes() == original
+        assert len(caplog.records) == 4
+        assert all(record.levelname == "WARNING" for record in caplog.records)
+
+    @pytest.mark.parametrize("root", [None, False, 42, "root payload", {"questions": []}])
+    def test_loader_rejects_nonlist_document(self, tmp_path, monkeypatch, caplog, root):
+        from tools import multi_agent_tbox as mat
+
+        path = tmp_path / "cqs.json"
+        path.write_text(json.dumps(root), encoding="utf-8")
+        monkeypatch.setattr(mat, "_CQ_PATH", str(path))
+
+        with caplog.at_level("WARNING"):
+            loaded = mat._load_competency_questions()
+
+        assert loaded == []
+        assert len(caplog.records) == 1
+        assert caplog.records[0].levelname == "WARNING"
+
+    def test_loader_does_not_hide_invalid_json(self, tmp_path, monkeypatch):
+        from tools import multi_agent_tbox as mat
+
+        path = tmp_path / "cqs.json"
+        path.write_text("[{", encoding="utf-8")
+        monkeypatch.setattr(mat, "_CQ_PATH", str(path))
+
+        with pytest.raises(json.JSONDecodeError):
+            mat._load_competency_questions()
+
+
 # ── _parse_review_json ────────────────────────────
 
 

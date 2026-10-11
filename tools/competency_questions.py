@@ -124,6 +124,30 @@ def _parse_user_cqs(raw: str) -> list[dict]:
     return lines
 
 
+def _filter_valid_cq_entries(data: object) -> list[dict]:
+    """프롬프트용 저장 CQ의 구조를 검증하고 잘못된 항목만 제외한다.
+
+    사용자 입력 parser가 변환을 마친 저장 형식은 객체 배열이다. domains는
+    미지정·null·배열을 허용하고, 배열 내부 원소의 해석은 기존 소비자에 맡긴다.
+    진단에는 원본 순번과 오류 종류만 남기며 입력 객체와 문자열은 바꾸지 않는다.
+    """
+    if not isinstance(data, list):
+        logger.warning("CQ document skipped: expected an array")
+        return []
+
+    valid = []
+    for index, cq in enumerate(data, 1):
+        if not isinstance(cq, dict):
+            logger.warning("CQ entry %d skipped: expected an object", index)
+            continue
+        domains = cq.get("domains")
+        if domains is not None and not isinstance(domains, list):
+            logger.warning("CQ entry %d skipped: domains must be a list or null", index)
+            continue
+        valid.append(cq)
+    return valid
+
+
 def check_competency_questions_exist() -> str:
     """저장된 Competency Questions 파일이 존재하는지 + 개수를 반환한다.
 

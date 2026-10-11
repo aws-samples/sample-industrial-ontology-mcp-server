@@ -304,6 +304,64 @@ def test_mixed_domain_types_preserve_questions_and_fk_paths(
 
 
 @pytest.mark.parametrize("chunk_idx", [0, 1])
+@pytest.mark.parametrize(
+    "invalid_entry",
+    [None, 0, False, "not a stored CQ object", ["Alarm_Events"]],
+    ids=["null", "number", "boolean", "string", "list"],
+)
+def test_invalid_cq_entry_does_not_erase_valid_prompt_context(
+    cq_inputs, caplog, chunk_idx, invalid_entry,
+):
+    """저장된 배열의 잘못된 항목 하나 때문에 정상 질문과 FK 경로가 사라지면 실패한다."""
+    questions = cq_inputs["questions"]
+    stored = [questions[0], invalid_entry, *questions[1:]]
+    cq_inputs["path"].write_text(json.dumps(stored, ensure_ascii=False), encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        cached, variable = _build_cq_prompt(chunk_idx)
+
+    for cq in (questions[0], questions[1], questions[3]):
+        assert cq["question_ko"] in variable
+        assert cq["question_ko"] not in cached
+    assert questions[2]["question_ko"] not in variable
+    assert "AlarmEvents → EquipmentMaster (FK 직접 연결)" in variable
+    assert "AlarmEvents → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
+@pytest.mark.parametrize(
+    "invalid_domains",
+    [0, 123, False, True, 1.25, "", "Alarm_Events", {}, {"Alarm_Events": 1}],
+    ids=["zero", "integer", "false", "true", "float", "empty_string", "string", "empty_object", "object"],
+)
+def test_invalid_domains_field_excludes_only_that_cq(
+    cq_inputs, caplog, chunk_idx, invalid_domains,
+):
+    """거짓으로 평가되는 값도 범위 미정 CQ로 바꾸지 않고 정상 이웃만 보존한다."""
+    questions = cq_inputs["questions"]
+    bad_cq = {"id": "BAD_SCOPE", "question_ko": "잘못된 범위의 질문", "domains": invalid_domains}
+    cq_inputs["path"].write_text(
+        json.dumps([questions[0], bad_cq, *questions[1:]], ensure_ascii=False), encoding="utf-8",
+    )
+
+    with caplog.at_level("WARNING"):
+        cached, variable = _build_cq_prompt(chunk_idx)
+
+    assert bad_cq["question_ko"] not in variable
+    for cq in (questions[0], questions[1], questions[3]):
+        assert cq["question_ko"] in variable
+        assert cq["question_ko"] not in cached
+    assert questions[2]["question_ko"] not in variable
+    assert "AlarmEvents → EquipmentMaster (FK 직접 연결)" in variable
+    assert "AlarmEvents → EquipmentMaster ← SensorReadings (공유 FK 허브)" in variable
+    assert len(caplog.records) == 1
+    assert caplog.records[0].levelname == "WARNING"
+    assert "domains" in caplog.records[0].getMessage()
+
+
+@pytest.mark.parametrize("chunk_idx", [0, 1])
 def test_cq_questions_survive_optional_path_analysis_failure(cq_inputs, monkeypatch, chunk_idx):
     from tools import multi_agent_tbox as mat
 
