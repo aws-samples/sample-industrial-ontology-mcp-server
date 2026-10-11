@@ -218,6 +218,16 @@ Readers: [tbox_utils.py](../../domain/tbox_utils.py),
 | `DOMAIN_CONFIG_PATH` | Alternate domain configuration |
 | `DOTENV_PATH` | Explicit `.env` file |
 | `ONTOLOGY_SERVER_LOG_FILE` | Server log path. Unset uses the OS temporary directory; an empty value disables file logging |
-| `LOG_FORMAT` | `json` selects the structured formatter for a new stream handler created by [configure_logging](../../tools/common.py); unset uses text. The MCP entry point uses `server._configure_logging`, which does not read this variable, so setting it alone does not change the server format |
+| `LOG_FORMAT` | `json` (case-insensitive) selects one JSON logging record per line for the MCP server's stderr and optional server log file. Unset or any other value selects text for server-managed formatters. [server._configure_logging](../../server.py) reuses [StructuredLogFormatter](../../tools/common.py) and avoids duplicate handlers. stdout remains reserved for MCP. File logging can be disabled independently with an empty `ONTOLOGY_SERVER_LOG_FILE` |
+
+When no console handler exists, the server installs a plain, timestamped stderr
+handler, including when file logging is disabled. Existing text formatters are
+preserved until JSON mode is selected. JSON mode replaces console formats
+(including Rich output) and directs console streams to stderr while preserving
+their levels and filters. Separate file handlers configured by the caller are
+left unchanged.
+
+This setting formats Python logging records. Runtime warnings and fatal-signal
+diagnostics can still use their native stderr format.
 
 Never place secret values in documentation or committed configuration.
