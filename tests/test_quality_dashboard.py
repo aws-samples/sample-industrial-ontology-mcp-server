@@ -52,16 +52,19 @@ def test_every_impact_rule_id_is_a_known_rule():
     assert {"missing_domain", "missing_range"} <= known
 
 
-def test_trace_quality_issues_smoke():
-    """도구가 성공 응답을 내고 필수 필드를 채운다 (실행 라인 0이던 모듈)."""
+def test_trace_quality_issues_smoke(sample_tbox_file):
+    """독립 T-Box 파일로 실제 검증기와 메트릭을 거쳐 필수 응답을 확인한다."""
     from tools.quality_dashboard import trace_quality_issues
 
     result = json.loads(trace_quality_issues())
-    if not result.get("success"):
-        pytest.skip(f"T-Box 미생성 등 환경 사유: {str(result.get('error'))[:80]}")
+    assert result.get("success") is True, result
     for key in ("traced_violations", "metric_impact_summary",
                 "warning_metrics_with_causes", "recommendation"):
         assert key in result, f"응답에 '{key}' 가 없다"
+    assert isinstance(result["traced_violations"], int)
+    assert isinstance(result["metric_impact_summary"], dict)
+    assert isinstance(result["warning_metrics_with_causes"], dict)
+    assert isinstance(result["recommendation"], str)
 
 
 def test_annotation_rules_can_actually_join(sample_tbox_file):
