@@ -282,6 +282,8 @@ def summarize_latest_run(path: str | None = None) -> dict | None:
             "cq_coverage_pct": cq.get("coverage_pct"),
             "cq_unanswerable": cq.get("unanswerable_count"),
             "cq_block_data_gap": len(entry.get("cq_block_data_gap") or []),
+            "cq_block_input_error": len(entry.get("cq_block_input_error") or []),
+            "early_stop_reason": (entry.get("early_stop") or {}).get("reason"),
             "triples": rev.get("triples"),
             "no_progress": bool(rev.get("no_progress")),
             "no_progress_streak": rev.get("no_progress_streak"),
