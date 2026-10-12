@@ -256,14 +256,18 @@ def _parse_ttl_readonly(ttl: str) -> Graph:
     return g
 
 
-def _load_competency_questions() -> list[dict]:
-    """저장 CQ를 로드하고 구조가 잘못된 항목을 공통 검증으로 제외한다."""
+def _load_competency_questions(*, include_invalid: bool = False) -> object:
+    """기본은 프롬프트용 필터, 평가용 요청은 원본 스냅샷을 반환한다."""
     if not os.path.exists(_CQ_PATH):
         return []
     from tools.competency_questions import _filter_valid_cq_entries
 
     with open(_CQ_PATH, encoding="utf-8") as f:
-        return _filter_valid_cq_entries(json.load(f))
+        data = json.load(f)
+    return data if include_invalid else _filter_valid_cq_entries(data)
+
+
+_CQ_INPUT_ERROR_PREFIX = "CQ 입력 오류:"
 
 
 # ── [개선 1] CQ 기반 필수 OP 경로 사전 분석 ──────────────
@@ -2026,14 +2030,29 @@ def _jury_decide(
         )
 
     cq_block = ""
-    if cq_runtime and cq_runtime.get("unanswerable"):
-        unansw = cq_runtime["unanswerable"][:10]
+    if cq_runtime:
+        # 입력 오류는 OP를 추가해도 해결되지 않는다. 같은 CQ id의 정상 경로 갭은
+        # 계속 수정 대상이어야 하므로 id가 아닌 정적 오류 사유로 구분한다.
+        unansw = [
+            (cid, reason) for cid, reason in cq_runtime.get("unanswerable", [])
+            if not reason.startswith(_CQ_INPUT_ERROR_PREFIX)
+        ][:10]
+    else:
+        unansw = []
+    if unansw:
         cq_block = (
             "\n## ⚠️ CQ Reachability 미달\n"
             f"CQ 커버리지: {cq_runtime.get('coverage_pct', 0)}%\n"
             "답변 불가 CQ (정적 그래프 분석):\n"
             + "\n".join(f"- {cid}: {reason}" for cid, reason in unansw)
             + "\n\n**위 CQ를 답변 가능하게 할 ObjectProperty/subClassOf를 `required_fixes`에 포함하세요.**\n"
+        )
+    if cq_runtime and cq_runtime.get("input_errors"):
+        cq_block += (
+            "\n## CQ 입력 오류\n"
+            f"입력 형식 오류 {len(cq_runtime['input_errors'])}건이 실패 분모에 포함돼 있습니다.\n"
+            "원본 CQ 입력을 정정해야 합니다. 이 오류에 대한 온톨로지 수정 DSL은 "
+            "생성하지 말고, production_ready=false로 유지하세요.\n"
         )
 
     # 정적 prefix(역할 도입부 + 판단 원칙 + 출력 형식)는 매 Jury 호출 동일하므로
@@ -2856,7 +2875,18 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
         {answerable: [cq_id...], unanswerable: [(cq_id, reason)...],
          coverage_pct: float}
     """
-    if not cqs:
+    from tools.competency_questions import _prepare_cq_evaluation
+
+    try:
+        prepared = _prepare_cq_evaluation(cqs)
+    except ValueError as exc:
+        return {
+            "answerable": [],
+            "unanswerable": [("ALL", f"{_CQ_INPUT_ERROR_PREFIX} {exc}")],
+            "coverage_pct": 0.0,
+            "input_errors": [{"source_index": None, "reason": str(exc)}],
+        }
+    if not prepared:
         return {"answerable": [], "unanswerable": [], "coverage_pct": 100.0}
     from rdflib import OWL as _O
     from rdflib import RDF as _R
@@ -2983,8 +3013,15 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
 
     answerable: list[str] = []
     unanswerable: list[tuple[str, str]] = []
-    for cq in cqs:
+    input_errors = []
+    for cq, input_error in prepared:
         cq_id = cq.get("id", "?")
+        if input_error:
+            input_errors.append({"cq_id": cq_id, **input_error})
+            unanswerable.append(
+                (cq_id, f"{_CQ_INPUT_ERROR_PREFIX} {input_error['reason']}"),
+            )
+            continue
         domains = [
             _resolve_domain_to_class(d, table_class_map).lower()
             for d in cq.get("domains", [])
@@ -3032,6 +3069,7 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
         "answerable": answerable,
         "unanswerable": unanswerable,
         "coverage_pct": coverage,
+        **({"input_errors": input_errors} if input_errors else {}),
     }
 
 
@@ -3170,12 +3208,19 @@ def _generate_op_skeletons_from_cq_gaps(
     # (2026-07-25 실측: 테이블명 클래스 6개).
     from tools.competency_questions import (
         _load_table_class_map,
+        _prepare_cq_evaluation,
         _resolve_domain_to_class,
     )
     table_class_map = _load_table_class_map()
 
     display_by_key: dict[str, str] = {}
-    for cq in cqs:
+    try:
+        prepared = _prepare_cq_evaluation(cqs)
+    except ValueError:
+        return []
+    for cq, input_error in prepared:
+        if input_error:
+            continue
         for raw in cq.get("domains", []):
             if not isinstance(raw, str):
                 continue
@@ -3322,7 +3367,7 @@ def _build_initial_draft(tables: str,
 
     반환 state 는 _run_one_debate_round 가 변경 가능한 가변 컨테이너로 사용한다.
     """
-    from tools.competency_questions import _load_csv_summary
+    from tools.competency_questions import _filter_valid_cq_entries, _load_csv_summary
     from tools.tbox_generation import (
         generate_tbox,
         set_chunk_progress_hook,
@@ -3388,7 +3433,8 @@ def _build_initial_draft(tables: str,
     }
 
     csv_summary = _load_csv_summary()
-    cqs = _load_competency_questions()
+    cq_evaluation_cqs = _load_competency_questions(include_invalid=True)
+    cqs = _filter_valid_cq_entries(cq_evaluation_cqs)
 
     gate_pass, gate_msg = _check_structural_gate(current_ttl)
     if not gate_pass:
@@ -3448,6 +3494,8 @@ def _build_initial_draft(tables: str,
         "architect_stats": architect_stats,
         "csv_summary": csv_summary,
         "cqs": cqs,
+        # 모델에는 cqs만 전달한다. 평가는 오류 항목을 포함한 원본 분모를 쓴다.
+        "cq_evaluation_cqs": cq_evaluation_cqs,
         "extra_context": extra_context,
         "debate_log": [],
         "consensus_reached": False,
@@ -4790,16 +4838,20 @@ def _run_one_debate_round(
         len(sme_result.get("issues", [])), s_approved,
     )
 
-    cq_runtime = _cq_runtime_check(current_ttl, cqs)
+    cq_evaluation_cqs = state.get("cq_evaluation_cqs", cqs)
+    cq_runtime = _cq_runtime_check(current_ttl, cq_evaluation_cqs)
+    cq_total = len(cq_evaluation_cqs) if isinstance(cq_evaluation_cqs, list) else 0
     round_log["cq_runtime"] = {
+        "total": cq_total,
         "coverage_pct": cq_runtime["coverage_pct"],
         "unanswerable_count": len(cq_runtime["unanswerable"]),
         "unanswerable_sample": cq_runtime["unanswerable"][:3],
+        **({"input_errors": cq_runtime["input_errors"]} if cq_runtime.get("input_errors") else {}),
     }
     logger.info(
         "[Round %d] CQ 런타임: %.1f%% (%d/%d 답변 가능)",
         round_num + 1, cq_runtime["coverage_pct"],
-        len(cq_runtime["answerable"]), len(cqs) if cqs else 0,
+        len(cq_runtime["answerable"]), cq_total,
     )
 
     quality_metrics = _compute_round_quality_metrics(current_ttl, round_num)

@@ -113,6 +113,9 @@ def _sug_key(sug: dict) -> tuple:
     error_category) so the same failing CQ with the same error category is
     only injected once per iteration.
     """
+    if sug.get("type") == "invalid_input":
+        # 구조 갭이 아닌 원본 입력 오류는 같은 id라도 위치별로 구분한다.
+        return ("invalid_input", sug.get("cq_id", ""), sug.get("source_index"))
     if sug.get("type") == "failed_query":
         return (
             "failed_query",
@@ -330,6 +333,8 @@ def format_feedback_for_prompt(
     context bloat. Suggestions with age_iterations >= 3 get a ⚠️반복 badge
     to flag patterns the previous Architect runs failed to fix.
     """
+    # 입력 정정은 CQ 원본에서 수행한다. 아래의 OP/속성 추가 지시에 섞지 않는다.
+    suggestions = [s for s in suggestions if s.get("type") != "invalid_input"]
     if not suggestions:
         return ""
 

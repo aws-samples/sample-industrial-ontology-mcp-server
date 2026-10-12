@@ -494,6 +494,33 @@ def _validate_embedded_queries(value: object, field_name: str = "") -> None:
         _reject_query_egress(value)
 
 
+def _cq_input_failure(cq: dict, input_error: dict) -> dict:
+    """평가하지 못한 CQ를 보고서에서 빠뜨리지 않고 실패로 기록한다."""
+    return {
+        "id": cq["id"], "status": "FAIL", "question": "", "difficulty": "",
+        "domains": [], "input_error": input_error,
+        "checks": [{
+            "check": "CQ 입력 형식", "passed": False,
+            "detail": input_error["reason"],
+        }],
+        "checks_passed": 0, "checks_total": 1,
+        "failures": [f"CQ 입력 오류: {input_error['reason']}"],
+    }
+
+
+def _cq_input_suggestion(result: dict) -> dict:
+    """입력 오류의 처리 대상을 CQ 원본으로 명시한다."""
+    return {
+        "cq_id": result["id"],
+        "type": "invalid_input",
+        "source_index": result["input_error"]["source_index"],
+        "action": (
+            "해당 순번의 CQ를 객체로 작성하고 domains를 문자열 배열 또는 null로 "
+            "수정하세요. 이 입력 오류는 온톨로지 수정으로 해결할 수 없습니다."
+        ),
+    }
+
+
 def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
                         graph_source: str = "merge",
                         verify_sparql: bool = False,
@@ -549,6 +576,8 @@ def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
         with open(cq_path, encoding="utf-8") as f:
             cqs = json.load(f)
         _validate_embedded_queries(cqs)
+        from tools.competency_questions import _prepare_cq_evaluation
+        prepared = _prepare_cq_evaluation(cqs)
 
         # 2. 시맨틱 딕셔너리에서 OP/클래스 정보 로드
         sem_dict = _load_semantic_dict()
@@ -577,7 +606,11 @@ def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
         passed = 0
         failed = 0
 
-        for cq_idx, cq in enumerate(cqs, 1):
+        for cq_idx, (cq, input_error) in enumerate(prepared, 1):
+            if input_error:
+                test_results.append(_cq_input_failure(cq, input_error))
+                failed += 1
+                continue
             cq_id = cq.get("id", "unknown")
             logger.info(
                 "[S12 query-test] CQ %d/%d 검증 중 — %s", cq_idx, len(cqs), cq_id,
@@ -925,6 +958,9 @@ def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
         for r in test_results:
             if r["status"] != "FAIL":
                 continue
+            if r.get("input_error"):
+                improvement_suggestions.append(_cq_input_suggestion(r))
+                continue
             for check in r["checks"]:
                 if check["passed"]:
                     continue
@@ -1045,7 +1081,8 @@ def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
                     s.get("cq_id") for s in latest_sugs if s.get("cq_id")
                 }
             current_passed_ids = {r["id"] for r in test_results if r["status"] == "PASS"}
-            resolved = sorted(prev_failed_ids & current_passed_ids)
+            current_failed_ids = {r["id"] for r in test_results if r["status"] == "FAIL"}
+            resolved = sorted(prev_failed_ids & (current_passed_ids - current_failed_ids))
             _fb_append(
                 pass_rate=summary["pass_rate"],
                 total_cqs=summary["total"],
@@ -1079,6 +1116,7 @@ def test_domain_queries(test_cases_path: str = "", open_report: bool = False,
                     "question": r["question"][:80],
                     "checks": f"{r['checks_passed']}/{r['checks_total']}",
                     "failures": r["failures"],
+                    **({"input_error": r["input_error"]} if r.get("input_error") else {}),
                     # 선언만으로 통과한 연결. 사영에서 빠뜨리면 summary 총계만 남아
                     # "어느 CQ 가 유령에 기대는가" 를 알 수 없다.
                     **({"schema_only_connections": r["schema_only_connections"],
@@ -1115,6 +1153,8 @@ def validate_cq_tbox_only(open_report: bool = False) -> str:
             return error_response("CQ가 없습니다.", hint="generate_competency_questions로 먼저 생성.", logger=logger)
         with open(_CQ_PATH, encoding="utf-8") as f:
             cqs = json.load(f)
+        from tools.competency_questions import _prepare_cq_evaluation
+        prepared = _prepare_cq_evaluation(cqs)
 
         from config import TBOX_PATH
         if not os.path.exists(TBOX_PATH):
@@ -1149,7 +1189,11 @@ def validate_cq_tbox_only(open_report: bool = False) -> str:
         missing_classes_all = set()
         missing_connections = []
 
-        for cq in cqs:
+        for cq, input_error in prepared:
+            if input_error:
+                results.append(_cq_input_failure(cq, input_error))
+                failed += 1
+                continue
             cq_id = cq.get("id", "unknown")
             question = cq.get("question_ko", cq.get("question_en", ""))
             domains = cq.get("domains", [])
@@ -1208,7 +1252,7 @@ def validate_cq_tbox_only(open_report: bool = False) -> str:
                             "failures": [c["check"] + " — " + c["detail"] for c in checks if not c["passed"]]})
 
         total = len(cqs)
-        suggestions = []
+        suggestions = [_cq_input_suggestion(r) for r in results if r.get("input_error")]
         if missing_classes_all:
             suggestions.append({"type": "missing_classes", "classes": sorted(missing_classes_all),
                                 "action": "T-Box에 해당 클래스 추가 또는 CQ 도메인 수정"})
@@ -1222,7 +1266,9 @@ def validate_cq_tbox_only(open_report: bool = False) -> str:
                         "pass_rate": round(passed / max(total, 1) * 100, 1)},
             "tbox_coverage": {"classes": len(tbox_classes), "object_properties": len(tbox_ops)},
             "results": [{"id": r["id"], "status": r["status"], "question": r["question"][:80],
-                         "failures": r["failures"]} for r in results],
+                         "failures": r["failures"],
+                         **({"input_error": r["input_error"]} if r.get("input_error") else {})}
+                        for r in results],
             "suggestions": suggestions,
         }, ensure_ascii=False, indent=2)
 
