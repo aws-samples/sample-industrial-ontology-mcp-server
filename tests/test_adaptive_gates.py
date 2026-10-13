@@ -6,6 +6,7 @@ _classify_class_tiers() 분류 로직과, 4개 검증 함수의 class_tiers 파�
 import json
 from unittest.mock import patch
 
+import pytest
 from rdflib import OWL, RDF, RDFS, XSD, Graph, Literal, URIRef
 
 from domain.namespaces import DOMAIN_INST_NS, DOMAIN_NS
@@ -471,21 +472,114 @@ class TestCheckStringPatternsAdaptive:
 # ── validate_kg 통합 (class_tiers 전달) ───────────
 
 
+_TIER_AWARE_CHECK_NAMES = frozenset({
+    "클래스별 인스턴스 수",
+    "프로퍼티 사용 커버리지",
+    "T-Box Fitness",
+    "프로퍼티별 완전성",
+    "댕글링 참조 탐지",
+    "문자열 패턴 검증",
+    "Closed-World master 고립",
+})
+
+
+@pytest.fixture(scope="function")
+def fallback_kg(tmp_path, monkeypatch) -> Graph:
+    """기본 임계값과 master/inferred 티어의 판정이 달라지는 작은 그래프."""
+    from tools import kg_validation, ontoclean
+
+    tbox = _make_tbox_with_classes("EquipmentMaster", "InferredClass")
+    equipment = URIRef(f"{DOMAIN_NS}EquipmentMaster")
+    has_ref = URIRef(f"{DOMAIN_NS}hasRef")
+    status = URIRef(f"{DOMAIN_NS}statusCode")
+    for prop, kind, range_ in (
+        (has_ref, OWL.ObjectProperty, equipment),
+        (status, OWL.DatatypeProperty, XSD.string),
+        (URIRef(f"{DOMAIN_NS}unusedRef"), OWL.ObjectProperty, equipment),
+        (URIRef(f"{DOMAIN_NS}unusedName"), OWL.DatatypeProperty, XSD.string),
+        (URIRef(f"{DOMAIN_NS}unusedCode"), OWL.DatatypeProperty, XSD.string),
+    ):
+        tbox.add((prop, RDF.type, kind))
+        tbox.add((prop, RDFS.domain, equipment))
+        tbox.add((prop, RDFS.range, range_))
+
+    g = _make_abox_with_instances(tbox, {"EquipmentMaster": 25})
+    for i in range(25):
+        subject = URIRef(f"{DOMAIN_INST_NS}EquipmentMaster_{i:04d}")
+        target = (
+            URIRef(f"{DOMAIN_INST_NS}Missing")
+            if i == 0
+            else URIRef(f"{DOMAIN_INST_NS}EquipmentMaster_{(i + 1) % 25:04d}")
+        )
+        g.add((subject, has_ref, target))
+        value = "ACTIVE" if i < 23 else f"OTHER_{i}"
+        g.add((subject, status, Literal(value, datatype=XSD.string)))
+
+    tbox_path = tmp_path / "tbox.ttl"
+    tbox.serialize(str(tbox_path), format="turtle")
+    monkeypatch.setattr(kg_validation, "_load_graph", lambda use_inferred: g)
+    monkeypatch.setattr(kg_validation, "TBOX_PATH", str(tbox_path))
+    monkeypatch.setattr(kg_validation, "INFERRED_PATH", str(tmp_path / "inferred.ttl"))
+    monkeypatch.setattr(kg_validation, "MASTER_DATA_PATH", str(tmp_path / "master_data.ttl"))
+    monkeypatch.setattr(kg_validation, "GENERATED_ABOX_DIR", str(tmp_path / "abox"))
+    monkeypatch.setattr(kg_validation, "resolve_generated_path", lambda path: tmp_path / path)
+    monkeypatch.setattr(ontoclean, "TBOX_PATH", str(tbox_path))
+    return g
+
+
+def _assert_default_kg_checks(result: dict) -> None:
+    """fallback이 검사를 생략하거나 티어별 완화를 적용하면 실패한다."""
+    assert result["success"] is True
+    assert result["passed"] is False
+    checks = {check["name"]: check for check in result["checks"]}
+    missing = _TIER_AWARE_CHECK_NAMES - checks.keys()
+    assert not missing, f"fallback에서 누락된 검증: {sorted(missing)}"
+
+    counts = checks["클래스별 인스턴스 수"]
+    assert counts["no_instance_classes"] == ["InferredClass"]
+    assert counts["passed"] is False
+
+    # 40% 커버리지는 기본 50% 기준에서 실패하고 inferred 30% 기준에서는 통과한다.
+    coverage = checks["프로퍼티 사용 커버리지"]
+    assert coverage["defined_properties"] == 5
+    assert coverage["used_properties"] == 2
+    assert coverage["coverage_pct"] == 40.0
+    assert coverage["passed"] is False
+
+    # 4% 댕글링 참조는 기본 5% 기준에서 통과하고 master 1% 기준에서는 실패한다.
+    dangling = checks["댕글링 참조 탐지"]
+    assert dangling["total_op_triples"] == 25
+    assert dangling["dangling_count"] == 1
+    assert dangling["dangling_rate_pct"] == 4.0
+    assert dangling["passed"] is True
+
+    # 92% 단일값 집중은 기본 90% 기준에서 경고하고 master 95% 기준에서는 숨겨진다.
+    strings = checks["문자열 패턴 검증"]
+    assert strings["checked_properties"] == 1
+    assert strings["passed"] is True
+    assert strings["warnings"] == [{
+        "property": "statusCode",
+        "issue": "단일값 집중 (>90%)",
+        "dominant_value": "ACTIVE",
+        "concentration_pct": 92.0,
+        "total": 25,
+    }]
+
+
 class TestValidateKgAdaptiveTiersWiring:
     """validate_kg()에서 class_tiers가 4개 검증에 전달되는지 검증."""
 
-    @patch("tools.kg_validation.INFERRED_PATH", "/nonexistent/path.ttl")
-    @patch("tools.kg_validation.TBOX_PATH", "/nonexistent/tbox.ttl")
-    @patch("tools.kg_validation._load_graph")
-    @patch("os.path.exists", return_value=False)
-    def test_without_abox_stats_still_works(self, mock_exists, mock_load_graph):
+    def test_without_abox_stats_still_works(self, fallback_kg, tmp_path):
         """abox_stats.json 없어도 기존처럼 동작 (class_tiers=None 폴백)."""
-        from tools.kg_validation import validate_kg
+        from tools import kg_validation
 
-        mock_load_graph.return_value = _new_graph()
-        result = json.loads(validate_kg(use_inferred=False))
-        assert result["success"] is True
-        assert len(result["checks"]) == 23
+        assert not (tmp_path / "abox" / "abox_stats.json").exists()
+        with patch.object(
+            kg_validation, "_load_abox_stats", wraps=kg_validation._load_abox_stats,
+        ) as load_stats:
+            result = json.loads(kg_validation.validate_kg(use_inferred=False))
+        load_stats.assert_called_once_with()
+        _assert_default_kg_checks(result)
 
     @patch("tools.kg_validation._load_abox_stats")
     @patch("tools.kg_validation.INFERRED_PATH", "/nonexistent/path.ttl")
@@ -508,23 +602,16 @@ class TestValidateKgAdaptiveTiersWiring:
         assert result["success"] is True
         mock_load_stats.assert_called_once()
 
-    @patch("tools.kg_validation._load_abox_stats")
-    @patch("tools.kg_validation.INFERRED_PATH", "/nonexistent/path.ttl")
-    @patch("tools.kg_validation.TBOX_PATH", "/nonexistent/tbox.ttl")
-    @patch("tools.kg_validation._load_graph")
-    @patch("os.path.exists", return_value=False)
-    def test_abox_stats_exception_graceful_fallback(
-        self, mock_exists, mock_load_graph, mock_load_stats
-    ):
+    def test_abox_stats_exception_graceful_fallback(self, fallback_kg):
         """abox_stats 로드 실패 시 class_tiers=None으로 폴백."""
-        from tools.kg_validation import validate_kg
+        from tools import kg_validation
 
-        mock_load_graph.return_value = _new_graph()
-        mock_load_stats.side_effect = Exception("file corrupt")
-
-        result = json.loads(validate_kg(use_inferred=False))
-        assert result["success"] is True
-        assert len(result["checks"]) == 23
+        with patch.object(
+            kg_validation, "_load_abox_stats", side_effect=Exception("stats unavailable"),
+        ) as load_stats:
+            result = json.loads(kg_validation.validate_kg(use_inferred=False))
+        load_stats.assert_called_once_with()
+        _assert_default_kg_checks(result)
 
 
 # ── _check_tbox_fitness + class_tiers ────────────

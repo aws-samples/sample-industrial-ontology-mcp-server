@@ -132,6 +132,23 @@ def sample_tbox_ttl():
 
 
 @pytest.fixture(scope="function")
+def sample_tbox_file(tmp_path, monkeypatch, sample_tbox_ttl):
+    """실제 파일 reader용 T-Box. 영어 설명을 포함해 모델 번역이 필요 없다."""
+    from tools import local_artifacts, validation_core
+
+    path = tmp_path / "t_box.ttl"
+    path.write_text(
+        sample_tbox_ttl
+        + f'\n{_PFX}:EquipmentMaster rdfs:comment "Equipment definition."@en .\n'
+        + f'{_PFX}:EquipmentStatus rdfs:comment "Equipment state."@en .\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(local_artifacts, "TBOX_PATH", str(path))
+    monkeypatch.setattr(validation_core, "TBOX_PATH", str(path))
+    return path
+
+
+@pytest.fixture(scope="function")
 def sample_abox_ttl():
     """Minimal A-Box with 2 instances."""
     return f"""\

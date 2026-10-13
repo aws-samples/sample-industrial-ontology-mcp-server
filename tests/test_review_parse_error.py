@@ -31,9 +31,9 @@ R5 Validator: "4라운드에서도 T-Box 변경이 없어 이전 라운드 criti
 
 ``parse_error`` 를 검사하는 곳은 Jury 경로 **한 곳뿐** 이었다 (:3249).
 
-## 재시도가 왜 못 살리는가
+## 당시 재시도가 왜 못 살렸는가
 
-모든 재시도가 1차보다 **적은** ``max_tokens`` 를 쓴다:
+당시 재시도는 1차보다 **적은** ``max_tokens`` 를 썼다:
 
 | 에이전트 | 1차 | 재시도 |
 |---|---:|---:|
@@ -47,9 +47,12 @@ R5 Validator: "4라운드에서도 T-Box 변경이 없어 이전 라운드 criti
 """
 from __future__ import annotations
 
+import json
+
 import pytest
 
 import tools.multi_agent_tbox as mt
+from domain.namespaces import DOMAIN_NS
 
 _PARSE_FAIL = {
     "issues": [],
@@ -367,33 +370,86 @@ def test_round_log_does_not_mark_healthy_rounds():
 
 # ── 4. 재시도가 토큰을 줄이지 않는다 ─────────────────────────────────────
 
-def test_retry_does_not_shrink_max_tokens():
-    """재시도 ``max_tokens`` 가 1차보다 작으면 안 된다.
+_REVIEW_ROLES = ("validator", "sme", "jury", "compromise")
+_TRUNCATED_REVIEW = '{"issues": [{"target": "'
 
-    1차가 길이 때문에 실패했다면 절반으로 줄인 재시도는 더 잘린다. 실측:
-    Validator 8,192 → 4,096 (-50%), SME 10,000 → 6,000 (-40%).
 
-    소스에서 각 에이전트의 1차/재시도 값을 추출해 비교한다 — 상수를 바꿔도
-    테스트가 따라오도록.
-    """
-    import inspect
-    import re
+def _review_payload(role):
+    if role == "jury":
+        return {
+            "production_ready": False, "decisions": [], "jury_issues": [],
+            "required_fixes": [], "rationale": "재시도 검증",
+        }
+    if role == "compromise":
+        return {"decisions": [], "overall_rationale": "재시도 검증"}
+    return {"issues": [_issue("BudgetClass")], "approved": False, "summary": "재시도 검증"}
 
-    src = inspect.getsource(mt)
-    # ``def _retry_<agent>`` 직후의 max_tokens 와, 그 함수 **앞** 에 나오는
-    # 가장 가까운 1차 호출의 max_tokens 를 비교한다.
-    # **네 에이전트 전부** 검사한다. 한 곳만 보면 다른 곳에서 같은 결함이
-    # 재발한다 — 실측: validator 8192→4096, sme 10000→6000, jury 8192→4096,
-    # compromise 8192→4096 로 네 곳 모두 축소돼 있었다.
-    for agent in ("validator", "sme", "jury", "compromise"):
-        m = re.search(rf"def _retry_{agent}\b.*?max_tokens=(\d+)", src, re.S)
-        assert m, f"_retry_{agent} 의 max_tokens 를 찾지 못했다"
-        retry_tokens = int(m.group(1))
-        head = src[: m.start()]
-        firsts = re.findall(r"max_tokens=(\d+)", head)
-        assert firsts, f"{agent} 1차 max_tokens 를 찾지 못했다"
-        first_tokens = int(firsts[-1])
-        assert retry_tokens >= first_tokens, (
-            f"{agent} 재시도가 1차보다 작다: {first_tokens} → {retry_tokens}. "
-            "1차가 길이로 실패했다면 더 잘린다"
-        )
+
+def _run_review_with_responses(monkeypatch, tmp_path, role, responses):
+    """LLM 경계만 대체하고 실제 역할 함수와 JSON 재시도를 실행한다."""
+    import tools.compromise_audit as audit
+
+    monkeypatch.setattr(audit, "COMPROMISE_AUDIT_PATH", str(tmp_path / "audit.json"))
+    calls = []
+
+    def invoke(prompt, **kwargs):
+        calls.append({"prompt": prompt, **kwargs})
+        if len(calls) > len(responses):
+            pytest.fail("준비한 응답을 넘어 재시도했다")
+        return responses[len(calls) - 1]
+
+    monkeypatch.setattr(mt, "_invoke_bedrock", invoke)
+    ttl = (
+        "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n"
+        f"<{DOMAIN_NS}BudgetClass> a owl:Class .\n"
+    )
+    if role == "validator":
+        result = mt._validator_review(ttl, round_num=1)
+    elif role == "sme":
+        result = mt._sme_review(ttl, csv_summary="", cqs=[], round_num=1)
+    elif role == "jury":
+        result = mt._jury_decide(ttl, {"issues": []}, {"issues": []}, [], [])
+    else:
+        assert role == "compromise"
+        result = mt._architect_compromise(ttl, {"issues": []}, {"issues": []}, [])
+    return result, calls
+
+
+@pytest.mark.parametrize("role", _REVIEW_ROLES)
+@pytest.mark.parametrize("retry_succeeds", [True, False], ids=["recovered", "exhausted"])
+def test_retry_does_not_shrink_max_tokens(monkeypatch, tmp_path, role, retry_succeeds):
+    """네 역할의 실제 재시도는 예산·컨텍스트를 유지하고 한 번에 종료한다."""
+    payload = _review_payload(role)
+    responses = [
+        _TRUNCATED_REVIEW, json.dumps(payload) if retry_succeeds else _TRUNCATED_REVIEW,
+    ]
+    result, calls = _run_review_with_responses(monkeypatch, tmp_path, role, responses)
+
+    assert len(calls) == 2
+    first, retry = calls
+    assert [call["agent_role"] for call in calls] == [role, role]
+    assert first["max_tokens"] > 0
+    assert first["max_tokens"] == mt._REVIEW_MAX_TOKENS
+    assert retry["max_tokens"] >= first["max_tokens"]
+    assert first["prompt"] in retry["prompt"]
+    assert retry.get("cached_prefix") == first.get("cached_prefix")
+    if retry_succeeds:
+        assert result == payload
+    else:
+        assert result["parse_error"] is True
+        assert result["approved"] is False
+
+
+@pytest.mark.parametrize("role", _REVIEW_ROLES)
+def test_valid_review_does_not_retry(monkeypatch, tmp_path, role):
+    """정상 첫 응답은 추가 모델 호출 없이 그대로 반환한다."""
+    payload = _review_payload(role)
+    result, calls = _run_review_with_responses(
+        monkeypatch, tmp_path, role, [json.dumps(payload)],
+    )
+
+    assert result == payload
+    assert len(calls) == 1
+    assert calls[0]["agent_role"] == role
+    assert calls[0]["max_tokens"] > 0
+    assert calls[0]["max_tokens"] == mt._REVIEW_MAX_TOKENS

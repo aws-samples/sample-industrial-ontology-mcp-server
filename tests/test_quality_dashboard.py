@@ -27,11 +27,10 @@ def _real_metric_keys() -> set[str]:
     return {k for k in metrics if isinstance(k, str)}
 
 
-def test_every_impact_metric_name_exists():
+def test_every_impact_metric_name_exists(sample_tbox_file):
     """THE REGRESSION: 매핑의 모든 메트릭 이름이 실제 키에 있어야 한다."""
     real = _real_metric_keys()
-    if not real:
-        pytest.skip("T-Box 가 없어 메트릭 키를 확인할 수 없다")
+    assert real, "fixture T-Box의 메트릭 키가 없다"
 
     referenced = {m for metrics in _RULE_METRIC_IMPACT.values() for m in metrics}
     phantom = sorted(referenced - real)
@@ -53,35 +52,52 @@ def test_every_impact_rule_id_is_a_known_rule():
     assert {"missing_domain", "missing_range"} <= known
 
 
-def test_trace_quality_issues_smoke():
-    """도구가 성공 응답을 내고 필수 필드를 채운다 (실행 라인 0이던 모듈)."""
+def test_trace_quality_issues_smoke(sample_tbox_file):
+    """독립 T-Box 파일로 실제 검증기와 메트릭을 거쳐 필수 응답을 확인한다."""
     from tools.quality_dashboard import trace_quality_issues
 
     result = json.loads(trace_quality_issues())
-    if not result.get("success"):
-        pytest.skip(f"T-Box 미생성 등 환경 사유: {str(result.get('error'))[:80]}")
+    assert result.get("success") is True, result
     for key in ("traced_violations", "metric_impact_summary",
                 "warning_metrics_with_causes", "recommendation"):
         assert key in result, f"응답에 '{key}' 가 없다"
+    assert isinstance(result["traced_violations"], int)
+    assert isinstance(result["metric_impact_summary"], dict)
+    assert isinstance(result["warning_metrics_with_causes"], dict)
+    assert isinstance(result["recommendation"], str)
 
 
-def test_annotation_rules_can_actually_join():
+def test_annotation_rules_can_actually_join(sample_tbox_file):
     """라벨/주석 위반이 annotation 메트릭에 **실제로** 연결되는지.
 
     이름이 맞아도 조인 로직이 바뀌면 다시 끊길 수 있으므로 조인 자체를 재현한다.
     """
-    real = _real_metric_keys()
-    if not real:
-        pytest.skip("T-Box 없음")
+    from domain.namespaces import DOMAIN_NS
+    from tools.quality_dashboard import trace_quality_issues
 
-    annotation_key = next((k for k in real if k.startswith("annotation")), None)
-    assert annotation_key, f"annotation 계열 메트릭이 없다: {sorted(real)}"
-
-    # 도구 내부와 같은 방식으로 조인해 본다.
-    traced = [{"rule": "missing_label",
-               "affects_metrics": _RULE_METRIC_IMPACT["missing_label"]}]
-    causes = [t for t in traced if annotation_key in t["affects_metrics"]]
-    assert causes, (
-        f"'{annotation_key}' 가 missing_label 의 영향 목록과 조인되지 않는다 — "
-        "근본원인이 유실된다"
+    sample_tbox_file.write_text(
+        f"<{DOMAIN_NS}EquipmentMaster> a <http://www.w3.org/2002/07/owl#Class> .\n",
+        encoding="utf-8",
     )
+    result = json.loads(trace_quality_issues())
+    assert result.get("success") is True, result
+    causes = result["warning_metrics_with_causes"]["annotation_completeness"]
+    assert causes["violation_count"] > 0
+    assert "missing_label" in causes["top_violations"]
+
+
+@pytest.mark.parametrize("tool_name", ["trace_quality_issues", "generate_quality_dashboard"])
+def test_metrics_read_failure_is_not_a_successful_dashboard(tool_name, sample_tbox_file, monkeypatch):
+    """첫 그래프 읽기 후 메트릭 읽기가 실패해도 빈 점수로 성공 보고하지 않는다."""
+    from tools import local_artifacts, quality_dashboard
+
+    failure = {
+        "success": False,
+        "error": "fixture T-Box became unreadable",
+        "hint": "check fixture access",
+    }
+    monkeypatch.setattr(local_artifacts, "read_tbox", lambda: json.dumps(failure))
+
+    result = json.loads(getattr(quality_dashboard, tool_name)())
+
+    assert result == failure

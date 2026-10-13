@@ -10,31 +10,71 @@
 DQV sidecar 는 성공으로 보고되고 내용만 비어 있다. 문자열로 모듈을 잇는 계약은
 타입 검사가 잡지 못하므로 테스트로만 고정된다.
 
-지금 4개 계약은 모두 성립한다 (실측). 이 파일은 그것이 **깨지는 순간 실패** 하게
-만드는 것이 목적이다.
-
-Farber 평가와 sidecar 전체 실행은 A-Box 산출물을 훑어 각 30초+ 걸리므로
-``@pytest.mark.slow`` 로 표시했다 (``pytest -m slow`` 로만 실행). 나머지 4건은
-1초 미만이라 기본 스위트에서 계약을 지킨다.
+작은 T-Box/A-Box와 출력 경로를 테스트별 임시 디렉터리에 구성한다.
+도구 오류, 그룹 누락, RDF 측정값 손실은 환경 사유로 skip하지 않고 실패시킨다.
 """
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
+from rdflib import RDF, Graph
 
 
 def _call(module_path: str, func_name: str) -> dict:
     module = __import__(module_path, fromlist=[func_name])
     payload = json.loads(getattr(module, func_name)())
-    if not payload.get("success", True):
-        pytest.skip(f"{func_name} 실패 (환경 사유): {str(payload.get('error'))[:80]}")
+    assert payload.get("success") is True, f"{func_name}: {payload}"
     return payload
 
 
-def test_tbox_metrics_exposes_metrics_value():
+@pytest.fixture
+def quality_inputs(tmp_path, monkeypatch, sample_tbox_file, sample_abox_ttl):
+    from tools import (
+        dqv_sidecar,
+        farber_dimensions,
+        foops_fair,
+        local_artifacts,
+        ontology_quality,
+        tbox_metrics,
+        validation_core,
+    )
+
+    tbox_dir = tmp_path / "tbox"
+    tbox_dir.mkdir()
+    tbox = tbox_dir / "t_box.ttl"
+    tbox.write_text(sample_tbox_file.read_text(encoding="utf-8"), encoding="utf-8")
+    abox = tmp_path / "a_box.ttl"
+    abox.write_text(sample_abox_ttl, encoding="utf-8")
+    inferred = tmp_path / "inferred.ttl"
+    inferred.write_text(sample_abox_ttl, encoding="utf-8")
+    rawdata = tmp_path / "rawdata"
+    rawdata.mkdir()
+    (rawdata / "EquipmentMaster.csv").write_text("equipmentID\nEQ001\n", encoding="utf-8")
+    reports = tmp_path / "reports"
+
+    for module in (
+        dqv_sidecar, farber_dimensions, foops_fair, local_artifacts,
+        ontology_quality, tbox_metrics, validation_core,
+    ):
+        monkeypatch.setattr(module, "TBOX_PATH", str(tbox))
+    for module in (farber_dimensions, foops_fair):
+        monkeypatch.setattr(module, "GENERATED_REPORTS_DIR", str(reports))
+    monkeypatch.setattr(foops_fair, "GENERATED_TBOX_DIR", str(tbox_dir))
+    monkeypatch.setattr(farber_dimensions, "ABOX_PATH", str(abox))
+    monkeypatch.setattr(farber_dimensions, "INFERRED_PATH", str(inferred))
+    monkeypatch.setattr(farber_dimensions, "SOURCE_RAWDATA_DIR", str(rawdata))
+    monkeypatch.setattr(tbox_metrics, "TBOX_BASELINE_PATH", str(tbox_dir / "no_baseline.ttl"))
+    return tmp_path
+
+
+def test_tbox_metrics_exposes_metrics_value(quality_inputs):
     """``_extract_from_tbox_metrics`` 는 ``metrics[k]["value"]`` 를 읽는다."""
-    payload = _call("tools.tbox_metrics", "measure_tbox_metrics")
+    from tools.tbox_metrics import measure_tbox_metrics
+
+    payload = json.loads(measure_tbox_metrics())
+    assert payload.get("success") is True, payload
     metrics = payload.get("metrics")
     assert isinstance(metrics, dict) and metrics, "metrics 섹션이 없다"
     key = next(iter(metrics))
@@ -43,7 +83,7 @@ def test_tbox_metrics_exposes_metrics_value():
     )
 
 
-def test_fair_score_exposes_axis_scores_score():
+def test_fair_score_exposes_axis_scores_score(quality_inputs):
     """``_extract_from_foops_fair`` 는 ``axis_scores[a]["score"]`` 를 읽는다."""
     payload = _call("tools.foops_fair", "evaluate_fair_score")
     axes = payload.get("axis_scores")
@@ -54,8 +94,7 @@ def test_fair_score_exposes_axis_scores_score():
     )
 
 
-@pytest.mark.slow
-def test_farber_exposes_dimensions_score():
+def test_farber_exposes_dimensions_score(quality_inputs):
     """``_extract_from_farber`` 는 ``dimensions[d]["score"]`` 를 읽는다."""
     payload = _call("tools.farber_dimensions", "evaluate_farber_dimensions")
     dims = payload.get("dimensions")
@@ -66,7 +105,7 @@ def test_farber_exposes_dimensions_score():
     )
 
 
-def test_oquare_exposes_overall_1_to_5():
+def test_oquare_exposes_overall_1_to_5(quality_inputs):
     """``_extract_from_oquare`` 는 ``overall_1_to_5`` 를 읽는다."""
     payload = _call("tools.ontology_quality", "evaluate_oquare")
     assert "overall_1_to_5" in payload, (
@@ -74,29 +113,63 @@ def test_oquare_exposes_overall_1_to_5():
     )
 
 
-@pytest.mark.slow
-def test_export_quality_dqv_produces_measurements():
+def test_export_quality_dqv_produces_measurements(quality_inputs):
     """THE REGRESSION: sidecar 가 실제로 측정값을 담아야 한다 (빈 껍데기 금지).
 
     수집기들이 모두 ``try/except`` + ``logger.debug`` 라, 계약이 깨지면 성공
     응답에 내용만 비어서 돌아온다.
     """
-    from tools.dqv_sidecar import export_quality_dqv
+    from tools.dqv_sidecar import _QM_NS, DQV, export_quality_dqv
+    from tools.validation_support.checks.linked_data import (
+        check_interlinking,
+        check_licensing,
+        check_understandability,
+    )
+
+    metrics = _call("tools.tbox_metrics", "measure_tbox_metrics")["metrics"]
+    fair = _call("tools.foops_fair", "evaluate_fair_score")
+    farber = _call("tools.farber_dimensions", "evaluate_farber_dimensions")["dimensions"]
+    oquare = _call("tools.ontology_quality", "evaluate_oquare")
+    tbox = Graph().parse(quality_inputs / "tbox" / "t_box.ttl", format="turtle")
+    expected = {
+        **{key: metrics[key]["value"] for key in (
+            "dit", "noc_avg", "rr", "ar", "annotation_completeness", "axiom_richness",
+        )},
+        "fair_overall": fair["overall_score"],
+        "fair_findable": fair["axis_scores"]["Findable"]["score"],
+        "fair_accessible": fair["axis_scores"]["Accessible"]["score"],
+        "fair_interoperable": fair["axis_scores"]["Interoperable"]["score"],
+        "fair_reusable": fair["axis_scores"]["Reusable"]["score"],
+        "farber_timeliness": farber["timeliness"]["score"],
+        "farber_amount_of_data": farber["amount_of_data"]["score"],
+        "farber_trustworthiness": farber["trustworthiness"]["score"],
+        "farber_verifiability": farber["verifiability"]["score"],
+        "farber_representational_consistency": farber["representational_consistency"]["score"],
+        "oquare_overall": oquare["overall_1_to_5"],
+        "zaveri_interlinking": check_interlinking(tbox)["score"],
+        "zaveri_licensing": check_licensing(tbox)["score"],
+        "zaveri_understandability": check_understandability(tbox)["score"],
+    }
 
     result = json.loads(export_quality_dqv())
-    if not result.get("success"):
-        pytest.skip(f"환경 사유: {str(result.get('error'))[:100]}")
-
-    count = (
-        result.get("measurement_count")
-        or len(result.get("measurements") or {})
-        or result.get("metrics_count")
-        or 0
-    )
-    assert count > 0, (
-        f"DQV sidecar 가 측정값 0건으로 성공 보고했다 — 상류 키 계약이 깨졌다는 "
-        f"신호다. 응답 키: {sorted(result)}"
-    )
+    assert result.get("success") is True, result
+    assert set(expected) == set(result["metrics_exported"])
+    assert {
+        "measure_tbox_metrics", "evaluate_fair_score",
+        "evaluate_farber_dimensions", "evaluate_oquare",
+        "linked_data.checks",
+    } == set(result["sources"])
+    path = Path(result["output_path"])
+    assert path == quality_inputs / "quality" / "dqv_sidecar.ttl"
+    graph = Graph().parse(path, format="turtle")
+    measurements = set(graph.subjects(RDF.type, DQV.QualityMeasurement))
+    assert len(measurements) == result["measurement_count"]
+    for metric_id, expected_value in expected.items():
+        nodes = set(graph.subjects(DQV.isMeasurementOf, _QM_NS[f"metric/{metric_id}"]))
+        assert len(nodes) == 1, f"{metric_id} 측정값이 누락되거나 중복됐다"
+        value = graph.value(next(iter(nodes)), DQV.value)
+        assert value is not None, metric_id
+        assert float(value) == pytest.approx(expected_value), metric_id
 
 
 def test_extractors_are_callable_with_empty_input():
@@ -106,4 +179,4 @@ def test_extractors_are_callable_with_empty_input():
     for name in ("_extract_from_tbox_metrics", "_extract_from_foops_fair",
                  "_extract_from_farber", "_extract_from_oquare"):
         fn = getattr(dqv, name)
-        assert fn({}) == {} or isinstance(fn({}), dict), f"{name}({{}}) 가 dict 가 아니다"
+        assert fn({}) == {}, f"{name}({{}}) 가 빈 dict 가 아니다"

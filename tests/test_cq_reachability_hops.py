@@ -221,30 +221,46 @@ steel:parentToDelta a owl:ObjectProperty ;
 #: 만들지 않은 것은 개선이다. 쌍을 남겨 두면 이 테스트가 "근거 없는 OP 를 되살려라" 를
 #: 요구하게 된다 — 이 리포가 반복 기각한 지표 매수다.
 #:
-#: 남은 3쌍으로도 ``max_hops=3`` 회귀 가드는 성립한다 (2홉 검사기는 셋 다 놓친다).
-@pytest.mark.parametrize("pair", [
-    ("ProcessBlastFurnace", "AlarmEvents"),
-    ("GHGEmission", "EnergySourceMaster"),
-    ("SteamEnergy", "MonitoringPointMaster"),
+#: 남은 3쌍의 경로 형태를 fixture로 고정한다. 현행 배포 산출물의 내용이나
+#: CSV 근거를 보증하는 검사가 아니라, 기록된 3홉 토폴로지의 회귀 검사다.
+@pytest.mark.parametrize("chain", [
+    ("ProcessBlastFurnace", "EquipmentMaster", "TagMaster", "AlarmEvents"),
+    ("GHGEmission", "EquipmentMaster", "FuelConsumption", "EnergySourceMaster"),
+    ("SteamEnergy", "EquipmentMaster", "WaterQualityMonitoring", "MonitoringPointMaster"),
 ])
-def test_real_tbox_pairs_reported_as_missing_are_actually_reachable(pair):
-    """실측 회귀: 배포 T-Box 에서 미답변으로 보고됐던 쌍이 실제로 도달 가능하다.
+def test_recorded_three_hop_paths_are_reachable(chain, monkeypatch):
+    """2홉에서는 실패하고 3홉에서는 연결되며, 고립 클래스는 계속 실패한다."""
+    from domain import table_mapping
+    from domain.namespaces import DOMAIN_NS
 
-    T-Box 파일이 없거나 그 쌍이 사라졌으면 skip — 이 테스트는 산출물에
-    의존하므로 환경에 따라 성립하지 않을 수 있다.
-    """
-    import os
+    # 배포 매핑의 내용이나 캐시가 fixture 클래스 해석을 바꾸지 않도록 격리한다.
+    monkeypatch.setattr(table_mapping, "load_table_class_mapping", lambda: {})
+    ttl_lines = [
+        f"@prefix ex: <{DOMAIN_NS}> .",
+        "@prefix owl: <http://www.w3.org/2002/07/owl#> .",
+        "@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .",
+        *(f"ex:{name} a owl:Class ." for name in (*chain, "IsolatedClass")),
+        *(
+            f"ex:path{index} a owl:ObjectProperty ; "
+            f"rdfs:domain ex:{source} ; rdfs:range ex:{target} ."
+            for index, (source, target) in enumerate(zip(chain[:-1], chain[1:], strict=True))
+        ),
+    ]
+    ttl = "\n".join(ttl_lines)
+    cqs = [
+        {"id": "connected", "domains": [chain[0], chain[-1]]},
+        {"id": "isolated", "domains": [chain[0], "IsolatedClass"]},
+    ]
 
-    from config import TBOX_PATH
+    monkeypatch.setenv("S2_CQ_MAX_HOPS", "2")
+    limited = _cq_runtime_check(ttl, cqs)
+    assert limited["answerable"] == []
+    assert len(limited["unanswerable"]) == 2
+    assert all("경로 없음" in reason for _, reason in limited["unanswerable"])
 
-    if not os.path.exists(TBOX_PATH):
-        pytest.skip("배포 T-Box 없음")
-    with open(TBOX_PATH, encoding="utf-8") as fh:
-        ttl = fh.read()
-    result = _cq_runtime_check(ttl, _cq(*pair))
-    if result["unanswerable"] and "클래스 누락" in result["unanswerable"][0][1]:
-        pytest.skip(f"현행 T-Box 에 클래스 없음: {result['unanswerable'][0][1]}")
-    assert result["answerable"] == ["CQ01"], (
-        f"{pair[0]} ↔ {pair[1]} 은 3홉 경로가 실재하는데 미답변으로 판정됐다: "
-        f"{result['unanswerable']}"
-    )
+    monkeypatch.setenv("S2_CQ_MAX_HOPS", "3")
+    result = _cq_runtime_check(ttl, cqs)
+    assert result["answerable"] == ["connected"], result
+    assert [cq_id for cq_id, _ in result["unanswerable"]] == ["isolated"]
+    assert "경로 없음" in result["unanswerable"][0][1]
+    assert result["coverage_pct"] == 50.0

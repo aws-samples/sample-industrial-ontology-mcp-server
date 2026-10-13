@@ -1,11 +1,78 @@
 """tests for tools/ontology_quality.py — T-Box 품질 후처리 핵심 로직."""
 
+import json
+
 import pytest
-from rdflib import OWL, RDF, RDFS, BNode, Graph, URIRef
+from rdflib import DCTERMS, OWL, RDF, RDFS, BNode, Graph, Literal, URIRef
 
 from domain.namespaces import DOMAIN_NS, DOMAIN_NS_OBJ
 from domain.tbox_utils import _new_graph
 from tools.ontology_quality import _annotate_completeness, _dp_matches_domain_pk, improve_tbox
+
+
+@pytest.fixture(scope="function")
+def fk_autocreate_inputs(tmp_path, monkeypatch):
+    """CSV, 규칙, A-Box 사용 근거를 모두 이 테스트의 입력으로 제한한다."""
+    import config
+    from domain import graph_utils, rules_paths, table_mapping, tbox_utils
+    from tools import ontology_quality
+
+    source = tmp_path / "source"
+    rawdata = source / "rawdata"
+    rawdata.mkdir(parents=True)
+    tacit = source / "tacit"
+    tacit.mkdir()
+    (rawdata / "Item_Master.csv").write_text(
+        "Item_Code,Item_Name\nITM001,Bolt\n", encoding="utf-8",
+    )
+    (rawdata / "Inventory_Status.csv").write_text(
+        "Inventory_ID,Item_Code,Stock\nINV001,ITM001,100\n", encoding="utf-8",
+    )
+    rules = tmp_path / "rules"
+    (rules / "contracts").mkdir(parents=True)
+    (rules / "domain").mkdir()
+    (rules / "contracts" / "fk_patterns.json").write_text(
+        json.dumps({"patterns": {"itemcode": "ItemMaster"}, "suffix_rules": []}),
+        encoding="utf-8",
+    )
+    (rules / "domain" / "table_class_mapping.json").write_text(
+        json.dumps({
+            "table_class_mapping": {
+                "Item_Master": "ItemMaster", "Inventory_Status": "InventoryStatus",
+            },
+            "table_pk_columns": {
+                "Item_Master": ["Item_Code"], "Inventory_Status": ["Inventory_ID"],
+            },
+        }),
+        encoding="utf-8",
+    )
+    abox = tmp_path / "a_box.ttl"
+    abox.write_text("", encoding="utf-8")
+    monkeypatch.setattr(config, "SOURCE_RAWDATA_DIR", str(rawdata))
+    monkeypatch.setattr(ontology_quality, "SOURCE_RAWDATA_DIR", str(rawdata))
+    monkeypatch.setattr(config, "SOURCE_DIR", str(source))
+    monkeypatch.setattr(config, "SOURCE_TACIT_DIR", str(tacit))
+    monkeypatch.setattr(config, "ABOX_PATH", str(abox))
+    monkeypatch.setattr(config, "INFERRED_PATH", str(tmp_path / "no_inferred.ttl"))
+    monkeypatch.setattr(tbox_utils, "TBOX_PATH", str(tmp_path / "no_tbox.ttl"))
+    monkeypatch.setattr(rules_paths, "RULES_ROOT", str(rules))
+    monkeypatch.setattr(table_mapping, "RULES_ROOT", str(rules))
+    monkeypatch.setattr(table_mapping, "_CACHE", {})
+    monkeypatch.setattr(ontology_quality, "_RULES_DIR", str(rules))
+    monkeypatch.setattr(graph_utils, "_ABOX_USED_CACHE", {})
+    tbox = f"""\
+@prefix steel: <{DOMAIN_NS}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+steel:ItemMaster a owl:Class ;
+    rdfs:label "Item"@en, "품목"@ko ;
+    rdfs:comment "품목 마스터"@ko .
+steel:InventoryStatus a owl:Class ;
+    rdfs:label "Inventory"@en, "재고"@ko ;
+    rdfs:comment "재고 현황"@ko .
+"""
+    return {"tbox": tbox, "rules": rules, "rawdata": rawdata}
 
 
 @pytest.fixture
@@ -432,34 +499,9 @@ steel:isSupplierMasterOf a owl:ObjectProperty ;
             ), "self-loop 구조가 남아있음"
         assert stats.get("self_loop_ops_removed", 0) >= 1
 
-    def test_fk_op_autocreated(self, tmp_path, monkeypatch):
+    def test_fk_op_autocreated(self, fk_autocreate_inputs):
         """Multi-Agent 가 누락한 FK OP (예: hasItemMaster) 는 CSV 기반으로 자동 생성."""
-        # 임시 CSV 디렉토리 설정: Item_Master(PK), Inventory_Status(FK Item_Code → ItemMaster)
-        csv_dir = tmp_path / "rawdata"
-        csv_dir.mkdir()
-        (csv_dir / "Item_Master.csv").write_text(
-            "Item_Code,Item_Name\nITM001,Bolt\n", encoding="utf-8"
-        )
-        (csv_dir / "Inventory_Status.csv").write_text(
-            "Inventory_ID,Item_Code,Stock\nINV001,ITM001,100\n", encoding="utf-8"
-        )
-        import tools.ontology_quality as oq
-        monkeypatch.setattr(oq, "SOURCE_RAWDATA_DIR", str(csv_dir))
-
-        tbox = f"""\
-@prefix steel: <{DOMAIN_NS}> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
-@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-
-steel:ItemMaster a owl:Class ;
-    rdfs:label "IM"@en, "아이템"@ko ;
-    rdfs:comment "아이템"@ko .
-
-steel:InventoryStatus a owl:Class ;
-    rdfs:label "IS"@en, "재고"@ko ;
-    rdfs:comment "재고"@ko .
-"""
-        result_ttl, stats = improve_tbox(tbox)
+        result_ttl, stats = improve_tbox(fk_autocreate_inputs["tbox"])
         g = _new_graph()
         g.parse(data=result_ttl, format="turtle")
         # hasItemMaster OP 생성 확인
@@ -468,7 +510,68 @@ steel:InventoryStatus a owl:Class ;
             "hasItemMaster OP should be autocreated")
         assert (op, RDFS.domain, DOMAIN_NS_OBJ.InventoryStatus) in g
         assert (op, RDFS.range, DOMAIN_NS_OBJ.ItemMaster) in g
-        assert stats.get("fk_ops_autocreated", 0) >= 1
+        assert (op, DCTERMS.source, Literal("Item_Code")) in g
+        inverse = DOMAIN_NS_OBJ.isItemMasterOf
+        assert (inverse, RDF.type, OWL.ObjectProperty) in g
+        assert (inverse, RDFS.domain, DOMAIN_NS_OBJ.ItemMaster) in g
+        assert (inverse, RDFS.range, DOMAIN_NS_OBJ.InventoryStatus) in g
+        assert (inverse, OWL.inverseOf, op) in g
+        assert (inverse, DCTERMS.source, Literal("Item_Code")) in g
+        assert stats["fk_ops_autocreated"] == 1
+
+        repeated_ttl, repeated_stats = improve_tbox(result_ttl)
+        repeated = _new_graph()
+        repeated.parse(data=repeated_ttl, format="turtle")
+        assert (op, RDFS.domain, DOMAIN_NS_OBJ.InventoryStatus) in repeated
+        assert (inverse, RDFS.range, DOMAIN_NS_OBJ.InventoryStatus) in repeated
+        assert repeated_stats["fk_ops_autocreated"] == 0
+
+    @pytest.mark.parametrize("inverse_only", [False, True], ids=["pair", "inverse-only"])
+    def test_fk_op_does_not_duplicate_manual_relationship(self, fk_autocreate_inputs, inverse_only):
+        """수동 정본 관계가 이미 같은 클래스를 이으면 별도 hasItemMaster를 만들지 않는다."""
+        manual = f"""\
+@prefix steel: <{DOMAIN_NS}> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+steel:isItemOfInventoryStatus a owl:ObjectProperty ;
+    rdfs:domain steel:ItemMaster ; rdfs:range steel:InventoryStatus ;
+    owl:inverseOf steel:inventoryStatusHasItem ; dcterms:source "Item_Code" .
+"""
+        if not inverse_only:
+            manual += """\
+steel:inventoryStatusHasItem a owl:ObjectProperty ;
+    rdfs:domain steel:InventoryStatus ; rdfs:range steel:ItemMaster ;
+    owl:inverseOf steel:isItemOfInventoryStatus ; dcterms:source "Item_Code" .
+"""
+        (fk_autocreate_inputs["rules"] / "domain" / "tbox_manual_additions.ttl").write_text(
+            manual, encoding="utf-8",
+        )
+
+        result_ttl, stats = improve_tbox(fk_autocreate_inputs["tbox"])
+        g = _new_graph()
+        g.parse(data=result_ttl, format="turtle")
+
+        op = DOMAIN_NS_OBJ.inventoryStatusHasItem
+        inverse = DOMAIN_NS_OBJ.isItemOfInventoryStatus
+        assert (op, RDF.type, OWL.ObjectProperty) in g
+        assert (op, RDFS.domain, DOMAIN_NS_OBJ.InventoryStatus) in g
+        assert (op, RDFS.range, DOMAIN_NS_OBJ.ItemMaster) in g
+        assert (inverse, OWL.inverseOf, op) in g
+        assert (DOMAIN_NS_OBJ.hasItemMaster, RDF.type, OWL.ObjectProperty) not in g
+        assert (DOMAIN_NS_OBJ.isItemMasterOf, RDF.type, OWL.ObjectProperty) not in g
+        assert stats["fk_ops_autocreated"] == 0
+
+    def test_fk_op_requires_target_csv(self, fk_autocreate_inputs):
+        """클래스 이름과 FK 패턴만 있고 대상 CSV가 없으면 관계를 추측하지 않는다."""
+        (fk_autocreate_inputs["rawdata"] / "Item_Master.csv").unlink()
+
+        result_ttl, stats = improve_tbox(fk_autocreate_inputs["tbox"])
+        g = _new_graph()
+        g.parse(data=result_ttl, format="turtle")
+
+        assert (DOMAIN_NS_OBJ.hasItemMaster, RDF.type, OWL.ObjectProperty) not in g
+        assert stats["fk_ops_autocreated"] == 0
 
     def test_manufacturing_process_step_autocreated(self):
         """MPS 가 T-Box 에 없고 하위 공정 클래스만 있으면 MPS 를 자동 생성 + subclassOf 연결."""

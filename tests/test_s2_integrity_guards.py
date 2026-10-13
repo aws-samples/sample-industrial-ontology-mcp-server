@@ -31,6 +31,7 @@ from rdflib import RDF, RDFS, Graph, URIRef
 from rdflib.namespace import OWL
 
 import tools.multi_agent_tbox as mt
+from domain.namespaces import IOF_CORE, IOF_ONTOLOGY_IRIS
 
 STEEL = "http://example.com/steel-ontology#"
 _MIN_TTL = (
@@ -38,6 +39,7 @@ _MIN_TTL = (
     "@prefix owl: <http://www.w3.org/2002/07/owl#> .\n"
     "steel:Equipment a owl:Class .\nsteel:Plant a owl:Class .\n"
 )
+_IOF_CORE_ONTOLOGY_IRI = "https://spec.industrialontologies.org/ontology/core/Core/"
 
 
 # ── 1. 유령 IRI 생성 차단 ─────────────────────────────────────────────
@@ -64,8 +66,11 @@ def test_external_prefix_resolves_to_its_own_namespace():
 
     단순히 prefix 를 벗기면 ``iof-core:MaterialArtifact`` 가 도메인 클래스가 되어
     IOF 매핑이 깨진다 — 유령 IRI 를 고치면서 새 결함을 만드는 함정이다.
+
+    직접 해석하는 그래프의 바인딩은 레지스트리 폴백보다 우선한다.
+    정본 용어 namespace와 다른 값을 사용해 두 경로를 구분한다.
     """
-    iof = "https://spec.industrialontologies.org/ontology/core/Core/"
+    iof = _IOF_CORE_ONTOLOGY_IRI
     g = Graph()
     g.parse(data=_MIN_TTL + f"@prefix iof-core: <{iof}> .\n", format="turtle")
     ns = mt._GraphAwareNamespace(STEEL, g)
@@ -103,14 +108,18 @@ def test_dsl_applier_creates_no_phantom_iris():
     assert (inv, RDFS.domain, URIRef(STEEL + "Plant")) in g
 
 
-def test_dsl_applier_preserves_iof_mapping():
+@pytest.mark.parametrize(
+    "declared_iof", [IOF_CORE, _IOF_CORE_ONTOLOGY_IRI], ids=["term", "ontology"],
+)
+def test_dsl_applier_preserves_iof_mapping(declared_iof):
     """IOF subClassOf 지시가 **IOF 네임스페이스** 로 적용돼야 한다.
 
     프롬프트가 IOF 매핑을 요구하는데, prefix 를 도메인 NS 에 흡수하면 상위 클래스가
     존재하지 않는 도메인 클래스가 되어 매핑이 사라진다.
     """
-    iof = "https://spec.industrialontologies.org/ontology/core/Core/"
-    base = _MIN_TTL + f"@prefix iof-core: <{iof}> .\n"
+    # 용어 namespace는 IOF_CORE이고, /core/Core/는 owl:imports 대상이다.
+    iof = IOF_CORE
+    base = _MIN_TTL + f"@prefix iof-core: <{declared_iof}> .\n"
     out = mt._apply_high_level_instructions(
         base, [{"action": "add_subclass", "child": "Equipment",
                 "parent": "iof-core:MaterialArtifact"}],
@@ -119,7 +128,68 @@ def test_dsl_applier_preserves_iof_mapping():
     g = Graph()
     g.parse(data=ttl, format="turtle")
     parents = {str(p) for p in g.objects(URIRef(STEEL + "Equipment"), RDFS.subClassOf)}
-    assert iof + "MaterialArtifact" in parents, f"IOF 매핑 소실: {parents}"
+    assert parents == {iof + "MaterialArtifact"}, f"IOF 매핑 소실: {parents}"
+
+
+@pytest.mark.parametrize("action", ["add_subclass", "add_triple"])
+@pytest.mark.parametrize("reference_kind", ["prefixed", "full_iri"])
+def test_dsl_preserves_custom_foreign_namespace(action, reference_kind):
+    """레지스트리에 없는 외부 namespace도 선언된 IRI로 연결한다."""
+    foreign = "https://example.org/catalog/"
+    parent = (
+        "catalog:MaterialArtifact" if reference_kind == "prefixed"
+        else foreign + "MaterialArtifact"
+    )
+    base = (
+        _MIN_TTL + f"@prefix catalog: <{foreign}> .\n"
+        "catalog:MaterialArtifact a owl:Class .\n"
+        "steel:MaterialArtifact a owl:Class .\n"
+    )
+    if action == "add_subclass":
+        fix = {"action": action, "child": "Equipment", "parent": parent}
+    else:
+        fix = {
+            "action": action, "subject": "steel:Equipment",
+            "predicate": "rdfs:subClassOf", "object": parent,
+        }
+    ttl = mt._apply_high_level_instructions(base, [fix])
+    graph = Graph().parse(data=ttl, format="turtle")
+    parents = set(graph.objects(URIRef(STEEL + "Equipment"), RDFS.subClassOf))
+
+    assert parents == {URIRef(foreign + "MaterialArtifact")}
+    assert (URIRef(STEEL + "MaterialArtifact"), RDF.type, OWL.Class) in graph
+    assert (URIRef(foreign + "MaterialArtifact"), RDF.type, OWL.Class) in graph
+    assert URIRef(STEEL + "catalog:MaterialArtifact") not in set(graph.all_nodes())
+
+
+@pytest.mark.parametrize("action", ["add_subclass", "add_triple"])
+def test_dsl_preserves_iof_ontology_imports(action):
+    """IOF 용어를 연결해도 imports의 온톨로지 문서 IRI는 보존한다."""
+    imports = ", ".join(f"<{iri}>" for iri in IOF_ONTOLOGY_IRIS)
+    base = (
+        _MIN_TTL + f"@prefix iof-core: <{IOF_CORE}> .\n"
+        f"steel:TestOntology a owl:Ontology ; owl:imports {imports} .\n"
+    )
+    if action == "add_subclass":
+        fix = {
+            "action": action, "child": "Equipment",
+            "parent": "iof-core:MaterialArtifact",
+        }
+    else:
+        fix = {
+            "action": action, "subject": "steel:Equipment",
+            "predicate": "rdfs:subClassOf", "object": "iof-core:MaterialArtifact",
+        }
+    ttl = mt._apply_high_level_instructions(base, [fix])
+    graph = Graph().parse(data=ttl, format="turtle")
+    imported = set(graph.objects(URIRef(STEEL + "TestOntology"), OWL.imports))
+
+    assert imported == {URIRef(iri) for iri in IOF_ONTOLOGY_IRIS}
+    assert URIRef(IOF_CORE) not in imported
+    assert (
+        URIRef(STEEL + "Equipment"), RDFS.subClassOf,
+        URIRef(IOF_CORE + "MaterialArtifact"),
+    ) in graph
 
 
 # ── 1a. add_triple/remove_triple 이 지시를 버리지 않는다 ─────────────
@@ -192,11 +262,17 @@ def test_add_triple_keeps_plain_text_as_literal():
         assert text in comments, f"{text!r} 가 리터럴로 보존되지 않았다: {comments}"
 
 
-def test_add_triple_resolves_foreign_object_to_its_namespace():
-    """object 자리의 외래 prefix 도 자기 네임스페이스로 간다."""
-    iof = "https://spec.industrialontologies.org/ontology/core/Core/"
+@pytest.mark.parametrize(
+    "declared_iof", [IOF_CORE, _IOF_CORE_ONTOLOGY_IRI], ids=["term", "ontology"],
+)
+def test_add_triple_resolves_foreign_object_to_its_namespace(declared_iof):
+    """object 자리의 IOF alias도 정본 용어 IRI로 해석된다.
+
+    DSL은 온톨로지 문서 IRI를 선언한 입력도 정본 namespace로 재바인딩한다.
+    """
+    iof = IOF_CORE
     out = mt._apply_high_level_instructions(
-        _MIN_TTL + f"@prefix iof-core: <{iof}> .\n",
+        _MIN_TTL + f"@prefix iof-core: <{declared_iof}> .\n",
         [{"action": "add_triple", "subject": "steel:Equipment",
           "predicate": "rdfs:subClassOf", "object": "iof-core:MaterialArtifact"}],
     )
@@ -204,7 +280,7 @@ def test_add_triple_resolves_foreign_object_to_its_namespace():
     g = Graph()
     g.parse(data=ttl, format="turtle")
     parents = {str(p) for p in g.objects(URIRef(STEEL + "Equipment"), RDFS.subClassOf)}
-    assert iof + "MaterialArtifact" in parents, parents
+    assert parents == {iof + "MaterialArtifact"}, parents
 
 
 # ── 1a-2. dcterms:source 값은 CSV 헤더와 비교 가능해야 한다 ──────────
@@ -272,19 +348,20 @@ def test_datatype_prefix_in_object_position_stays_a_literal():
     assert comments and all(not isinstance(c, URIRef) for c in comments), comments
 
 
-def test_known_prefix_in_object_position_still_resolves():
+@pytest.mark.parametrize("prefix", ["iof-core", "iof-maint", "iof-scro"])
+def test_known_prefix_in_object_position_still_resolves(prefix):
     """PRESERVATION: 알려진 prefix 는 여전히 IRI 로 해석된다 (가드가 과도하지 않다)."""
-    iof = "https://spec.industrialontologies.org/ontology/core/Core/"
+    iof = IOF_CORE
     out = mt._apply_high_level_instructions(
-        _MIN_TTL + f"@prefix iof-core: <{iof}> .\n",
+        _MIN_TTL + f"@prefix {prefix}: <{iof}> .\n",
         [{"action": "add_triple", "subject": "steel:Equipment",
-          "predicate": "rdfs:subClassOf", "object": "iof-core:MaterialArtifact"}],
+          "predicate": "rdfs:subClassOf", "object": f"{prefix}:MaterialArtifact"}],
     )
     ttl = out[0] if isinstance(out, tuple) else out
     g = Graph()
     g.parse(data=ttl, format="turtle")
     parents = {str(p) for p in g.objects(URIRef(STEEL + "Equipment"), RDFS.subClassOf)}
-    assert iof + "MaterialArtifact" in parents, parents
+    assert parents == {iof + "MaterialArtifact"}, parents
 
 
 # ── 1b. DSL 라벨이 prefix 를 새지 않는다 ─────────────────────────────

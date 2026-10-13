@@ -17,6 +17,9 @@
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from tools.competency_questions import (
@@ -148,8 +151,8 @@ def test_mapping_resolves_source_tables_to_domain_classes():
 def test_real_mapping_file_loads_and_resolves():
     """실제 ``rules/domain/table_class_mapping.json`` 이 로드되고 값을 해석한다.
 
-    이름은 도메인 종속이라 검사하지 않고 **구조** 만 본다 — 매핑이 비어 있지
-    않고, 등록된 테이블은 밑줄 제거 폴백이 아닌 실제 클래스명으로 해석되는지.
+    번들 매핑의 로드와 선언값 일치를 확인한다. 폴백과의 차이는 아래 독립 파일
+    fixture가 검증하므로 번들 도메인의 이름 형태 때문에 건너뛰지 않는다.
     """
     mapping = _load_table_class_map()
     assert mapping, "table_class_mapping.json 이 비어 있다"
@@ -158,16 +161,35 @@ def test_real_mapping_file_loads_and_resolves():
     for table, expected in mapping.items():
         assert _resolve_domain_to_class(table, mapping) == expected
 
-    # 폴백과 매핑을 구분하려면 "밑줄 제거형 != 클래스명" 인 항목이 필요하다.
-    # 그런 항목이 없는 도메인(둘이 우연히 같은 매핑만 존재)에서는 구분 불가이므로 skip.
-    distinguishable = [
-        (t, c) for t, c in mapping.items()
-        if c.split(":")[-1] != t.replace("_", "")
-    ]
-    if not distinguishable:
-        pytest.skip("이 도메인 매핑은 폴백 결과와 구분되지 않는다 (밑줄 제거형 == 클래스명)")
-    table, expected = distinguishable[0]
-    assert _resolve_domain_to_class(table, mapping) != table.replace("_", "")
+
+def test_mapping_file_resolves_noncanonical_aliases(tmp_path, monkeypatch):
+    """실제 파일 로더부터 CQ 해석기까지 별칭이 전달돼야 한다."""
+    from domain import table_mapping
+    from domain.rules_paths import rules_path
+
+    rules_root = tmp_path / "rules"
+    mapping_path = Path(rules_path("table_class_mapping.json", base=str(rules_root)))
+    mapping_path.parent.mkdir(parents=True)
+    mapping_path.write_text(json.dumps({
+        "table_class_mapping": {
+            "SOURCE_TABLE_007": "fixture:ProcessResultD",
+            "SOURCE_TABLE_008": {"class": "fixture:ProcessStepD"},
+            "SOURCE_TABLE_001": "Order",
+        },
+    }), encoding="utf-8")
+    monkeypatch.setattr(table_mapping, "RULES_ROOT", str(rules_root))
+    monkeypatch.setattr(table_mapping, "_CACHE", {})
+
+    mapping = _load_table_class_map()
+
+    assert mapping == {
+        "SOURCE_TABLE_007": "ProcessResultD",
+        "SOURCE_TABLE_008": "ProcessStepD",
+        "SOURCE_TABLE_001": "Order",
+    }
+    assert _resolve_domain_to_class("SOURCE_TABLE_007", mapping) == "ProcessResultD"
+    assert _resolve_domain_to_class("SOURCE_TABLE_008", mapping) == "ProcessStepD"
+    assert _resolve_domain_to_class("SOURCE_TABLE_001", mapping) == "Order"
 
 
 def test_unknown_table_falls_back_to_underscore_strip():

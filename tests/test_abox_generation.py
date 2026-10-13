@@ -1,5 +1,6 @@
 """tests for tools/abox_generation.py — FK 매칭, PK 감지, 클래스 존재 확인, Loss Manifest."""
 
+import pytest
 
 from tools.abox_generation import (
     _build_loss_manifest,
@@ -54,6 +55,14 @@ class TestFkColumnToClass:
 
 
 class TestClassExistsInTbox:
+    @pytest.fixture(autouse=True)
+    def _local_tbox(self, sample_tbox_file, monkeypatch):
+        import tools.abox_generation as abox
+
+        monkeypatch.setattr(abox, "TBOX_PATH", str(sample_tbox_file))
+        monkeypatch.setattr(abox, "_tbox_classes_cache", None)
+        monkeypatch.setattr(abox, "_tbox_classes_mtime", 0.0)
+
     def test_known_class(self):
         assert _class_exists_in_tbox("EquipmentMaster") is True
 

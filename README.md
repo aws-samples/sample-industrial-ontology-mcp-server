@@ -205,6 +205,17 @@ date.
 The repository contains tests, but it does not publish a hosted CI workflow.
 Maintainers run the documented checks explicitly before a release.
 
+Install development dependencies with `python -m pip install -r requirements-dev.txt`.
+The source compatibility test compiles the project with an actual Python 3.11
+interpreter. On Python 3.11 it uses the active interpreter. When running pytest
+on a newer version, make `python3.11` available on `PATH` or set `PYTHON311` to its
+executable. This compiler check needs only the standard library; it fails
+explicitly if the required interpreter is unavailable.
+
+```bash
+PYTHON311=/absolute/path/to/python3.11 python -m pytest -q --no-header -rfE
+```
+
 ## Cleanup
 
 Remove generated outputs and deactivate the local environment:

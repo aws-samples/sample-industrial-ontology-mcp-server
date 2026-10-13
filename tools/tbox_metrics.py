@@ -55,13 +55,34 @@ def smooth_score(
     return round(max(max_points * max(1 - distance * falloff, 0), 0), 1)
 
 
-def analyze_tbox() -> str:
-    """S3에서 현재 T-Box를 읽어 클래스, ObjectProperty, DatatypeProperty를 분석한다."""
-    from tools.local_artifacts import read_tbox
+def _read_tbox_graph() -> Graph | str:
+    """현재 T-Box를 파싱하거나 원인을 보존한 오류 JSON을 반환한다."""
+    from tools import local_artifacts
 
-    ttl = read_tbox()
+    ttl = local_artifacts.read_tbox()
+    try:
+        payload = json.loads(ttl)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict) and payload.get("success") is False:
+        return ttl
+
     g = _new_graph()
-    g.parse(data=ttl, format="turtle")
+    try:
+        g.parse(data=ttl, format="turtle")
+    except Exception as exc:
+        return error_response(
+            f"T-Box TTL 파싱 실패 ({local_artifacts.TBOX_PATH}): {exc}",
+            logger=logger,
+        )
+    return g
+
+
+def analyze_tbox() -> str:
+    """로컬 T-Box를 읽어 클래스, ObjectProperty, DatatypeProperty를 분석한다."""
+    g = _read_tbox_graph()
+    if isinstance(g, str):
+        return g
 
     steel_ns = DOMAIN_NS
 
@@ -123,11 +144,9 @@ def measure_tbox_metrics() -> str:
     """
     from collections import defaultdict
 
-    from tools.local_artifacts import read_tbox
-
-    ttl = read_tbox()
-    g = _new_graph()
-    g.parse(data=ttl, format="turtle")
+    g = _read_tbox_graph()
+    if isinstance(g, str):
+        return g
 
     steel_ns = DOMAIN_NS
 
