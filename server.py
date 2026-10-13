@@ -72,6 +72,7 @@ def _install_death_diagnostics() -> None:
 
 _LOG_FMT = "%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 _FILE_HANDLER_MARKER = "_ontology_agent_file_handler"
+_CONSOLE_FORMATTER_MARKER = "_ontology_agent_console_formatter"
 
 
 def _configure_logging() -> None:
@@ -79,28 +80,68 @@ def _configure_logging() -> None:
 
     - **stdio transport 안전성**: stdout 은 MCP JSON-RPC 에 독점되므로 절대 건드리지
       않고, stderr 기반 로깅 + 선택적 FileHandler 만 사용.
-    - **멱등성 (동작 보장)**: FastMCP 가 import 시점에 이미 StreamHandler 를
-      설치한다. 따라서 "핸들러 있으면 return" 이 아니라 **파일 핸들러 부재 시에만
-      추가**하는 방식이 맞다. 과거엔 early return 때문에 파일 로깅이 조용히
-      비활성화됐었음.
+    - LOG_FORMAT=json이면 기존 StructuredLogFormatter를 stderr와 서버 파일에
+      적용한다. 그 외에는 기존 텍스트 포맷을 유지한다.
+    - FastMCP 생성자의 basicConfig는 핸들러가 있으면 생략된다. 파일 핸들러보다
+      먼저 콘솔 출력을 보장하고, 반복 설정 시 각 핸들러를 재사용한다.
     - 파일 로깅: 환경변수 ONTOLOGY_SERVER_LOG_FILE 로 경로 지정. 기본값은
       /tmp/ontology-agent-server.log (빈 문자열 → 비활성).
     """
     root = logging.getLogger()
+    json_mode = os.getenv("LOG_FORMAT", "").lower() == "json"
+    if json_mode:
+        from tools.common import StructuredLogFormatter
+
+        formatter = StructuredLogFormatter()
+    else:
+        formatter = logging.Formatter(_LOG_FMT)
+
     # 기본 레벨이 WARNING 이면 INFO 로 끌어올림 (basicConfig 를 다시 부를 필요 없이).
     if root.level == logging.NOTSET or root.level > logging.INFO:
         root.setLevel(logging.INFO)
-    # 기존 StreamHandler 에 포맷터가 없으면 우리 포맷을 씌운다.
-    for h in root.handlers:
-        if (
-            isinstance(h, logging.StreamHandler)
-            and not isinstance(h, logging.FileHandler)
-            and h.formatter is None
-        ):
-            h.setFormatter(logging.Formatter(_LOG_FMT))
+
+    # FastMCP가 먼저 생성된 경우 RichHandler가 있을 수 있다. JSON에 Rich 장식을
+    # 섞지 않도록 콘솔만 표준 핸들러로 바꾸며 외부 FileHandler는 그대로 둔다.
+    rich_types = ()
+    with contextlib.suppress(ImportError):
+        from rich.logging import RichHandler
+
+        rich_types = (RichHandler,)
+    console_handlers = []
+    for h in list(root.handlers):
+        if isinstance(h, logging.FileHandler):
+            continue
+        if isinstance(h, rich_types):
+            if json_mode:
+                plain = logging.StreamHandler(sys.stderr)
+                plain.setLevel(h.level)
+                plain.filters[:] = h.filters
+                root.removeHandler(h)
+                root.addHandler(plain)
+                h = plain
+            console_handlers.append(h)
+        elif isinstance(h, logging.StreamHandler):
+            console_handlers.append(h)
+    if not console_handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        root.addHandler(handler)
+        console_handlers.append(handler)
+    for h in console_handlers:
+        if json_mode:
+            # MCP stdout은 프로토콜 전용으로 보존한다.
+            h.setStream(sys.stderr)
+        if json_mode or h.formatter is None or getattr(h, _CONSOLE_FORMATTER_MARKER, False):
+            h.setFormatter(formatter)
+            # 우리가 설정한 포맷은 다음 명시적 설정에서도 파일과 함께 갱신한다.
+            setattr(h, _CONSOLE_FORMATTER_MARKER, True)
 
     # 파일 핸들러: 중복 설치 방지 위해 marker attribute 로 식별.
-    if any(getattr(h, _FILE_HANDLER_MARKER, False) for h in root.handlers):
+    file_handlers = [
+        h for h in root.handlers if getattr(h, _FILE_HANDLER_MARKER, False)
+    ]
+    if file_handlers:
+        for h in file_handlers:
+            h.setFormatter(formatter)
         return
     configured_log_path = os.getenv("ONTOLOGY_SERVER_LOG_FILE")
     if configured_log_path is not None and not configured_log_path.strip():
@@ -126,7 +167,7 @@ def _configure_logging() -> None:
 
         fh = _AutoFlushFileHandler(log_path, encoding="utf-8")
         fh.setLevel(logging.INFO)
-        fh.setFormatter(logging.Formatter(_LOG_FMT))
+        fh.setFormatter(formatter)
         setattr(fh, _FILE_HANDLER_MARKER, True)
         root.addHandler(fh)
         logging.getLogger(__name__).info(
