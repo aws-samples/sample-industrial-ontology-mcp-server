@@ -124,6 +124,65 @@ def _parse_user_cqs(raw: str) -> list[dict]:
     return lines
 
 
+def _cq_entry_error(cq: object, *, check_elements: bool = False) -> str | None:
+    """원문을 포함하지 않는 CQ 구조 오류 사유를 반환한다."""
+    if not isinstance(cq, dict):
+        return "expected an object"
+    domains = cq.get("domains")
+    if domains is not None and not isinstance(domains, list):
+        return "domains must be a list or null"
+    if check_elements and domains is not None and any(
+        not isinstance(domain, str) for domain in domains
+    ):
+        return "domains entries must be strings"
+    return None
+
+
+def _filter_valid_cq_entries(data: object) -> list[dict]:
+    """프롬프트용 저장 CQ의 구조를 검증하고 잘못된 항목만 제외한다.
+
+    사용자 입력 parser가 변환을 마친 저장 형식은 객체 배열이다. domains는
+    미지정·null·배열을 허용하고, 배열 내부 원소의 해석은 기존 소비자에 맡긴다.
+    진단에는 원본 순번과 오류 종류만 남기며 입력 객체와 문자열은 바꾸지 않는다.
+    """
+    if not isinstance(data, list):
+        logger.warning("CQ document skipped: expected an array")
+        return []
+
+    valid = []
+    for index, cq in enumerate(data, 1):
+        reason = _cq_entry_error(cq)
+        if reason:
+            logger.warning("CQ entry %d skipped: %s", index, reason)
+            continue
+        valid.append(cq)
+    return valid
+
+
+def _prepare_cq_evaluation(data: object) -> list[tuple[dict, dict | None]]:
+    """평가용 사본과 오류를 원본 순서대로 준비하고 분모를 보존한다.
+
+    프롬프트용 필터와 달리 항목을 제거하지 않는다. 잘못된 항목은 식별자와
+    정적 진단만 남겨 거부된 값을 질의·피드백·모델 입력으로 전파하지 않는다.
+    선택 domains의 누락과 null만 빈 배열로 정규화하며 원본은 수정하지 않는다.
+    """
+    if not isinstance(data, list):
+        raise ValueError("CQ document must be an array")
+    prepared = []
+    for index, cq in enumerate(data, 1):
+        reason = _cq_entry_error(cq, check_elements=True)
+        if reason:
+            cq_id = cq.get("id") if isinstance(cq, dict) else None
+            safe_cq = {
+                "id": cq_id if isinstance(cq_id, str) else f"invalid-cq-{index}",
+                "domains": [],
+            }
+            prepared.append((safe_cq, {"source_index": index, "reason": reason}))
+        else:
+            prepared.append(({**cq, "domains": cq.get("domains") or []}, None))
+    return prepared
+
+
 def check_competency_questions_exist() -> str:
     """저장된 Competency Questions 파일이 존재하는지 + 개수를 반환한다.
 
@@ -768,6 +827,32 @@ def _resolve_domain_to_class(domain: str, table_class_map: dict[str, str]) -> st
     return domain.replace("_", "")
 
 
+def _resolve_cq_class(
+    name: str, table_class_map: dict[str, str],
+) -> tuple[str, str] | None:
+    """CQ 프롬프트용 클래스의 IRI 식별자와 표시명을 공통으로 해석한다.
+
+    원본 테이블 별칭을 먼저 적용하고 prefix·IRI는 공용 해석기에 맡긴다.
+    매핑 없는 bare 이름은 기존 밑줄 제거 폴백을 유지한다. 외래 IRI는
+    namespace를 보존해 같은 local name의 도메인 클래스와 구분한다.
+    """
+    from domain.graph_utils import resolve_entity_name
+    from domain.namespaces import DOMAIN_NS
+
+    if not isinstance(name, str) or not name.strip():
+        return None
+    mapped = table_class_map.get(name)
+    reference = mapped or name
+    if not mapped and ":" not in name:
+        reference = _resolve_domain_to_class(name, {})
+    try:
+        iri = str(resolve_entity_name(reference))
+    except ValueError:
+        return None
+    label = iri[len(DOMAIN_NS):] if iri.startswith(DOMAIN_NS) else iri
+    return (iri, label) if label else None
+
+
 def _snake_to_class_name(domain: str) -> str:
     """``snake_case`` 테이블명 → PascalCase 클래스명. 이미 PascalCase 면 그대로.
 
@@ -798,6 +883,14 @@ def _assess_cq_answerability(
          "matched_classes": [...], "missing_classes": [...],
          "matched_properties": [...], "missing_properties": [...]}
     """
+    cq, input_error = _prepare_cq_evaluation([cq])[0]
+    if input_error:
+        return {
+            "level": "unanswerable",
+            "matched_classes": [], "missing_classes": [],
+            "matched_properties": [], "missing_properties": [],
+            "input_error": input_error,
+        }
     # CQ에서 참조하는 도메인 클래스 추출 (domains 필드 기반).
     # domains 는 원본 테이블명일 수 있어 table_class_mapping 을 먼저 경유한다.
     if table_class_map is None:
@@ -926,8 +1019,17 @@ def _check_tbox_phase(
     import itertools
 
     results = []
-    for cq in cqs:
+    for cq, input_error in _prepare_cq_evaluation(cqs):
         cq_id = cq.get("id", "unknown")
+        if input_error:
+            results.append({
+                "id": cq_id, "status": "gap", "input_error": input_error,
+                "missing_classes": [], "coverage": 0.0, "class_coverage": 0.0,
+                "path_check": "invalid_input",
+                "pairs_total": 0, "pairs_connected": 0, "path_coverage": None,
+                "unconnected_pairs": [],
+            })
+            continue
         domains = cq.get("domains", [])
         if not domains:
             results.append({
@@ -1025,8 +1127,14 @@ def _check_abox_phase(
     per_class = abox_stats.get("per_class", {})
     table_class_map = _load_table_class_map()
     results = []
-    for cq in cqs:
+    for cq, input_error in _prepare_cq_evaluation(cqs):
         cq_id = cq.get("id", "unknown")
+        if input_error:
+            results.append({
+                "id": cq_id, "status": "gap", "input_error": input_error,
+                "zero_instance_classes": [],
+            })
+            continue
         domains = cq.get("domains", [])
         zero_classes = []
         for d in domains:
@@ -1107,8 +1215,15 @@ def _check_inferred_phase(
     table_class_map = _load_table_class_map()
     anc_cache: dict[str, set[str]] = {}
     results = []
-    for cq in cqs:
+    for cq, input_error in _prepare_cq_evaluation(cqs):
         cq_id = cq.get("id", "unknown")
+        if input_error:
+            results.append({
+                "id": cq_id, "status": "gap", "input_error": input_error,
+                "connected_pairs": 0, "total_pairs": 0,
+                "path_check": "invalid_input",
+            })
+            continue
         domains = cq.get("domains", [])
         cls_names = [
             _resolve_domain_to_class(d, table_class_map) for d in domains
@@ -1161,7 +1276,7 @@ def check_cq_coverage(phase: str = "tbox") -> str:
 
         with open(_CQ_PATH, encoding="utf-8") as f:
             cqs = json.load(f)
-        if not cqs:
+        if not _prepare_cq_evaluation(cqs):
             return error_response("CQ 파일이 비어있습니다.", logger=logger)
 
         if phase == "tbox":
@@ -1305,7 +1420,8 @@ def validate_competency_questions(graph_source: str = "merge") -> str:
             )
         with open(_CQ_PATH, encoding="utf-8") as f:
             cqs = json.load(f)
-        if not cqs:
+        prepared = _prepare_cq_evaluation(cqs)
+        if not prepared:
             return error_response("CQ 파일이 비어있습니다.", logger=logger)
 
         # 시맨틱 딕셔너리에서 OP 로드
@@ -1340,9 +1456,28 @@ def validate_competency_questions(graph_source: str = "merge") -> str:
         answerability_per_cq: list[dict] = []
         cq_type_counter: Counter = Counter()
 
-        for cq in cqs:
+        for cq, input_error in prepared:
             cq_id = cq.get("id", "unknown")
             question = cq.get("question_ko", cq.get("question_en", ""))
+
+            if input_error:
+                not_answerable += 1
+                results.append({
+                    "id": cq_id, "question": "", "difficulty": "", "domains": [],
+                    "status": "NOT_ANSWERABLE", "input_error": input_error,
+                    "checks_total": 1, "checks_passed": 0,
+                    "failed_checks": [{
+                        "check": "CQ 입력 형식", "passed": False,
+                        "error": input_error["reason"],
+                    }],
+                    "reason": f"CQ 입력 오류: {input_error['reason']}",
+                })
+                answerability_per_cq.append({
+                    "id": cq_id, "cq_type": None,
+                    "answerability": "unanswerable", "input_error": input_error,
+                    "matched_classes": [], "missing_classes": [],
+                })
+                continue
 
             queries = _build_connectivity_queries(cq, obj_props, sem_dict, tbox=tbox_graph)
 
@@ -1434,7 +1569,9 @@ def validate_competency_questions(graph_source: str = "merge") -> str:
 
         # CQ 커버리지: CQ가 테스트하는 클래스 vs 전체 클래스
         cq_classes = set()
-        for cq in cqs:
+        for cq, input_error in prepared:
+            if input_error:
+                continue
             for d in cq.get("domains", []):
                 cq_classes.add(d.replace("_", ""))
         all_classes = set(sem_dict.get("classes", {}).keys())

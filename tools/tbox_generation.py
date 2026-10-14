@@ -562,17 +562,24 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
     근거 없는 선언이 생기고, 그것이 이 리포가 반복 겪은 "유령 OP" 의 생성 경로다.
     청크가 실제로 만드는 클래스와 관련된 CQ 만 준다.
 
-    매칭 실패 시(``domains`` 가 비었거나 클래스명이 안 맞음) **그 CQ 를 포함한다** —
-    판정 불가를 배제로 읽으면 요구사항이 조용히 사라진다.
+    CQ의 원본 테이블명은 공용 도메인 해석기로 클래스명으로 바꾼 뒤 비교한다.
+    청크의 클래스 매핑을 모르면 모든 CQ를, ``domains`` 가 비면 해당 CQ를 포함한다.
+    청크 클래스와 일치하는 도메인이 없는 CQ는 제외한다.
     """
-    def _norm(name: str) -> str:
-        return str(name).split(":")[-1].split("#")[-1].lower().replace("_", "")
+    from domain.namespaces import DOMAIN_NS
+    from tools.competency_questions import _resolve_cq_class
+
+    def _norm(iri: str) -> str:
+        if iri.startswith(DOMAIN_NS):
+            return DOMAIN_NS + iri[len(DOMAIN_NS):].lower().replace("_", "")
+        return iri
 
     chunk_classes = {
-        _norm(table_class_map.get(t["name"], ""))
+        _norm(resolved[0])
         for t in chunk_tables
+        if table_class_map.get(t["name"])
+        and (resolved := _resolve_cq_class(t["name"], table_class_map)) is not None
     }
-    chunk_classes.discard("")
     if not chunk_classes:
         return list(cqs)          # 매핑을 모르면 전부 준다 (보수적)
 
@@ -582,7 +589,11 @@ def _cqs_touching_chunk(cqs: list, chunk_tables: list,
         if not domains:
             picked.append(cq)     # 판정 근거 없음 → 포함
             continue
-        if any(_norm(d) in chunk_classes for d in domains):
+        if any(
+            (resolved := _resolve_cq_class(d, table_class_map)) is not None
+            and _norm(resolved[0]) in chunk_classes
+            for d in domains
+        ):
             picked.append(cq)
     return picked
 
@@ -690,15 +701,29 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
         if os.path.exists(cq_path):
             with open(cq_path, encoding="utf-8") as cf:
                 all_cqs = json.load(cf)
+            from tools.competency_questions import _filter_valid_cq_entries
+
+            # 원본 첫 15개 범위를 유지한 채 잘못된 항목만 제외한다.
+            candidates = _filter_valid_cq_entries(
+                all_cqs[:15] if isinstance(all_cqs, list) else all_cqs,
+            )
             cqs = _cqs_touching_chunk(
-                all_cqs[:15] if isinstance(all_cqs, list) else [],
-                chunk_tables, table_class_map,
+                candidates, chunk_tables, table_class_map,
             )
             if cqs:
                 cq_lines = []
                 for i, cq in enumerate(cqs):
                     q = cq.get("question_ko") or cq.get("question_en", "")
-                    domains = ", ".join(cq.get("domains", [])[:3])
+                    raw_domains = cq.get("domains") or []
+                    # 선택·경로 분석이 무시한 비문자열 때문에 CQ 표시 전체가 중단되지 않게 한다.
+                    display_domains = [domain for domain in raw_domains if isinstance(domain, str)]
+                    invalid_domain_count = len(raw_domains) - len(display_domains)
+                    if invalid_domain_count:
+                        logger.warning(
+                            "CQ%d domains: ignored %d non-string entries",
+                            i + 1, invalid_domain_count,
+                        )
+                    domains = ", ".join(display_domains[:3])
                     cq_lines.append(f"- **CQ{i+1}**: {q}\n  - 관련 도메인: {domains}")
                 cq_context = f"""
 
@@ -721,7 +746,7 @@ def _build_chunk_prompt(chunk_idx, chunk_tables, total_chunks,
                 # 문제 해결 (2026-04-18 회귀 분석 결과).
                 try:
                     from tools.multi_agent_tbox import _analyze_cq_required_ops
-                    cq_op_block = _analyze_cq_required_ops(cqs)
+                    cq_op_block = _analyze_cq_required_ops(cqs, table_class_map=table_class_map)
                     if cq_op_block:
                         cq_context += "\n\n" + cq_op_block + (
                             "\n\n**중요**: 위 OP 경로를 이번 청크에서 반드시 모두 선언하세요. "

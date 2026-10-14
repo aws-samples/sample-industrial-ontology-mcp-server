@@ -256,19 +256,30 @@ def _parse_ttl_readonly(ttl: str) -> Graph:
     return g
 
 
-def _load_competency_questions() -> list[dict]:
-    """Competency Questions를 로드한다."""
+def _load_competency_questions(*, include_invalid: bool = False) -> object:
+    """기본은 프롬프트용 필터, 평가용 요청은 원본 스냅샷을 반환한다."""
     if not os.path.exists(_CQ_PATH):
         return []
+    from tools.competency_questions import _filter_valid_cq_entries
+
     with open(_CQ_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    return data if include_invalid else _filter_valid_cq_entries(data)
+
+
+_CQ_INPUT_ERROR_PREFIX = "CQ 입력 오류:"
 
 
 # ── [개선 1] CQ 기반 필수 OP 경로 사전 분석 ──────────────
 
 
-def _analyze_cq_required_ops(cqs: list[dict]) -> str:
+def _analyze_cq_required_ops(
+    cqs: list[dict], table_class_map: dict[str, str] | None = None,
+) -> str:
     """CQ 도메인 클래스 간 필수 OP 경로를 FK 패턴 기반으로 분석한다.
+
+    전달된 매핑은 빈 dict도 그대로 사용한다. 매핑을 생략한 호출만 rules
+    파일을 읽으며, 청크에서 호출할 때는 질문 선택과 같은 매핑을 전달한다.
 
     Returns:
         Architect 프롬프트에 삽입할 '필수 ObjectProperty 목록' 문자열.
@@ -290,13 +301,19 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
     from config import SOURCE_RAWDATA_DIR
     from tools.competency_questions import (
         _load_table_class_map,
-        _resolve_domain_to_class,
+        _resolve_cq_class,
     )
-    table_class_map = _load_table_class_map()
-    table_fks: dict[str, list[tuple[str, str]]] = {}  # TableClass → [(fk_col, TargetClass)]
+    if table_class_map is None:
+        table_class_map = _load_table_class_map()
+    table_fks: dict[str, list[tuple[str, str]]] = {}  # Class IRI → [(fk_col, Target IRI)]
+    class_labels: dict[str, str] = {}
     for csv_file in sorted(glob.glob(os.path.join(SOURCE_RAWDATA_DIR, "*.csv"))):
         table_name = os.path.splitext(os.path.basename(csv_file))[0]
-        cls_name = _resolve_domain_to_class(table_name, table_class_map)
+        resolved_class = _resolve_cq_class(table_name, table_class_map)
+        if resolved_class is None:
+            continue
+        cls_iri, cls_name = resolved_class
+        class_labels[cls_iri] = cls_name
         with open(csv_file, encoding="utf-8") as cf:
             reader = csv_mod.reader(cf)
             headers = next(reader, [])
@@ -304,19 +321,31 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
         for col in headers:
             col_lower = col.lower().replace("_", "")
             target = fk_map.get(col_lower)
-            if target and target != cls_name:
-                fks.append((col, target))
+            # FK 패턴의 target은 테이블 별칭이 아닌 클래스 참조다.
+            resolved_target = (
+                _resolve_cq_class(target, {target: target})
+                if isinstance(target, str) and target else None
+            )
+            if resolved_target is not None and resolved_target[0] != cls_iri:
+                target_iri, target_label = resolved_target
+                class_labels.setdefault(target_iri, target_label)
+                fks.append((col, target_iri))
         if fks:
-            table_fks[cls_name] = fks
+            table_fks.setdefault(cls_iri, []).extend(fks)
 
     # CQ 도메인 간 필요한 연결 경로 분석
     lines = ["## 필수 ObjectProperty (CQ 답변을 위해 반드시 포함)", ""]
     for cq in cqs[:10]:
         cq_id = cq.get("id", "?")
-        domains = [
-            _resolve_domain_to_class(d, table_class_map)
-            for d in cq.get("domains", [])
-        ]
+        domains = []
+        for domain in cq.get("domains") or []:
+            resolved = _resolve_cq_class(domain, table_class_map)
+            if resolved is None:
+                continue
+            iri, label = resolved
+            class_labels.setdefault(iri, label)
+            if iri not in domains:
+                domains.append(iri)
         if len(domains) < 2:
             continue
         # 도메인 클래스 간 FK 경로 탐색
@@ -329,13 +358,17 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
                     if cls == a:
                         for _, target in fks:
                             if target == b:
-                                ops_needed.append(f"  - {a} → {b} (FK 직접 연결)")
+                                ops_needed.append(
+                                    f"  - {class_labels[a]} → {class_labels[b]} (FK 직접 연결)",
+                                )
                                 direct = True
                                 break
                     if cls == b and not direct:
                         for _, target in fks:
                             if target == a:
-                                ops_needed.append(f"  - {b} → {a} (FK 직접 연결)")
+                                ops_needed.append(
+                                    f"  - {class_labels[b]} → {class_labels[a]} (FK 직접 연결)",
+                                )
                                 direct = True
                                 break
                 if not direct:
@@ -345,9 +378,11 @@ def _analyze_cq_required_ops(cqs: list[dict]) -> str:
                     shared = a_targets & b_targets
                     if shared:
                         hub = sorted(shared)[0]
-                        ops_needed.append(f"  - {a} → {hub} ← {b} (공유 FK 허브)")
+                        ops_needed.append(
+                            f"  - {class_labels[a]} → {class_labels[hub]} ← {class_labels[b]} (공유 FK 허브)",
+                        )
         if ops_needed:
-            lines.append(f"**{cq_id}** (도메인: {', '.join(domains)}):")
+            lines.append(f"**{cq_id}** (도메인: {', '.join(class_labels[d] for d in domains)}):")
             lines.extend(ops_needed)
             lines.append("")
 
@@ -1995,14 +2030,29 @@ def _jury_decide(
         )
 
     cq_block = ""
-    if cq_runtime and cq_runtime.get("unanswerable"):
-        unansw = cq_runtime["unanswerable"][:10]
+    if cq_runtime:
+        # 입력 오류는 OP를 추가해도 해결되지 않는다. 같은 CQ id의 정상 경로 갭은
+        # 계속 수정 대상이어야 하므로 id가 아닌 정적 오류 사유로 구분한다.
+        unansw = [
+            (cid, reason) for cid, reason in cq_runtime.get("unanswerable", [])
+            if not reason.startswith(_CQ_INPUT_ERROR_PREFIX)
+        ][:10]
+    else:
+        unansw = []
+    if unansw:
         cq_block = (
             "\n## ⚠️ CQ Reachability 미달\n"
             f"CQ 커버리지: {cq_runtime.get('coverage_pct', 0)}%\n"
             "답변 불가 CQ (정적 그래프 분석):\n"
             + "\n".join(f"- {cid}: {reason}" for cid, reason in unansw)
             + "\n\n**위 CQ를 답변 가능하게 할 ObjectProperty/subClassOf를 `required_fixes`에 포함하세요.**\n"
+        )
+    if cq_runtime and cq_runtime.get("input_errors"):
+        cq_block += (
+            "\n## CQ 입력 오류\n"
+            f"입력 형식 오류 {len(cq_runtime['input_errors'])}건이 실패 분모에 포함돼 있습니다.\n"
+            "원본 CQ 입력을 정정해야 합니다. 이 오류에 대한 온톨로지 수정 DSL은 "
+            "생성하지 말고, production_ready=false로 유지하세요.\n"
         )
 
     # 정적 prefix(역할 도입부 + 판단 원칙 + 출력 형식)는 매 Jury 호출 동일하므로
@@ -2713,7 +2763,8 @@ def _build_debate_status_literal(
     """
     status_value = "consensus_reached" if consensus_reached else (
         "aborted_infra_error" if infra_abort else (
-            "debate_stopped_no_expressible_fix" if early_stop_reason
+            "debate_stopped_invalid_cq_input" if early_stop_reason == "invalid_cq_input"
+            else "debate_stopped_no_expressible_fix" if early_stop_reason
             else "debate_unresolved_veto_lock" if veto_lock_triggered
             else "debate_unresolved_max_rounds"
         )
@@ -2825,7 +2876,18 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
         {answerable: [cq_id...], unanswerable: [(cq_id, reason)...],
          coverage_pct: float}
     """
-    if not cqs:
+    from tools.competency_questions import _prepare_cq_evaluation
+
+    try:
+        prepared = _prepare_cq_evaluation(cqs)
+    except ValueError as exc:
+        return {
+            "answerable": [],
+            "unanswerable": [("ALL", f"{_CQ_INPUT_ERROR_PREFIX} {exc}")],
+            "coverage_pct": 0.0,
+            "input_errors": [{"source_index": None, "reason": str(exc)}],
+        }
+    if not prepared:
         return {"answerable": [], "unanswerable": [], "coverage_pct": 100.0}
     from rdflib import OWL as _O
     from rdflib import RDF as _R
@@ -2952,8 +3014,15 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
 
     answerable: list[str] = []
     unanswerable: list[tuple[str, str]] = []
-    for cq in cqs:
+    input_errors = []
+    for cq, input_error in prepared:
         cq_id = cq.get("id", "?")
+        if input_error:
+            input_errors.append({"cq_id": cq_id, **input_error})
+            unanswerable.append(
+                (cq_id, f"{_CQ_INPUT_ERROR_PREFIX} {input_error['reason']}"),
+            )
+            continue
         domains = [
             _resolve_domain_to_class(d, table_class_map).lower()
             for d in cq.get("domains", [])
@@ -3001,6 +3070,7 @@ def _cq_runtime_check(current_ttl: str, cqs: list[dict]) -> dict:
         "answerable": answerable,
         "unanswerable": unanswerable,
         "coverage_pct": coverage,
+        **({"input_errors": input_errors} if input_errors else {}),
     }
 
 
@@ -3050,6 +3120,33 @@ def _csv_fk_pairs() -> set[tuple[str, str]] | None:
 
 #: CQ 미답변 사유에서 클래스 쌍을 뽑는 패턴 — ``_cq_runtime_check`` 가 만든 형태.
 _CQ_GAP_PAIR_RE = re.compile(r"^\s*(\S+)\s*→\s*(\S+)\s+경로 없음")
+
+
+def _merge_cq_repair_gaps(cq_runtime: dict, sme_gaps: list) -> list:
+    """입력 오류를 제외한 runtime·SME의 미답변 근거를 함께 보존한다.
+
+    같은 id라도 사유가 다르면 별도 근거다. 직렬화 전후의 tuple/list 차이만
+    무시하고 내용이 같은 항목을 중복 제거하며, 모르는 사유도 버리지 않는다.
+    """
+    runtime_gaps = [
+        gap for gap in cq_runtime.get("unanswerable", [])
+        if not (
+            isinstance(gap, list | tuple) and len(gap) >= 2
+            and isinstance(gap[1], str)
+            and gap[1].startswith(_CQ_INPUT_ERROR_PREFIX)
+        )
+    ]
+    merged = []
+    seen = []
+    for gaps in (runtime_gaps, sme_gaps or []):
+        # 해석할 수 없는 모델 응답도 차단 근거로 남긴다.
+        items = gaps if isinstance(gaps, list | tuple) else [gaps]
+        for gap in items:
+            key = tuple(gap) if isinstance(gap, list | tuple) else gap
+            if key not in seen:
+                seen.append(key)
+                merged.append(gap)
+    return merged
 
 
 def _split_cq_gaps_by_fk_evidence(
@@ -3139,12 +3236,19 @@ def _generate_op_skeletons_from_cq_gaps(
     # (2026-07-25 실측: 테이블명 클래스 6개).
     from tools.competency_questions import (
         _load_table_class_map,
+        _prepare_cq_evaluation,
         _resolve_domain_to_class,
     )
     table_class_map = _load_table_class_map()
 
     display_by_key: dict[str, str] = {}
-    for cq in cqs:
+    try:
+        prepared = _prepare_cq_evaluation(cqs)
+    except ValueError:
+        return []
+    for cq, input_error in prepared:
+        if input_error:
+            continue
         for raw in cq.get("domains", []):
             if not isinstance(raw, str):
                 continue
@@ -3291,7 +3395,7 @@ def _build_initial_draft(tables: str,
 
     반환 state 는 _run_one_debate_round 가 변경 가능한 가변 컨테이너로 사용한다.
     """
-    from tools.competency_questions import _load_csv_summary
+    from tools.competency_questions import _filter_valid_cq_entries, _load_csv_summary
     from tools.tbox_generation import (
         generate_tbox,
         set_chunk_progress_hook,
@@ -3357,7 +3461,8 @@ def _build_initial_draft(tables: str,
     }
 
     csv_summary = _load_csv_summary()
-    cqs = _load_competency_questions()
+    cq_evaluation_cqs = _load_competency_questions(include_invalid=True)
+    cqs = _filter_valid_cq_entries(cq_evaluation_cqs)
 
     gate_pass, gate_msg = _check_structural_gate(current_ttl)
     if not gate_pass:
@@ -3417,6 +3522,9 @@ def _build_initial_draft(tables: str,
         "architect_stats": architect_stats,
         "csv_summary": csv_summary,
         "cqs": cqs,
+        # 모델에는 cqs만 전달한다. 평가는 오류 항목을 포함한 원본 분모를 쓴다.
+        "cq_evaluation_cqs": cq_evaluation_cqs,
+        "cq_input_errors": [],
         "extra_context": extra_context,
         "debate_log": [],
         "consensus_reached": False,
@@ -3433,8 +3541,7 @@ def _build_initial_draft(tables: str,
         # 인프라 장애로 토론이 중단된 경우 {phase, round, error}. 저장 시
         # debate_status=aborted_infra_error 로 산출물에 각인된다.
         "infra_abort": None,
-        # 조기 종료 사유 (``_should_stop_no_expressible``). 저장 시
-        # debate_status=debate_stopped_no_expressible_fix 로 각인된다.
+        # 표현 불가 또는 CQ 입력 정정 때문에 조기 종료했는지 구분한다.
         "early_stop_reason": None,
         # 예정 라운드 수 — 조기 종료로 몇 라운드를 아꼈는지 계산에 쓴다.
         # ``_finalize_and_save`` 스코프에 max_rounds 가 없으므로 state 에 둔다.
@@ -3645,6 +3752,39 @@ def _should_stop_no_expressible(
         "expressibility": expressibility,
     }
     state["early_stop_reason"] = "no_expressible_blocking_fix"
+    return True
+
+
+def _should_stop_for_cq_input(
+    state: dict, validator: dict, sme: dict, cq_fixable: list,
+    round_num: int, round_log: dict,
+) -> bool:
+    """CQ 입력 오류만 차단 요인으로 남으면 추가 모델 호출 없이 종료한다.
+
+    입력 형식 오류는 반복 토론으로 고칠 수 없으므로 표현가능성 판정의 라운드
+    하한·S2_EARLY_STOP 설정과 별개다. 불완전한 리뷰나 다른 차단 요인은 유지한다.
+    """
+    input_errors = state.get("cq_input_errors") or []
+    if (not input_errors or cq_fixable or state.get("veto_lock_triggered")
+            or state.get("infra_abort")):
+        return False
+    for review in (validator, sme):
+        if (review.get("parse_error")
+                or not isinstance(review.get("approved"), bool)
+                or not isinstance(review.get("issues"), list)):
+            return False
+        if not _effective_approval(review)[0] or _blocking_issues(review):
+            return False
+
+    detail = (
+        f"CQ 입력 오류 {len(input_errors)}건을 정정해야 합니다. "
+        "추가 온톨로지 수정 없이 종료합니다. CQ 입력을 수정한 뒤 S2를 다시 실행하세요."
+    )
+    logger.warning("[CQ 입력 보완] Round %d: %s", round_num + 1, detail)
+    state["early_stop_reason"] = "invalid_cq_input"
+    state["consensus_reached"] = False
+    round_log["consensus"] = False
+    round_log["early_stop"] = {"reason": "invalid_cq_input", "detail": detail}
     return True
 
 
@@ -4759,23 +4899,34 @@ def _run_one_debate_round(
         len(sme_result.get("issues", [])), s_approved,
     )
 
-    cq_runtime = _cq_runtime_check(current_ttl, cqs)
+    cq_evaluation_cqs = state.get("cq_evaluation_cqs", cqs)
+    cq_runtime = _cq_runtime_check(current_ttl, cq_evaluation_cqs)
+    cq_total = len(cq_evaluation_cqs) if isinstance(cq_evaluation_cqs, list) else 0
     round_log["cq_runtime"] = {
+        "total": cq_total,
         "coverage_pct": cq_runtime["coverage_pct"],
         "unanswerable_count": len(cq_runtime["unanswerable"]),
         "unanswerable_sample": cq_runtime["unanswerable"][:3],
+        **({"input_errors": cq_runtime["input_errors"]} if cq_runtime.get("input_errors") else {}),
     }
     logger.info(
         "[Round %d] CQ 런타임: %.1f%% (%d/%d 답변 가능)",
         round_num + 1, cq_runtime["coverage_pct"],
-        len(cq_runtime["answerable"]), len(cqs) if cqs else 0,
+        len(cq_runtime["answerable"]), cq_total,
     )
 
     quality_metrics = _compute_round_quality_metrics(current_ttl, round_num)
     if quality_metrics:
         round_log["quality_metrics"] = quality_metrics
 
-    cq_ops_missing = cq_runtime["unanswerable"] or sme_result.get("unanswerable_cqs", [])
+    cq_input_errors = cq_runtime.get("input_errors") or []
+    state["cq_input_errors"] = cq_input_errors
+    if cq_input_errors:
+        round_log["cq_block_input_error"] = cq_input_errors
+        logger.warning("[CQ 입력 오류] 원본 정정 필요: %d건", len(cq_input_errors))
+    cq_ops_missing = _merge_cq_repair_gaps(
+        cq_runtime, sme_result.get("unanswerable_cqs", []),
+    )
     # 갭을 **고칠 수 있는 것** 과 **CSV 데이터 갭** 으로 나눈다. 후자는 T-Box
     # 수정으로 해소 불가능하므로 합의를 막지 않는다 — 막으면 Architect 가
     # 존재하지 않는 해법을 찾으며 라운드를 태운다(실측: 48분 중 후반 절반).
@@ -4850,6 +5001,13 @@ def _run_one_debate_round(
             expressibility["unspecified"], expressibility["executable_pct"],
         )
 
+    if _should_stop_for_cq_input(
+        state, validator_result, sme_result, cq_block_fixable, round_num, round_log,
+    ):
+        summary["break_loop"] = True
+        summary["stop_reason"] = "invalid_cq_input"
+        return summary
+
     # 조기 종료 — 남은 차단 이슈 중 **고칠 수 있는 것이 하나도 없으면** 더 도는
     # 것이 무의미하다. 8런 실측: 그런 라운드가 9개 있었고 라운드당 평균 711초를
     # 소모했다 (총 1.78시간). 자세한 근거는 _should_stop_no_expressible 참조.
@@ -4860,7 +5018,8 @@ def _run_one_debate_round(
 
     # 합의 분기 — 차단 조건은 **고칠 수 있는** 갭만 본다.
     if (v_approved and s_approved and round_num >= _MIN_DEBATE_ROUNDS
-            and not cq_block_fixable and not state["veto_lock_triggered"]):
+            and not cq_block_fixable and not cq_input_errors
+            and not state["veto_lock_triggered"]):
         logger.info(
             "[예비 합의] Round %d 두 비평가 pass. Jury 독립 심판 호출", round_num + 1,
         )
@@ -5583,6 +5742,10 @@ def _finalize_and_save(state: dict, start_monotonic: float) -> str:
     """합의 상태 annotate + TTL 저장 + 최종 통계 계산 → JSON 문자열 반환."""
     current_ttl = state["current_ttl"]
     infra_abort = state.get("infra_abort")
+    input_errors = state.get("cq_input_errors") or []
+    needs_input = bool(input_errors) or state.get("early_stop_reason") == "invalid_cq_input"
+    if needs_input:
+        state["consensus_reached"] = False
     final_ttl = _annotate_consensus_status(
         current_ttl,
         consensus_reached=state["consensus_reached"],
@@ -5647,11 +5810,17 @@ def _finalize_and_save(state: dict, start_monotonic: float) -> str:
     _record_s2_quality_history(state, statistics, duration, debate_record)
 
     return json.dumps({
-        "success": True,
+        "success": not needs_input,
         # 인프라 장애로 중단됐다면 산출물은 저장됐지만 **예정된 라운드를 다 돌지
         # 못했다**. 운영자가 clean 산출물과 구분할 수 있어야 하고, 저장 가드 판정도
         # 응답에 실려야 한다 (예전엔 state 에만 담겨 아무도 못 봤다).
-        "partial": bool(infra_abort),
+        "partial": bool(infra_abort) or needs_input,
+        **({
+            "needs_input": True,
+            "input_errors": input_errors,
+            "error": "CQ 입력 오류가 남아 있어 S2 완료로 처리할 수 없습니다.",
+            "hint": "오류 순번의 CQ 입력을 정정한 뒤 S2를 다시 실행하세요.",
+        } if needs_input else {}),
         "infra_abort": infra_abort,
         "save_guard": save_guard,
         "saved_to": TBOX_PATH,

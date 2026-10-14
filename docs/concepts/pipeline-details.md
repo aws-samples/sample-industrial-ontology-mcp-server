@@ -38,6 +38,29 @@ natural-language input, deterministic rules, CSV and model bootstrap, or skip.
 S2 and S8 return a `job_id`. Poll their status tools instead of holding one
 stdio request open. A partial S2 result is not a reviewed T-Box.
 
+### S2 competency-question input errors
+
+S2 keeps malformed CQ entries in the evaluation denominator and records them
+under `cq_block_input_error`. Ontology gaps and data gaps are classified
+separately, using both the runtime checks and the SME's reported evidence.
+Different reasons for the same CQ ID remain visible.
+
+When input errors are the only remaining blockers, S2 stops without another
+Architect revision or Jury call. Uncertain reviews, fixable ontology gaps, and
+an active veto prevent this input-only stop. This deterministic input check can
+stop the first debate round; the `S2_EARLY_STOP` switch and the minimum round
+count for expressibility-based termination do not disable it.
+
+The saved result reports `success: false`, `partial: true`, and
+`needs_input: true` whenever known CQ input errors remain, including when other
+problems have exhausted the round limit. Existing save guards still protect
+the retained draft. An input-only stop records
+`early_stop_reason=invalid_cq_input` and RDF
+`debate_status=debate_stopped_invalid_cq_input`;
+it never records consensus. Correct the identified CQ entries and rerun S2
+before proceeding. Adding ontology relationships cannot resolve an input
+format error.
+
 ## Vocabulary contract
 
 S6.5 writes structural vocabulary without A-Box statistics. S7 consumes it to
